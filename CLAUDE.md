@@ -47,6 +47,15 @@ Glass nécessite iOS 26+ et la cible est iOS 18. Utiliser `.regularMaterial`,
 ❌ Se dire « je connais SwiftUI, pas besoin du skill ».
 ✅ Skill d'abord, code ensuite. Toujours.
 
+## Langue de l'app
+
+**Toute l'UI de l'app doit être en anglais.** Tous les textes affichés à
+l'utilisateur (labels, boutons, titres, messages d'erreur, placeholders, etc.)
+sont en anglais. Aucun français dans l'UI, jamais.
+
+Ne pas confondre avec la communication avec l'utilisateur dans Claude Code,
+qui reste en français.
+
 ## Cible technique
 
 - **iOS 18 minimum** (mesh gradients, `MagnifyGesture`, `RotateGesture`,

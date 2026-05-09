@@ -5,256 +5,183 @@ struct ContentView: View {
     @State private var project = IconProject()
     private let service = OpenAIImageService()
 
-    @State private var dragOffset: CGSize = .zero
-    @GestureState private var magnify: CGFloat = 1.0
+    @State private var showingLayers = false
+    @State private var showingTools = false
+    @State private var showingInspector = false
+    @State private var pendingGeneration: GenerationSheet.Target?
+    @State private var exportedImage: UIImage?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    canvas
-                        .padding(.horizontal)
+        ZStack {
+            IconCanvasView(
+                project: project,
+                onTapLayer: handleTapLayer
+            )
 
-                    if project.background != nil || project.overlay != nil {
-                        controls
-                            .padding(.horizontal)
+            VStack {
+                topBar
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .zIndex(2)
+
+            sideButtons
+                .padding(.horizontal, 16)
+                .zIndex(2)
+
+            if showingLayers {
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.snappy) { showingLayers = false }
                     }
-
-                    promptSection(
-                        title: "Fond (gpt-image-2)",
-                        prompt: $project.backgroundPrompt,
-                        isLoading: project.isGeneratingBackground,
-                        action: generateBackground
-                    )
-
-                    promptSection(
-                        title: "Élément transparent (gpt-image-1.5)",
-                        prompt: $project.overlayPrompt,
-                        isLoading: project.isGeneratingOverlay,
-                        action: generateOverlay
-                    )
-
-                    if let error = project.lastError {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                }
-                .padding(.vertical)
+                    .transition(.opacity)
+                    .zIndex(3)
             }
-            .navigationTitle("Icon Atelier")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if let exported = renderedIcon() {
-                        ShareLink(
-                            item: Image(uiImage: exported),
-                            preview: SharePreview("Icône", image: Image(uiImage: exported))
-                        ) {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                    }
-                }
-            }
-        }
-    }
 
-    // MARK: - Canvas
-
-    private var canvas: some View {
-        GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
-            ZStack {
-                if let bg = project.background {
-                    Image(uiImage: bg)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(Color(.secondarySystemBackground))
-                        .overlay {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.tertiary)
-                        }
-                }
-
-                if let ov = project.overlay {
-                    Image(uiImage: ov)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: side * 0.7, height: side * 0.7)
-                        .scaleEffect(project.overlayScale * magnify)
-                        .opacity(project.overlayOpacity)
-                        .offset(
-                            x: project.overlayOffset.width + dragOffset.width,
-                            y: project.overlayOffset.height + dragOffset.height
-                        )
-                        .gesture(dragGesture)
-                        .gesture(magnifyGesture)
-                }
-            }
-            .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .aspectRatio(1, contentMode: .fit)
-    }
-
-    private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                dragOffset = value.translation
-            }
-            .onEnded { value in
-                project.overlayOffset.width += value.translation.width
-                project.overlayOffset.height += value.translation.height
-                dragOffset = .zero
-            }
-    }
-
-    private var magnifyGesture: some Gesture {
-        MagnifyGesture()
-            .updating($magnify) { value, state, _ in
-                state = value.magnification
-            }
-            .onEnded { value in
-                project.overlayScale *= value.magnification
-                project.overlayScale = max(0.1, min(project.overlayScale, 4.0))
-            }
-    }
-
-    // MARK: - Controls
-
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if project.overlay != nil {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Échelle")
-                        Spacer()
-                        Text(String(format: "%.2f×", project.overlayScale))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    Slider(value: $project.overlayScale, in: 0.1...4.0)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Opacité")
-                        Spacer()
-                        Text(String(format: "%.0f%%", project.overlayOpacity * 100))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    Slider(value: $project.overlayOpacity, in: 0...1)
-                }
-
-                Button("Recentrer l'élément") {
-                    project.overlayOffset = .zero
-                    project.overlayScale = 1.0
-                }
-                .font(.footnote)
-            }
-        }
-    }
-
-    // MARK: - Prompts
-
-    private func promptSection(
-        title: String,
-        prompt: Binding<String>,
-        isLoading: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            TextField("Décris l'image…", text: prompt, axis: .vertical)
-                .lineLimit(2...4)
-                .textFieldStyle(.roundedBorder)
-            Button {
-                action()
-            } label: {
+            if showingLayers {
                 HStack {
-                    if isLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Text(isLoading ? "Génération…" : "Générer")
+                    LayersPanel(
+                        project: project,
+                        onClose: {
+                            withAnimation(.snappy) { showingLayers = false }
+                        },
+                        onAddLayer: {
+                            withAnimation(.snappy) { showingLayers = false }
+                            showingTools = true
+                        }
+                    )
+                    .padding(.leading, 12)
+                    .padding(.top, 90)
+                    .padding(.bottom, 110)
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity)
+                .transition(.move(edge: .leading).combined(with: .opacity))
+                .zIndex(4)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isLoading || prompt.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(.horizontal)
-    }
-
-    // MARK: - Generation
-
-    private func generateBackground() {
-        Task {
-            project.isGeneratingBackground = true
-            project.lastError = nil
-            do {
-                project.background = try await service.generateBackground(prompt: project.backgroundPrompt)
-            } catch {
-                project.lastError = error.localizedDescription
-            }
-            project.isGeneratingBackground = false
+        .animation(.snappy, value: showingLayers)
+        .onChange(of: exportSignature) { _, _ in
+            exportedImage = renderedIcon()
         }
-    }
-
-    private func generateOverlay() {
-        Task {
-            project.isGeneratingOverlay = true
-            project.lastError = nil
-            do {
-                project.overlay = try await service.generateOverlay(prompt: project.overlayPrompt)
-            } catch {
-                project.lastError = error.localizedDescription
+        .onAppear {
+            exportedImage = renderedIcon()
+        }
+        .sheet(isPresented: $showingTools) {
+            ToolsPalette(hasBackground: project.background != nil) { tool in
+                switch tool {
+                case .generateBackground: pendingGeneration = .background
+                case .generateOverlay: pendingGeneration = .overlay
+                }
             }
-            project.isGeneratingOverlay = false
+        }
+        .sheet(item: $pendingGeneration) { target in
+            GenerationSheet(project: project, target: target, service: service)
+        }
+        .sheet(isPresented: $showingInspector) {
+            if let layer = project.selectedLayer {
+                LayerInspectorSheet(layer: layer, project: project)
+            }
         }
     }
 
-    // MARK: - Export
+    @ViewBuilder
+    private var topBar: some View {
+        HStack {
+            Spacer()
+            if let exported = exportedImage {
+                ShareLink(
+                    item: Image(uiImage: exported),
+                    preview: SharePreview("Icon", image: Image(uiImage: exported))
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.regularMaterial, in: .circle)
+                        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var sideButtons: some View {
+        HStack {
+            FloatingIconButton(systemName: "square.3.stack.3d") {
+                withAnimation(.snappy) { showingLayers.toggle() }
+            }
+            Spacer()
+            FloatingIconButton(systemName: "paintbrush.pointed.fill") {
+                showingTools = true
+            }
+        }
+    }
+
+    private func handleTapLayer(_ layer: Layer) {
+        if project.selectedLayerID == layer.id {
+            showingInspector = true
+        } else {
+            project.selectedLayerID = layer.id
+        }
+    }
+
+    private var exportSignature: Int {
+        var hasher = Hasher()
+        for layer in project.layers {
+            hasher.combine(layer.id)
+            hasher.combine(layer.image?.hash ?? 0)
+            hasher.combine(layer.scale)
+            hasher.combine(layer.rotation.radians)
+            hasher.combine(layer.offset.width)
+            hasher.combine(layer.offset.height)
+            hasher.combine(layer.opacity)
+            hasher.combine(layer.isHidden)
+        }
+        return hasher.finalize()
+    }
 
     private func renderedIcon() -> UIImage? {
-        guard project.background != nil else { return nil }
+        guard project.hasContent else { return nil }
 
         let exportSide: CGFloat = 1024
-        let canvasSide: CGFloat = 1024
 
         let view = ZStack {
-            if let bg = project.background {
-                Image(uiImage: bg)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: canvasSide, height: canvasSide)
-                    .clipped()
-            }
-            if let ov = project.overlay {
-                Image(uiImage: ov)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: canvasSide * 0.7, height: canvasSide * 0.7)
-                    .scaleEffect(project.overlayScale)
-                    .opacity(project.overlayOpacity)
-                    .offset(
-                        x: project.overlayOffset.width,
-                        y: project.overlayOffset.height
-                    )
+            ForEach(project.layers) { layer in
+                if !layer.isHidden, let image = layer.image {
+                    if layer.fillsCanvas {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: exportSide, height: exportSide)
+                            .clipped()
+                            .opacity(layer.opacity)
+                    } else {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(
+                                width: exportSide * 0.7 * layer.scale,
+                                height: exportSide * 0.7 * layer.scale
+                            )
+                            .rotationEffect(layer.rotation)
+                            .opacity(layer.opacity)
+                            .position(
+                                x: exportSide / 2 + layer.offset.width * exportSide,
+                                y: exportSide / 2 + layer.offset.height * exportSide
+                            )
+                    }
+                }
             }
         }
-        .frame(width: canvasSide, height: canvasSide)
+        .frame(width: exportSide, height: exportSide)
+        .compositingGroup()
 
         let renderer = ImageRenderer(content: view)
-        renderer.scale = exportSide / canvasSide
-        renderer.proposedSize = .init(width: canvasSide, height: canvasSide)
+        renderer.scale = 1.0
+        renderer.proposedSize = .init(width: exportSide, height: exportSide)
         return renderer.uiImage
     }
 }
