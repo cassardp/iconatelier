@@ -9,12 +9,19 @@ struct ContentView: View {
     #endif
     private let service = OpenAIImageService()
 
-    @State private var activeTool: LayerTool = .opacity
-    @State private var presentedTab: EditorTab?
-    @State private var sheetDetent: PresentationDetent = .fraction(0.5)
-    @State private var generationTarget: GenerationSheet.Target?
     @State private var exportedImage: UIImage?
     @State private var showingNewProjectConfirm = false
+    @State private var showLayersPanel = false
+    @State private var showToolsPanel = false
+
+    @State private var promptText: String = ""
+    @State private var isGenerating: Bool = false
+    @State private var generationError: String?
+    @FocusState private var promptFocused: Bool
+
+    private let layersPanelWidth: CGFloat = 96
+    private let toolsPanelWidth: CGFloat = 60
+    private let gutter: CGFloat = 16
 
     var body: some View {
         NavigationStack {
@@ -55,59 +62,40 @@ struct ContentView: View {
                         }
                     }
 
-                    ToolbarItemGroup(placement: .bottomBar) {
+                    ToolbarItem(placement: .bottomBar) {
                         Button {
-                            presentedTab = .layers
+                            toggleLayersPanel()
                         } label: {
-                            Label(EditorTab.layers.title, systemImage: EditorTab.layers.symbol)
+                            Image(systemName: EditorTab.layers.symbol)
+                                .symbolVariant(showLayersPanel ? .fill : .none)
                         }
+                        .accessibilityLabel(EditorTab.layers.title)
+                    }
 
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.flexible, placement: .bottomBar)
+                    }
+
+                    ToolbarItem(placement: .bottomBar) {
+                        promptField
+                    }
+
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.flexible, placement: .bottomBar)
+                    }
+
+                    ToolbarItem(placement: .bottomBar) {
                         Button {
-                            presentedTab = .tools
+                            toggleToolsPanel()
                         } label: {
-                            Label(EditorTab.tools.title, systemImage: EditorTab.tools.symbol)
+                            Image(systemName: EditorTab.tools.symbol)
+                                .symbolVariant(showToolsPanel ? .fill : .none)
                         }
-
-                        Spacer()
-
-                        Menu {
-                            Button {
-                                generationTarget = .background
-                            } label: {
-                                Label(
-                                    project.background == nil ? "Background" : "Replace background",
-                                    systemImage: "photo"
-                                )
-                            }
-
-                            Divider()
-
-                            Button {
-                                generationTarget = .overlay
-                            } label: {
-                                Label("Overlay", systemImage: "sparkles")
-                            }
-                        } label: {
-                            Label("Add", systemImage: "plus")
-                        }
+                        .accessibilityLabel(EditorTab.tools.title)
                     }
                 }
                 .toolbarBackground(.visible, for: .bottomBar)
                 .navigationBarTitleDisplayMode(.inline)
-        }
-        .sheet(item: $presentedTab) { tab in
-            EditorSheet(
-                project: project,
-                tab: tab,
-                activeTool: $activeTool
-            )
-            .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
-            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
-            .presentationDragIndicator(.visible)
-            .presentationBackground(.regularMaterial)
-        }
-        .sheet(item: $generationTarget) { target in
-            GenerationSheet(project: project, target: target, service: service)
         }
         .onChange(of: exportSignature) { _, _ in
             exportedImage = renderedIcon()
@@ -127,23 +115,164 @@ struct ContentView: View {
         } message: {
             Text("This will discard the current icon.")
         }
+        .alert(
+            "Generation failed",
+            isPresented: Binding(
+                get: { generationError != nil },
+                set: { if !$0 { generationError = nil } }
+            ),
+            presenting: generationError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
     }
 
     private var canvas: some View {
-        GeometryReader { geo in
-            IconCanvasView(project: project)
-                .ignoresSafeArea(.keyboard)
+        HStack(spacing: 0) {
+            if showLayersPanel {
+                LayersSidePanel(project: project)
+                    .frame(width: layersPanelWidth)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
+            IconCanvasView(project: project, onSwipe: handleCanvasSwipe)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, canvasBottomPadding(for: geo.size.height))
-                .animation(.smooth(duration: 0.3), value: presentedTab)
-                .animation(.smooth(duration: 0.3), value: sheetDetent)
+                .padding(.leading, showLayersPanel ? 0 : gutter)
+                .padding(.trailing, gutter)
+
+            if showToolsPanel {
+                ToolsSidePanel(project: project)
+                    .frame(width: toolsPanelWidth)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
+        .ignoresSafeArea(.keyboard)
         .background(Color(.systemBackground).ignoresSafeArea())
     }
 
-    private func canvasBottomPadding(for height: CGFloat) -> CGFloat {
-        guard presentedTab != nil else { return 0 }
-        return sheetDetent == .large ? 0 : height * 0.5
+    private var promptField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            TextField("Prompt", text: $promptText)
+                .textFieldStyle(.plain)
+                .submitLabel(.send)
+                .focused($promptFocused)
+                .disabled(isGenerating)
+                .onSubmit { submitPrompt() }
+
+            if isGenerating {
+                ProgressView().controlSize(.mini)
+            } else if !trimmedPrompt.isEmpty {
+                sendMenu
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var sendMenu: some View {
+        Menu {
+            Button {
+                generate(.background)
+            } label: {
+                Label(
+                    project.background == nil ? "Background" : "Replace background",
+                    systemImage: "photo"
+                )
+            }
+
+            Button {
+                generate(.overlay)
+            } label: {
+                Label("Overlay", systemImage: "sparkles")
+            }
+        } label: {
+            Image(systemName: "arrow.up.circle.fill")
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+        }
+        .accessibilityLabel("Generate")
+    }
+
+    private var trimmedPrompt: String {
+        promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func toggleLayersPanel() {
+        withAnimation(.smooth(duration: 0.3)) {
+            if showLayersPanel {
+                showLayersPanel = false
+            } else {
+                showLayersPanel = true
+                showToolsPanel = false
+            }
+        }
+    }
+
+    private func toggleToolsPanel() {
+        withAnimation(.smooth(duration: 0.3)) {
+            if showToolsPanel {
+                showToolsPanel = false
+            } else {
+                showToolsPanel = true
+                showLayersPanel = false
+            }
+        }
+    }
+
+    private func handleCanvasSwipe(_ direction: IconCanvasView.SwipeDirection) {
+        switch direction {
+        case .right:
+            withAnimation(.smooth(duration: 0.3)) {
+                if showToolsPanel {
+                    showToolsPanel = false
+                } else if !showLayersPanel {
+                    showLayersPanel = true
+                }
+            }
+        case .left:
+            withAnimation(.smooth(duration: 0.3)) {
+                if showLayersPanel {
+                    showLayersPanel = false
+                } else if !showToolsPanel {
+                    showToolsPanel = true
+                }
+            }
+        }
+    }
+
+    private func submitPrompt() {
+        guard !trimmedPrompt.isEmpty else { return }
+        let target: GenerationSheet.Target = project.background == nil ? .background : .overlay
+        generate(target)
+    }
+
+    private func generate(_ target: GenerationSheet.Target) {
+        let prompt = trimmedPrompt
+        guard !prompt.isEmpty, !isGenerating else { return }
+        isGenerating = true
+        generationError = nil
+        promptFocused = false
+        Task {
+            do {
+                switch target {
+                case .background:
+                    let img = try await service.generateBackground(prompt: prompt)
+                    project.setOrReplaceBackground(image: img, prompt: prompt)
+                case .overlay:
+                    let img = try await service.generateOverlay(prompt: prompt)
+                    project.addOverlay(image: img, prompt: prompt)
+                }
+                promptText = ""
+            } catch {
+                generationError = error.localizedDescription
+            }
+            isGenerating = false
+        }
     }
 
     private var exportSignature: Int {

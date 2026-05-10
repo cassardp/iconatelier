@@ -2,7 +2,10 @@ import SwiftUI
 import UIKit
 
 struct IconCanvasView: View {
+    enum SwipeDirection { case left, right }
+
     @Bindable var project: IconProject
+    var onSwipe: (SwipeDirection) -> Void = { _ in }
 
     @GestureState private var dragOffset: CGSize = .zero
     @GestureState private var gestureScale: CGFloat = 1.0
@@ -10,17 +13,33 @@ struct IconCanvasView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let canvasSide = min(geo.size.width, geo.size.height) * 0.86
+            let canvasSide = min(geo.size.width, geo.size.height)
             ZStack {
                 squircleIcon(side: canvasSide)
+                    .contentShape(Rectangle())
+                    .gesture(canvasGesture(side: canvasSide))
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
-            .gesture(canvasGesture(side: canvasSide))
+            .gesture(swipeGesture)
             .onTapGesture {
                 project.selectedLayerID = nil
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil, from: nil, for: nil
+                )
             }
         }
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                let h = value.translation.width
+                let v = value.translation.height
+                guard abs(h) > abs(v), abs(h) > 60 else { return }
+                onSwipe(h > 0 ? .right : .left)
+            }
     }
 
     private var selectedOverlay: Layer? {
@@ -131,21 +150,10 @@ private struct OverlayLayerView: View {
 
     var body: some View {
         let displaySide = side * 0.7
-        ZStack {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(width: displaySide, height: displaySide)
-            if isSelected {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(
-                        Color.accentColor,
-                        style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
-                    )
-                    .frame(width: displaySide, height: displaySide)
-                    .allowsHitTesting(false)
-            }
-        }
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(width: displaySide, height: displaySide)
         .scaleEffect(layer.scale * transientScale)
         .rotationEffect(layer.rotation + transientAngle)
         .opacity(layer.opacity)
