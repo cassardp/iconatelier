@@ -166,6 +166,26 @@ final class IconProject {
         performAdd(layer)
     }
 
+    func addEmptyOverlay() {
+        recordUndo()
+        let index = overlays.count + 1
+        let name = index == 1 ? "Overlay" : "Overlay \(index)"
+        let layer = Layer(kind: .aiOverlay, name: name)
+        performAdd(layer)
+    }
+
+    func fillSelectedEmptyOverlayOrAdd(image: UIImage, prompt: String) {
+        if let selected = selectedLayer,
+           selected.kind == .aiOverlay,
+           selected.image == nil {
+            recordUndo()
+            selected.image = image
+            selected.sourcePrompt = prompt
+        } else {
+            addOverlay(image: image, prompt: prompt)
+        }
+    }
+
     func toggleVisibility(_ layer: Layer) {
         recordUndo()
         layer.isHidden.toggle()

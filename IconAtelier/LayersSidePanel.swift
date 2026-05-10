@@ -3,6 +3,8 @@ import UIKit
 
 struct LayersBar: View {
     @Bindable var project: IconProject
+    var onAddLayer: () -> Void = {}
+    var onSelectLayer: () -> Void = {}
 
     @State private var draggingID: Layer.ID?
     @State private var dragOffset: CGFloat = 0
@@ -18,6 +20,7 @@ struct LayersBar: View {
         GeometryReader { geo in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.spacing) {
+                    addButton
                     ForEach(Array(uiLayers.enumerated()), id: \.element.id) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
@@ -31,6 +34,27 @@ struct LayersBar: View {
         .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
     }
 
+    private var addButton: some View {
+        Button(action: onAddLayer) {
+            RoundedRectangle(
+                cornerRadius: Self.thumbnailSize * 0.2237,
+                style: .continuous
+            )
+            .strokeBorder(
+                Color.secondary.opacity(0.5),
+                style: StrokeStyle(lineWidth: 1.5, dash: [4])
+            )
+            .overlay {
+                Image(systemName: "plus")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add layer")
+    }
+
     private var uiLayers: [Layer] { Array(project.layers.reversed()) }
 
     @ViewBuilder
@@ -41,6 +65,7 @@ struct LayersBar: View {
 
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+            .transition(.scale.combined(with: .opacity))
             .scaleEffect(isDragging ? 1.05 : 1.0)
             .shadow(
                 color: .black.opacity(isDragging ? 0.22 : 0),
@@ -54,6 +79,7 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
                 project.selectedLayerID = layer.id
+                onSelectLayer()
             }
             .gesture(longPressDragGesture(for: layer, at: index))
     }
@@ -103,25 +129,26 @@ struct LayersBar: View {
     }
 
     private func finalizeDrag() {
-        defer {
-            withAnimation(.smooth(duration: 0.22)) {
-                draggingID = nil
-                dragOffset = 0
-                dragStartIndex = nil
-                targetIndex = nil
-            }
-        }
-        guard let from = dragStartIndex,
-              let to = targetIndex,
-              from != to
-        else { return }
+        let from = dragStartIndex
+        let to = targetIndex
+        let didMove = from != nil && to != nil && from != to
 
-        let n = project.layers.count
-        let nativeFrom = n - 1 - from
-        let nativeTarget = n - 1 - to
-        let toOffset = nativeFrom < nativeTarget ? nativeTarget + 1 : nativeTarget
-        project.move(from: IndexSet(integer: nativeFrom), to: toOffset)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.smooth(duration: 0.22)) {
+            if let from, let to, from != to {
+                let n = project.layers.count
+                let nativeFrom = n - 1 - from
+                let nativeTarget = n - 1 - to
+                let toOffset = nativeFrom < nativeTarget ? nativeTarget + 1 : nativeTarget
+                project.move(from: IndexSet(integer: nativeFrom), to: toOffset)
+            }
+            draggingID = nil
+            dragOffset = 0
+            dragStartIndex = nil
+            targetIndex = nil
+        }
+        if didMove {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 }
 
@@ -146,10 +173,6 @@ struct LayerThumbnailRow: View {
                             Image(uiImage: img)
                                 .resizable()
                                 .scaledToFill()
-                        } else {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.tertiary)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
                     .clipShape(.rect(cornerRadius: radius, style: .continuous))

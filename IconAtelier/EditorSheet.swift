@@ -56,7 +56,7 @@ struct EditSheet: View {
                     project.setOrReplaceBackground(image: img, prompt: trimmed)
                 case .overlay:
                     let img = try await service.generateOverlay(prompt: trimmed)
-                    project.addOverlay(image: img, prompt: trimmed)
+                    project.fillSelectedEmptyOverlayOrAdd(image: img, prompt: trimmed)
                 }
                 promptText = ""
             } catch {

@@ -28,7 +28,18 @@ struct ContentView: View {
                     IconCanvasView(project: project)
                         .frame(width: iconSide, height: iconSide)
                     if project.hasContent {
-                        LayersBar(project: project)
+                        LayersBar(
+                            project: project,
+                            onAddLayer: {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                    project.addEmptyOverlay()
+                                }
+                            },
+                            onSelectLayer: {
+                                sheetDetent = .fraction(0.5)
+                                showEditSheet = true
+                            }
+                        )
                     }
                     Spacer(minLength: 0)
                 }
@@ -62,12 +73,15 @@ struct ContentView: View {
                 }
 
                 if project.hasContent, let exportedImage {
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         ShareLink(
                             item: Image(uiImage: exportedImage),
                             preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
                         ) {
-                            Image(systemName: "square.and.arrow.up")
+                            Text("Export")
                         }
                     }
                 }
