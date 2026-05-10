@@ -1,49 +1,68 @@
 import SwiftUI
 
-enum EditorTab: String, Hashable, CaseIterable, Identifiable {
-    case layers
-    case tools
+enum GenerationTarget: Identifiable, Hashable {
+    case background
+    case overlay
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .layers: "Layers"
-        case .tools: "Tools"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .layers: "square.3.stack.3d"
-        case .tools: "slider.horizontal.3"
-        }
-    }
+    var id: Self { self }
 }
 
-enum LayerTool: String, Hashable, CaseIterable, Identifiable {
-    case move
-    case scale
-    case rotate
-    case opacity
+struct EditSheet: View {
+    @Bindable var project: IconProject
+    let service: OpenAIImageService
 
-    var id: String { rawValue }
+    @State private var promptText: String = ""
+    @State private var isGenerating: Bool = false
+    @State private var generationError: String?
+    @FocusState private var promptFocused: Bool
 
-    var title: String {
-        switch self {
-        case .move: "Move"
-        case .scale: "Scale"
-        case .rotate: "Rotate"
-        case .opacity: "Opacity"
+    var body: some View {
+        NavigationStack {
+            EditTabContent(
+                project: project,
+                promptText: $promptText,
+                isGenerating: isGenerating,
+                promptFocused: $promptFocused,
+                onGenerate: generate
+            )
+            .navigationTitle("Edit")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .alert(
+            "Generation failed",
+            isPresented: Binding(
+                get: { generationError != nil },
+                set: { if !$0 { generationError = nil } }
+            ),
+            presenting: generationError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { message in
+            Text(message)
         }
     }
 
-    var symbol: String {
-        switch self {
-        case .move: "arrow.up.and.down.and.arrow.left.and.right"
-        case .scale: "arrow.up.left.and.arrow.down.right"
-        case .rotate: "arrow.clockwise"
-        case .opacity: "drop.fill"
+    private func generate(_ target: GenerationTarget) {
+        let trimmed = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isGenerating else { return }
+        isGenerating = true
+        generationError = nil
+        promptFocused = false
+        Task {
+            do {
+                switch target {
+                case .background:
+                    let img = try await service.generateBackground(prompt: trimmed)
+                    project.setOrReplaceBackground(image: img, prompt: trimmed)
+                case .overlay:
+                    let img = try await service.generateOverlay(prompt: trimmed)
+                    project.addOverlay(image: img, prompt: trimmed)
+                }
+                promptText = ""
+            } catch {
+                generationError = error.localizedDescription
+            }
+            isGenerating = false
         }
     }
 }

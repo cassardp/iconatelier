@@ -11,91 +11,84 @@ struct ContentView: View {
 
     @State private var exportedImage: UIImage?
     @State private var showingNewProjectConfirm = false
-    @State private var showLayersPanel = false
-    @State private var showToolsPanel = false
-
-    @State private var promptText: String = ""
-    @State private var isGenerating: Bool = false
-    @State private var generationError: String?
-    @FocusState private var promptFocused: Bool
-
-    private let layersPanelWidth: CGFloat = 96
-    private let toolsPanelWidth: CGFloat = 60
-    private let gutter: CGFloat = 16
+    @State private var showEditSheet = false
+    @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
     var body: some View {
         NavigationStack {
-            canvas
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            showingNewProjectConfirm = true
-                        } label: {
-                            Image(systemName: "chevron.backward")
-                        }
+            GeometryReader { geo in
+                let layersBarHeight: CGFloat = project.hasContent ? (56 + 16) : 0
+                let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
+                let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
+                let blockHeight = max(0, visibleHeight - verticalMargin * 2)
+                let iconHeight = max(0, blockHeight - layersBarHeight)
+                let iconSide = max(0, min(geo.size.width - 32, iconHeight))
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    IconCanvasView(project: project)
+                        .frame(width: iconSide, height: iconSide)
+                    if project.hasContent {
+                        LayersBar(project: project)
                     }
-
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            project.undo()
-                        } label: {
-                            Image(systemName: "arrow.uturn.backward")
-                        }
-                        .disabled(!project.canUndo)
-
-                        Button {
-                            project.redo()
-                        } label: {
-                            Image(systemName: "arrow.uturn.forward")
-                        }
-                        .disabled(!project.canRedo)
-                    }
-
-                    if project.hasContent, let exportedImage {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            ShareLink(
-                                item: Image(uiImage: exportedImage),
-                                preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
-                            ) {
-                                Image(systemName: "square.and.arrow.up")
-                            }
-                        }
-                    }
-
-                    ToolbarItem(placement: .bottomBar) {
-                        Button {
-                            toggleLayersPanel()
-                        } label: {
-                            Image(systemName: EditorTab.layers.symbol)
-                                .symbolVariant(showLayersPanel ? .fill : .none)
-                        }
-                        .accessibilityLabel(EditorTab.layers.title)
-                    }
-
-                    if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.flexible, placement: .bottomBar)
-                    }
-
-                    ToolbarItem(placement: .bottomBar) {
-                        promptField
-                    }
-
-                    if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.flexible, placement: .bottomBar)
-                    }
-
-                    ToolbarItem(placement: .bottomBar) {
-                        Button {
-                            toggleToolsPanel()
-                        } label: {
-                            Image(systemName: EditorTab.tools.symbol)
-                                .symbolVariant(showToolsPanel ? .fill : .none)
-                        }
-                        .accessibilityLabel(EditorTab.tools.title)
+                    Spacer(minLength: 0)
+                }
+                .frame(width: geo.size.width, height: visibleHeight)
+                .animation(.smooth(duration: 0.3), value: visibleHeight)
+            }
+            .background(Color(.systemBackground).ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingNewProjectConfirm = true
+                    } label: {
+                        Image(systemName: "chevron.backward")
                     }
                 }
-                .toolbarBackground(.visible, for: .bottomBar)
-                .navigationBarTitleDisplayMode(.inline)
+
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        project.undo()
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!project.canUndo)
+
+                    Button {
+                        project.redo()
+                    } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!project.canRedo)
+                }
+
+                if project.hasContent, let exportedImage {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ShareLink(
+                            item: Image(uiImage: exportedImage),
+                            preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
+                        ) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+
+                ToolbarItem(placement: .bottomBar) {
+                    Button {
+                        showEditSheet = true
+                    } label: {
+                        Image(systemName: "paintbrush.pointed.fill")
+                    }
+                    .accessibilityLabel("Edit")
+                }
+            }
+            .toolbarBackground(.visible, for: .bottomBar)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .sheet(isPresented: $showEditSheet) {
+            EditSheet(project: project, service: service)
+                .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
+                .presentationDragIndicator(.visible)
         }
         .onChange(of: exportSignature) { _, _ in
             exportedImage = renderedIcon()
@@ -115,164 +108,10 @@ struct ContentView: View {
         } message: {
             Text("This will discard the current icon.")
         }
-        .alert(
-            "Generation failed",
-            isPresented: Binding(
-                get: { generationError != nil },
-                set: { if !$0 { generationError = nil } }
-            ),
-            presenting: generationError
-        ) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { message in
-            Text(message)
-        }
     }
 
-    private var canvas: some View {
-        HStack(spacing: 0) {
-            if showLayersPanel {
-                LayersSidePanel(project: project)
-                    .frame(width: layersPanelWidth)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
-
-            IconCanvasView(project: project, onSwipe: handleCanvasSwipe)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.leading, showLayersPanel ? 0 : gutter)
-                .padding(.trailing, gutter)
-
-            if showToolsPanel {
-                ToolsSidePanel(project: project)
-                    .frame(width: toolsPanelWidth)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-        }
-        .ignoresSafeArea(.keyboard)
-        .background(Color(.systemBackground).ignoresSafeArea())
-    }
-
-    private var promptField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "sparkles")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            TextField("Prompt", text: $promptText)
-                .textFieldStyle(.plain)
-                .submitLabel(.send)
-                .focused($promptFocused)
-                .disabled(isGenerating)
-                .onSubmit { submitPrompt() }
-
-            if isGenerating {
-                ProgressView().controlSize(.mini)
-            } else if !trimmedPrompt.isEmpty {
-                sendMenu
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var sendMenu: some View {
-        Menu {
-            Button {
-                generate(.background)
-            } label: {
-                Label(
-                    project.background == nil ? "Background" : "Replace background",
-                    systemImage: "photo"
-                )
-            }
-
-            Button {
-                generate(.overlay)
-            } label: {
-                Label("Overlay", systemImage: "sparkles")
-            }
-        } label: {
-            Image(systemName: "arrow.up.circle.fill")
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-        }
-        .accessibilityLabel("Generate")
-    }
-
-    private var trimmedPrompt: String {
-        promptText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func toggleLayersPanel() {
-        withAnimation(.smooth(duration: 0.3)) {
-            if showLayersPanel {
-                showLayersPanel = false
-            } else {
-                showLayersPanel = true
-                showToolsPanel = false
-            }
-        }
-    }
-
-    private func toggleToolsPanel() {
-        withAnimation(.smooth(duration: 0.3)) {
-            if showToolsPanel {
-                showToolsPanel = false
-            } else {
-                showToolsPanel = true
-                showLayersPanel = false
-            }
-        }
-    }
-
-    private func handleCanvasSwipe(_ direction: IconCanvasView.SwipeDirection) {
-        switch direction {
-        case .right:
-            withAnimation(.smooth(duration: 0.3)) {
-                if showToolsPanel {
-                    showToolsPanel = false
-                } else if !showLayersPanel {
-                    showLayersPanel = true
-                }
-            }
-        case .left:
-            withAnimation(.smooth(duration: 0.3)) {
-                if showLayersPanel {
-                    showLayersPanel = false
-                } else if !showToolsPanel {
-                    showToolsPanel = true
-                }
-            }
-        }
-    }
-
-    private func submitPrompt() {
-        guard !trimmedPrompt.isEmpty else { return }
-        let target: GenerationSheet.Target = project.background == nil ? .background : .overlay
-        generate(target)
-    }
-
-    private func generate(_ target: GenerationSheet.Target) {
-        let prompt = trimmedPrompt
-        guard !prompt.isEmpty, !isGenerating else { return }
-        isGenerating = true
-        generationError = nil
-        promptFocused = false
-        Task {
-            do {
-                switch target {
-                case .background:
-                    let img = try await service.generateBackground(prompt: prompt)
-                    project.setOrReplaceBackground(image: img, prompt: prompt)
-                case .overlay:
-                    let img = try await service.generateOverlay(prompt: prompt)
-                    project.addOverlay(image: img, prompt: prompt)
-                }
-                promptText = ""
-            } catch {
-                generationError = error.localizedDescription
-            }
-            isGenerating = false
-        }
+    private var sheetFraction: CGFloat {
+        (showEditSheet && sheetDetent == .fraction(0.5)) ? 0.5 : 0
     }
 
     private var exportSignature: Int {

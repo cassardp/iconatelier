@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-struct LayersSidePanel: View {
+struct LayersBar: View {
     @Bindable var project: IconProject
 
     @State private var draggingID: Layer.ID?
@@ -9,94 +9,53 @@ struct LayersSidePanel: View {
     @State private var dragStartIndex: Int?
     @State private var targetIndex: Int?
 
-    private static let rowHeight: CGFloat = 78
-    private static let rowPaddingH: CGFloat = 16
+    private static let thumbnailSize: CGFloat = 56
+    private static let spacing: CGFloat = 8
+    private static let verticalPadding: CGFloat = 8
+    private static let itemStride: CGFloat = thumbnailSize + spacing
 
     var body: some View {
-        Group {
-            if project.layers.isEmpty {
-                emptyState
-            } else {
-                content
+        GeometryReader { geo in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Self.spacing) {
+                    ForEach(Array(uiLayers.enumerated()), id: \.element.id) { idx, layer in
+                        rowView(layer: layer, index: idx)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, Self.verticalPadding)
+                .frame(minWidth: geo.size.width, alignment: .center)
             }
+            .scrollDisabled(draggingID != nil)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+        .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
     }
 
     private var uiLayers: [Layer] { Array(project.layers.reversed()) }
-
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "square.3.stack.3d")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("No layers")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 8)
-    }
-
-    private var content: some View {
-        GeometryReader { geo in
-            let totalHeight = CGFloat(uiLayers.count) * Self.rowHeight
-            let needsScroll = totalHeight > geo.size.height
-
-            Group {
-                if needsScroll {
-                    ScrollView(showsIndicators: false) {
-                        rowsStack
-                    }
-                    .scrollDisabled(draggingID != nil)
-                } else {
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        rowsStack
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-        }
-    }
-
-    private var rowsStack: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(uiLayers.enumerated()), id: \.element.id) { idx, layer in
-                rowView(layer: layer, index: idx)
-            }
-        }
-    }
 
     @ViewBuilder
     private func rowView(layer: Layer, index: Int) -> some View {
         let isDragging = draggingID == layer.id
         let shift = computeShift(for: index)
+        let isSelected = layer.id == project.selectedLayerID
 
-        LayerThumbnailRow(
-            layer: layer,
-            isSelected: layer.id == project.selectedLayerID
-        )
-        .padding(.horizontal, Self.rowPaddingH)
-        .frame(height: Self.rowHeight)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            project.selectedLayerID = layer.id
-        }
-        .scaleEffect(isDragging ? 1.05 : 1.0)
-        .shadow(
-            color: .black.opacity(isDragging ? 0.22 : 0),
-            radius: isDragging ? 14 : 0,
-            x: 0,
-            y: isDragging ? 6 : 0
-        )
-        .offset(y: isDragging ? dragOffset : shift)
-        .zIndex(isDragging ? 1 : 0)
-        .animation(.smooth(duration: 0.2), value: shift)
-        .animation(.smooth(duration: 0.2), value: isDragging)
-        .gesture(longPressDragGesture(for: layer, at: index))
+        LayerThumbnailRow(layer: layer, isSelected: isSelected)
+            .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+            .scaleEffect(isDragging ? 1.05 : 1.0)
+            .shadow(
+                color: .black.opacity(isDragging ? 0.22 : 0),
+                radius: isDragging ? 14 : 0,
+                x: 0,
+                y: isDragging ? 6 : 0
+            )
+            .offset(x: isDragging ? dragOffset : shift)
+            .zIndex(isDragging ? 1 : 0)
+            .animation(.smooth(duration: 0.2), value: shift)
+            .animation(.smooth(duration: 0.2), value: isDragging)
+            .onTapGesture {
+                project.selectedLayerID = layer.id
+            }
+            .gesture(longPressDragGesture(for: layer, at: index))
     }
 
     private func computeShift(for index: Int) -> CGFloat {
@@ -106,9 +65,9 @@ struct LayersSidePanel: View {
         else { return 0 }
 
         if dragIdx < target {
-            if index > dragIdx && index <= target { return -Self.rowHeight }
+            if index > dragIdx && index <= target { return -Self.itemStride }
         } else if dragIdx > target {
-            if index >= target && index < dragIdx { return Self.rowHeight }
+            if index >= target && index < dragIdx { return Self.itemStride }
         }
         return 0
     }
@@ -127,9 +86,9 @@ struct LayersSidePanel: View {
                         targetIndex = index
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
-                    dragOffset = drag.translation.height
-                    let movedRows = Int((dragOffset / Self.rowHeight).rounded())
-                    let proposed = max(0, min(uiLayers.count - 1, index + movedRows))
+                    dragOffset = drag.translation.width
+                    let movedItems = Int((dragOffset / Self.itemStride).rounded())
+                    let proposed = max(0, min(uiLayers.count - 1, index + movedItems))
                     if proposed != targetIndex {
                         targetIndex = proposed
                         UISelectionFeedbackGenerator().selectionChanged()
