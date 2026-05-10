@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+struct IconProjectSnapshot {
+    let layers: [LayerSnapshot]
+    let selectedLayerID: UUID?
+}
+
 @MainActor
 @Observable
 final class IconProject {
@@ -9,6 +14,13 @@ final class IconProject {
 
     var isGenerating: Bool = false
     var lastError: String?
+
+    private var undoStack: [IconProjectSnapshot] = []
+    private var redoStack: [IconProjectSnapshot] = []
+    private let maxUndoSteps = 50
+
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
 
     var selectedLayer: Layer? {
         guard let id = selectedLayerID else { return nil }
@@ -25,7 +37,48 @@ final class IconProject {
         layers.filter { $0.kind == .aiOverlay }
     }
 
-    func add(_ layer: Layer) {
+    // MARK: - Snapshot / undo
+
+    private func currentSnapshot() -> IconProjectSnapshot {
+        IconProjectSnapshot(
+            layers: layers.map { $0.snapshot() },
+            selectedLayerID: selectedLayerID
+        )
+    }
+
+    private func apply(_ snapshot: IconProjectSnapshot) {
+        layers = snapshot.layers.map { Layer(snapshot: $0) }
+        selectedLayerID = snapshot.selectedLayerID
+    }
+
+    func recordUndo() {
+        undoStack.append(currentSnapshot())
+        if undoStack.count > maxUndoSteps {
+            undoStack.removeFirst(undoStack.count - maxUndoSteps)
+        }
+        redoStack.removeAll()
+    }
+
+    func clearHistory() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+    }
+
+    func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(currentSnapshot())
+        apply(previous)
+    }
+
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(currentSnapshot())
+        apply(next)
+    }
+
+    // MARK: - Mutations
+
+    private func performAdd(_ layer: Layer) {
         if layer.kind == .aiBackground {
             layers.insert(layer, at: 0)
         } else {
@@ -35,6 +88,7 @@ final class IconProject {
     }
 
     func remove(_ layer: Layer) {
+        recordUndo()
         layers.removeAll { $0.id == layer.id }
         if selectedLayerID == layer.id {
             selectedLayerID = layers.last?.id
@@ -42,6 +96,7 @@ final class IconProject {
     }
 
     func duplicate(_ layer: Layer) {
+        recordUndo()
         let copy = Layer(
             kind: layer.kind,
             name: layer.name + " copy",
@@ -62,10 +117,12 @@ final class IconProject {
     }
 
     func move(from source: IndexSet, to destination: Int) {
+        recordUndo()
         layers.move(fromOffsets: source, toOffset: destination)
     }
 
     func setOrReplaceBackground(image: UIImage, prompt: String) {
+        recordUndo()
         if let existing = background {
             existing.image = image
             existing.sourcePrompt = prompt
@@ -77,11 +134,12 @@ final class IconProject {
                 image: image,
                 sourcePrompt: prompt
             )
-            add(bg)
+            performAdd(bg)
         }
     }
 
     func addOverlay(image: UIImage, prompt: String) {
+        recordUndo()
         let index = overlays.count + 1
         let name = index == 1 ? "Overlay" : "Overlay \(index)"
         let layer = Layer(
@@ -90,6 +148,11 @@ final class IconProject {
             image: image,
             sourcePrompt: prompt
         )
-        add(layer)
+        performAdd(layer)
+    }
+
+    func toggleVisibility(_ layer: Layer) {
+        recordUndo()
+        layer.isHidden.toggle()
     }
 }
