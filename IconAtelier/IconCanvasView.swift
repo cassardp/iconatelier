@@ -7,9 +7,45 @@ struct IconCanvasView: View {
     @Bindable var project: IconProject
     var onSwipe: (SwipeDirection) -> Void = { _ in }
 
-    @GestureState private var dragOffset: CGSize = .zero
+    @GestureState private var dragSnap: DragSnapState = DragSnapState()
     @GestureState private var gestureScale: CGFloat = 1.0
     @GestureState private var gestureAngle: Angle = .zero
+
+    private struct SnapAxes: OptionSet, Equatable {
+        let rawValue: Int
+        static let horizontal = SnapAxes(rawValue: 1 << 0)
+        static let vertical = SnapAxes(rawValue: 1 << 1)
+    }
+
+    private struct DragSnapState: Equatable {
+        var translation: CGSize = .zero
+        var axes: SnapAxes = []
+        var isActive: Bool = false
+    }
+
+    private static let snapThreshold: CGFloat = 8
+
+    private static func snapped(
+        translation: CGSize,
+        layerOffset: CGSize,
+        side: CGFloat
+    ) -> (effective: CGSize, axes: SnapAxes) {
+        let baseX = layerOffset.width * side
+        let baseY = layerOffset.height * side
+        let absX = baseX + translation.width
+        let absY = baseY + translation.height
+        var axes: SnapAxes = []
+        var effective = translation
+        if abs(absX) < snapThreshold {
+            axes.insert(.horizontal)
+            effective.width = -baseX
+        }
+        if abs(absY) < snapThreshold {
+            axes.insert(.vertical)
+            effective.height = -baseY
+        }
+        return (effective, axes)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -23,7 +59,6 @@ struct IconCanvasView: View {
             .contentShape(Rectangle())
             .gesture(swipeGesture)
             .onTapGesture {
-                project.selectedLayerID = nil
                 UIApplication.shared.sendAction(
                     #selector(UIResponder.resignFirstResponder),
                     to: nil, from: nil, for: nil
@@ -49,8 +84,8 @@ struct IconCanvasView: View {
 
     private func squircleIcon(side: CGFloat) -> some View {
         ZStack {
-            if project.background == nil {
-                Color(.secondarySystemBackground)
+            if project.background?.isHidden ?? true {
+                TransparencyCheckerboard(tile: 14)
             }
             ForEach(project.layers) { layer in
                 if !layer.isHidden, let image = layer.image {
@@ -68,7 +103,7 @@ struct IconCanvasView: View {
                             image: image,
                             side: side,
                             isSelected: isSelected,
-                            transientOffset: isSelected ? dragOffset : .zero,
+                            transientOffset: isSelected ? dragSnap.translation : .zero,
                             transientScale: isSelected ? gestureScale : 1.0,
                             transientAngle: isSelected ? gestureAngle : .zero,
                             onTap: { project.selectedLayerID = layer.id }
@@ -76,22 +111,61 @@ struct IconCanvasView: View {
                     }
                 }
             }
+            centerGuides(side: side)
         }
         .frame(width: side, height: side)
         .clipShape(.rect(cornerRadius: side * 0.2237, style: .continuous))
-        .shadow(color: .black.opacity(0.22), radius: 28, x: 0, y: 18)
+    }
+
+    @ViewBuilder
+    private func centerGuides(side: CGFloat) -> some View {
+        let showVertical = dragSnap.isActive && dragSnap.axes.contains(.horizontal)
+        let showHorizontal = dragSnap.isActive && dragSnap.axes.contains(.vertical)
+        ZStack {
+            if showVertical {
+                Rectangle()
+                    .fill(Color(red: 1.0, green: 0.78, blue: 0.0))
+                    .frame(width: 1, height: side)
+                    .transition(.opacity)
+            }
+            if showHorizontal {
+                Rectangle()
+                    .fill(Color(red: 1.0, green: 0.78, blue: 0.0))
+                    .frame(width: side, height: 1)
+                    .transition(.opacity)
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.easeOut(duration: 0.12), value: dragSnap)
     }
 
     private func canvasGesture(side: CGFloat) -> some Gesture {
         let drag = DragGesture()
-            .updating($dragOffset) { value, state, _ in
-                state = value.translation
+            .updating($dragSnap) { value, state, _ in
+                guard let layer = selectedOverlay else { return }
+                let (effective, nextAxes) = Self.snapped(
+                    translation: value.translation,
+                    layerOffset: layer.offset,
+                    side: side
+                )
+                let entered = nextAxes.subtracting(state.axes)
+                if !entered.isEmpty {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+                state.translation = effective
+                state.axes = nextAxes
+                state.isActive = true
             }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
                 project.recordUndo()
-                let nextWidth = layer.offset.width + value.translation.width / side
-                let nextHeight = layer.offset.height + value.translation.height / side
+                let (effective, _) = Self.snapped(
+                    translation: value.translation,
+                    layerOffset: layer.offset,
+                    side: side
+                )
+                let nextWidth = layer.offset.width + effective.width / side
+                let nextHeight = layer.offset.height + effective.height / side
                 layer.offset.width = min(max(nextWidth, -0.5), 0.5)
                 layer.offset.height = min(max(nextHeight, -0.5), 0.5)
             }
@@ -103,8 +177,7 @@ struct IconCanvasView: View {
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
                 project.recordUndo()
-                let next = layer.scale * value.magnification
-                layer.scale = max(0.1, min(next, 4.0))
+                layer.scale = max(0.1, layer.scale * value.magnification)
             }
 
         let rotate = RotateGesture(minimumAngleDelta: .degrees(1))
@@ -163,5 +236,33 @@ private struct OverlayLayerView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
+    }
+}
+
+struct TransparencyCheckerboard: View {
+    let tile: CGFloat
+    var light: Color = Color(white: 0.92)
+    var dark: Color = Color(white: 0.78)
+
+    var body: some View {
+        Canvas(rendersAsynchronously: false) { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(light))
+            let cols = Int(ceil(size.width / tile))
+            let rows = Int(ceil(size.height / tile))
+            var path = Path()
+            for row in 0..<rows {
+                for col in 0..<cols where (row + col).isMultiple(of: 2) {
+                    path.addRect(CGRect(
+                        x: CGFloat(col) * tile,
+                        y: CGFloat(row) * tile,
+                        width: tile,
+                        height: tile
+                    ))
+                }
+            }
+            context.fill(path, with: .color(dark))
+        }
+        .drawingGroup()
+        .allowsHitTesting(false)
     }
 }

@@ -177,8 +177,12 @@ struct LayerThumbnailRow: View {
                 GeometryReader { geo in
                     let radius = geo.size.width * 0.2237
                     ZStack {
-                        RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .fill(Color(.secondarySystemBackground))
+                        if layer.fillsCanvas {
+                            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                                .fill(Color(.secondarySystemBackground))
+                        } else {
+                            TransparencyCheckerboard(tile: 6)
+                        }
                         if let img = layer.image {
                             Image(uiImage: img)
                                 .resizable()

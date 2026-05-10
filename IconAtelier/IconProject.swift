@@ -9,8 +9,23 @@ struct IconProjectSnapshot {
 @MainActor
 @Observable
 final class IconProject {
-    var layers: [Layer] = []
-    var selectedLayerID: Layer.ID?
+    var layers: [Layer] = [] {
+        didSet { enforceSelectionInvariant() }
+    }
+    var selectedLayerID: Layer.ID? {
+        didSet { enforceSelectionInvariant() }
+    }
+
+    private func enforceSelectionInvariant() {
+        guard !layers.isEmpty else {
+            if selectedLayerID != nil { selectedLayerID = nil }
+            return
+        }
+        if let id = selectedLayerID, layers.contains(where: { $0.id == id }) {
+            return
+        }
+        selectedLayerID = layers.last?.id
+    }
 
     var isGenerating: Bool = false
     var lastError: String?
