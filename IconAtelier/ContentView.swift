@@ -57,6 +57,15 @@ struct ContentView: View {
         }
         .background(Color(.systemBackground).ignoresSafeArea())
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    closeProject()
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
+                .accessibilityLabel("Back to gallery")
+            }
+
             ToolbarItem(placement: .principal) {
                 HStack {
                     Button {
@@ -104,6 +113,7 @@ struct ContentView: View {
         .toolbarBackground(isFocusMode ? .hidden : .visible, for: .bottomBar)
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $showEditSheet) {
             EditSheet(project: project, session: session, service: service)
                 .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
@@ -126,12 +136,30 @@ struct ContentView: View {
         }
         .onAppear {
             project.ensureBackground()
+            if session.selectedLayerUUID == nil,
+               !session.isBackgroundSelected,
+               let topLayer = project.layers.last {
+                session.selectLayer(topLayer.uuid)
+            }
             exportedImage = IconRenderer.render(project, side: 1024)
         }
         .onDisappear {
             IconRenderer.updateThumbnail(project)
             try? modelContext.save()
         }
+    }
+
+    private func closeProject() {
+        IconRenderer.updateThumbnail(project)
+        try? modelContext.save()
+        if showEditSheet {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showEditSheet = false
+            }
+        }
+        dismiss()
     }
 
     private var sheetFraction: CGFloat {
