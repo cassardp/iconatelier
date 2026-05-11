@@ -161,26 +161,30 @@ struct LayerThumbnailRow: View {
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 GeometryReader { geo in
-                    let radius = geo.size.width * 0.2237
+                    let outerRadius = geo.size.width * 0.2237
+                    let inset: CGFloat = 4
+                    let innerRadius = max(0, outerRadius - inset)
                     ZStack {
-                        if layer.fillsCanvas {
-                            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                                .fill(Color(.secondarySystemBackground))
-                        } else {
-                            TransparencyCheckerboard(tile: 6)
+                        ZStack {
+                            if layer.fillsCanvas {
+                                RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
+                                    .fill(Color(.secondarySystemBackground))
+                            } else {
+                                TransparencyCheckerboard(tile: 6)
+                            }
+                            if let img = layer.image {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                            }
                         }
-                        if let img = layer.image {
-                            Image(uiImage: img)
-                                .resizable()
-                                .scaledToFill()
-                        }
-                    }
-                    .clipShape(.rect(cornerRadius: radius, style: .continuous))
-                    .opacity(layer.isHidden ? 0.4 : 1)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
+                        .opacity(layer.isHidden ? 0.4 : 1)
+                        .padding(inset)
+
+                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                             .strokeBorder(
-                                isSelected ? Color.accentColor : Color.clear,
+                                isSelected ? Color.primary : Color.clear,
                                 lineWidth: 2
                             )
                     }

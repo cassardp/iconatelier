@@ -270,7 +270,7 @@ private struct PanelSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(.smooth(duration: 0.25)) { isExpanded.toggle() }
+                withAnimation(.smooth(duration: 0.28)) { isExpanded.toggle() }
             } label: {
                 HStack {
                     Text(title)
@@ -295,10 +295,11 @@ private struct PanelSection<Content: View>: View {
                 }
                 .padding(.top, 6)
                 .transition(
-                    .opacity.combined(with: .move(edge: .top))
+                    .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
                 )
             }
         }
+        .clipped()
     }
 }
 
