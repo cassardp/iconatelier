@@ -69,6 +69,34 @@ struct AIOverlayContentSection: View {
     let onGenerate: () -> Void
 
     var body: some View {
+        PanelSection(title: "Prompt ideas") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(BackgroundPresets.overlayPrompts) { preset in
+                        Button {
+                            promptText = preset.prompt
+                        } label: {
+                            Text(preset.name)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary.opacity(0.72))
+                                .padding(.horizontal, 14)
+                                .frame(height: 36)
+                                .background(
+                                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                                        .fill(PanelStyle.rowFill)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isGenerating)
+                    }
+                }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 2)
+            }
+        }
+
+        SectionDivider()
+
         PanelSection(title: "AI image") {
             HStack(alignment: .top, spacing: 10) {
                 TextField(
