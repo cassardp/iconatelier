@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showingNewProjectConfirm = false
     @State private var showEditSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
+    @State private var isFocusMode = false
 
     init() {
         let restored: IconProject
@@ -25,24 +26,41 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                let layersBarHeight: CGFloat = 56 + 16
+                let layersBarHeight: CGFloat = isFocusMode ? 0 : 56 + 16
                 let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
                 let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
                 let blockHeight = max(0, visibleHeight - verticalMargin * 2)
                 let iconHeight = max(0, blockHeight - layersBarHeight)
                 let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    IconCanvasView(project: project)
-                        .frame(width: iconSide, height: iconSide)
-                    LayersBar(
-                        project: project,
-                        isSheetOpen: $showEditSheet
-                    )
-                    Spacer(minLength: 0)
+                ZStack(alignment: .top) {
+                    if isFocusMode {
+                        HomeScreenPreview(project: project)
+                            .transition(.opacity)
+                    } else {
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            IconCanvasView(project: project)
+                                .frame(width: iconSide, height: iconSide)
+                            LayersBar(
+                                project: project,
+                                isSheetOpen: $showEditSheet
+                            )
+                            .transition(.opacity)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(width: geo.size.width, height: visibleHeight)
+                        .transition(.opacity)
+                    }
                 }
-                .frame(width: geo.size.width, height: visibleHeight)
-                .animation(.smooth(duration: 0.3), value: visibleHeight)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isFocusMode {
+                        withAnimation(.smooth(duration: 0.35)) { isFocusMode = false }
+                    }
+                }
+                .animation(.smooth(duration: 0.35), value: visibleHeight)
+                .animation(.smooth(duration: 0.35), value: isFocusMode)
             }
             .background(Color(.systemBackground).ignoresSafeArea())
             .toolbar {
@@ -54,46 +72,51 @@ struct ContentView: View {
                     }
                 }
 
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        project.undo()
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .disabled(!project.canUndo)
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        Button {
+                            project.undo()
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                        }
+                        .disabled(!project.canUndo)
 
-                    Button {
-                        project.redo()
-                    } label: {
-                        Image(systemName: "arrow.uturn.forward")
+                        Button {
+                            project.redo()
+                        } label: {
+                            Image(systemName: "arrow.uturn.forward")
+                        }
+                        .disabled(!project.canRedo)
                     }
-                    .disabled(!project.canRedo)
                 }
 
                 if project.hasContent, let exportedImage {
-                    if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         ShareLink(
                             item: Image(uiImage: exportedImage),
                             preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
                         ) {
-                            Text("Export")
+                            Image(systemName: "square.and.arrow.up")
                         }
                     }
                 }
 
                 ToolbarItem(placement: .bottomBar) {
                     Button {
-                        showEditSheet = true
+                        withAnimation(.smooth(duration: 0.35)) {
+                            isFocusMode.toggle()
+                        }
                     } label: {
-                        Image(systemName: "paintbrush.pointed.fill")
+                        Image(systemName: isFocusMode
+                            ? "xmark"
+                            : "arrow.up.left.and.arrow.down.right")
+                            .contentTransition(.symbolEffect(.replace))
                     }
-                    .accessibilityLabel("Edit")
+                    .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
                 }
             }
-            .toolbarBackground(.visible, for: .bottomBar)
+            .toolbar(isFocusMode ? .hidden : .visible, for: .navigationBar)
+            .toolbarBackground(isFocusMode ? .hidden : .visible, for: .bottomBar)
             .navigationBarTitleDisplayMode(.inline)
         }
         .sheet(isPresented: $showEditSheet) {
