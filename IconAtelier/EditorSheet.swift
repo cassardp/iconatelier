@@ -42,12 +42,12 @@ struct EditSheet: View {
         .onChange(of: project.isBackgroundSelected) { _, isBg in
             promptFocused = false
             if isBg {
-                bgAIPromptText = project.background.aiPrompt ?? ""
+                bgAIPromptText = project.safeBackground.aiPrompt ?? ""
             }
         }
         .onAppear {
             if project.isBackgroundSelected {
-                bgAIPromptText = project.background.aiPrompt ?? ""
+                bgAIPromptText = project.safeBackground.aiPrompt ?? ""
             }
         }
         .alert(

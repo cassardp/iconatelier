@@ -9,7 +9,7 @@ struct BackgroundEditorContent: View {
     let onGenerate: () -> Void
 
     var body: some View {
-        @Bindable var background = project.background
+        @Bindable var background = project.safeBackground
         ScrollView {
             VStack(spacing: 18) {
                 kindPicker(for: background)
@@ -56,7 +56,13 @@ struct BackgroundEditorContent: View {
             PanelSection(title: "Color") {
                 BackgroundColorRow(
                     title: "Fill",
-                    color: $project.background.solidColor,
+                    color: Binding(
+                        get: { background.solidColor },
+                        set: {
+                            project.recordUndo()
+                            background.solidColor = $0
+                        }
+                    ),
                     project: project
                 )
             }

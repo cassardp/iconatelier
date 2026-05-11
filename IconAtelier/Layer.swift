@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import UIKit
 
 enum LayerKind: String, Equatable, CaseIterable {
@@ -27,45 +28,41 @@ enum LayerFontWeight: String, CaseIterable {
 }
 
 @MainActor
-@Observable
-final class Layer: Identifiable {
-    let id: UUID
-    var name: String
-    var kind: LayerKind
+@Model
+final class Layer {
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var kindRaw: String = LayerKind.aiOverlay.rawValue
+    var orderIndex: Int = 0
 
-    // AI overlay
-    var image: UIImage?
+    @Attribute(.externalStorage) var imagePNG: Data?
     var sourcePrompt: String?
 
-    // Symbol
-    var symbolName: String
+    var symbolName: String = "star.fill"
+    var emoji: String = "✨"
+    var text: String = "Aa"
+    var fontWeightRaw: String = LayerFontWeight.bold.rawValue
 
-    // Emoji
-    var emoji: String
+    var storedTintColor: StoredColor = StoredColor.white
 
-    // Text
-    var text: String
-    var fontWeight: LayerFontWeight
-
-    // Shared appearance (Symbol + Text)
-    var tintColor: Color
-
-    // Transform / appearance (all overlay kinds)
-    var offset: CGSize = .zero
-    var scale: CGFloat = 1.0
-    var rotation: Angle = .zero
+    var offsetW: Double = 0
+    var offsetH: Double = 0
+    var scaleValue: Double = 1.0
+    var rotationRadians: Double = 0
     var opacity: Double = 1.0
 
     var shadowOpacity: Double = 0
-    var shadowRadius: CGFloat = 0.04
-    var shadowOffsetX: CGFloat = 0
-    var shadowOffsetY: CGFloat = 0.02
+    var shadowRadius: Double = 0.04
+    var shadowOffsetX: Double = 0
+    var shadowOffsetY: Double = 0.02
 
     var isHidden: Bool = false
     var isLocked: Bool = false
 
+    var project: IconProject?
+
     init(
-        id: UUID = UUID(),
+        uuid: UUID = UUID(),
         kind: LayerKind,
         name: String,
         image: UIImage? = nil,
@@ -76,90 +73,132 @@ final class Layer: Identifiable {
         fontWeight: LayerFontWeight = .bold,
         tintColor: Color = .white
     ) {
-        self.id = id
-        self.kind = kind
+        self.uuid = uuid
         self.name = name
-        self.image = image
+        self.kindRaw = kind.rawValue
+        self.imagePNG = image?.pngData()
         self.sourcePrompt = sourcePrompt
         self.symbolName = symbolName
         self.emoji = emoji
         self.text = text
-        self.fontWeight = fontWeight
-        self.tintColor = tintColor
+        self.fontWeightRaw = fontWeight.rawValue
+        self.storedTintColor = StoredColor(tintColor)
+    }
+
+    // MARK: - Bridged properties
+
+    var kind: LayerKind {
+        get { LayerKind(rawValue: kindRaw) ?? .aiOverlay }
+        set { kindRaw = newValue.rawValue }
+    }
+
+    var fontWeight: LayerFontWeight {
+        get { LayerFontWeight(rawValue: fontWeightRaw) ?? .bold }
+        set { fontWeightRaw = newValue.rawValue }
+    }
+
+    var image: UIImage? {
+        get { imagePNG.flatMap { UIImage(data: $0) } }
+        set { imagePNG = newValue?.pngData() }
+    }
+
+    var tintColor: Color {
+        get { storedTintColor.color }
+        set { storedTintColor = StoredColor(newValue) }
+    }
+
+    var offset: CGSize {
+        get { CGSize(width: offsetW, height: offsetH) }
+        set { offsetW = Double(newValue.width); offsetH = Double(newValue.height) }
+    }
+
+    var scale: CGFloat {
+        get { CGFloat(scaleValue) }
+        set { scaleValue = Double(newValue) }
+    }
+
+    var rotation: Angle {
+        get { .radians(rotationRadians) }
+        set { rotationRadians = newValue.radians }
     }
 }
 
+// MARK: - Snapshot for undo
+
 struct LayerSnapshot {
-    let id: UUID
+    let uuid: UUID
     let kind: LayerKind
     let name: String
-    let image: UIImage?
+    let imagePNG: Data?
     let sourcePrompt: String?
     let symbolName: String
     let emoji: String
     let text: String
     let fontWeight: LayerFontWeight
-    let tintColor: Color
-    let offset: CGSize
-    let scale: CGFloat
-    let rotation: Angle
+    let tintColor: StoredColor
+    let offsetW: Double
+    let offsetH: Double
+    let scaleValue: Double
+    let rotationRadians: Double
     let opacity: Double
     let shadowOpacity: Double
-    let shadowRadius: CGFloat
-    let shadowOffsetX: CGFloat
-    let shadowOffsetY: CGFloat
+    let shadowRadius: Double
+    let shadowOffsetX: Double
+    let shadowOffsetY: Double
     let isHidden: Bool
     let isLocked: Bool
+    let orderIndex: Int
 }
 
 extension Layer {
     func snapshot() -> LayerSnapshot {
         LayerSnapshot(
-            id: id,
+            uuid: uuid,
             kind: kind,
             name: name,
-            image: image,
+            imagePNG: imagePNG,
             sourcePrompt: sourcePrompt,
             symbolName: symbolName,
             emoji: emoji,
             text: text,
             fontWeight: fontWeight,
-            tintColor: tintColor,
-            offset: offset,
-            scale: scale,
-            rotation: rotation,
+            tintColor: storedTintColor,
+            offsetW: offsetW,
+            offsetH: offsetH,
+            scaleValue: scaleValue,
+            rotationRadians: rotationRadians,
             opacity: opacity,
             shadowOpacity: shadowOpacity,
             shadowRadius: shadowRadius,
             shadowOffsetX: shadowOffsetX,
             shadowOffsetY: shadowOffsetY,
             isHidden: isHidden,
-            isLocked: isLocked
+            isLocked: isLocked,
+            orderIndex: orderIndex
         )
     }
 
-    convenience init(snapshot s: LayerSnapshot) {
-        self.init(
-            id: s.id,
-            kind: s.kind,
-            name: s.name,
-            image: s.image,
-            sourcePrompt: s.sourcePrompt,
-            symbolName: s.symbolName,
-            emoji: s.emoji,
-            text: s.text,
-            fontWeight: s.fontWeight,
-            tintColor: s.tintColor
-        )
-        self.offset = s.offset
-        self.scale = s.scale
-        self.rotation = s.rotation
-        self.opacity = s.opacity
-        self.shadowOpacity = s.shadowOpacity
-        self.shadowRadius = s.shadowRadius
-        self.shadowOffsetX = s.shadowOffsetX
-        self.shadowOffsetY = s.shadowOffsetY
-        self.isHidden = s.isHidden
-        self.isLocked = s.isLocked
+    func apply(_ s: LayerSnapshot) {
+        kindRaw = s.kind.rawValue
+        name = s.name
+        imagePNG = s.imagePNG
+        sourcePrompt = s.sourcePrompt
+        symbolName = s.symbolName
+        emoji = s.emoji
+        text = s.text
+        fontWeightRaw = s.fontWeight.rawValue
+        storedTintColor = s.tintColor
+        offsetW = s.offsetW
+        offsetH = s.offsetH
+        scaleValue = s.scaleValue
+        rotationRadians = s.rotationRadians
+        opacity = s.opacity
+        shadowOpacity = s.shadowOpacity
+        shadowRadius = s.shadowRadius
+        shadowOffsetX = s.shadowOffsetX
+        shadowOffsetY = s.shadowOffsetY
+        isHidden = s.isHidden
+        isLocked = s.isLocked
+        orderIndex = s.orderIndex
     }
 }

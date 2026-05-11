@@ -1,76 +1,148 @@
 import SwiftUI
+import SwiftData
 import UIKit
 
 struct IconProjectSnapshot {
     let background: BackgroundSnapshot
     let layers: [LayerSnapshot]
-    let selectedLayerID: UUID?
+    let selectedLayerUUID: UUID?
+    let isBackgroundSelected: Bool
 }
 
 @MainActor
-@Observable
+@Model
 final class IconProject {
-    var background: Background = Background()
+    var title: String = "Untitled"
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    @Attribute(.externalStorage) var thumbnailPNG: Data?
 
-    var layers: [Layer] = [] {
-        didSet { enforceSelectionInvariant() }
-    }
-    var selectedLayerID: Layer.ID? {
+    @Relationship(deleteRule: .cascade, inverse: \Background.project)
+    var background: Background?
+
+    @Relationship(deleteRule: .cascade, inverse: \Layer.project)
+    var rawLayers: [Layer] = []
+
+    @Transient var selectedLayerUUID: UUID? {
         didSet {
-            if selectedLayerID != nil { isBackgroundSelected = false }
+            if selectedLayerUUID != nil { isBackgroundSelected = false }
             enforceSelectionInvariant()
         }
     }
-    var isBackgroundSelected: Bool = false
+    @Transient var isBackgroundSelected: Bool = false
 
-    private func enforceSelectionInvariant() {
-        guard !layers.isEmpty else {
-            if selectedLayerID != nil { selectedLayerID = nil }
-            return
-        }
-        if let id = selectedLayerID, layers.contains(where: { $0.id == id }) {
-            return
-        }
-        selectedLayerID = layers.last?.id
+    @Transient var isGenerating: Bool = false
+    @Transient var lastError: String? = nil
+
+    @Transient private var undoStack: [IconProjectSnapshot] = []
+    @Transient private var redoStack: [IconProjectSnapshot] = []
+    private static let maxUndoSteps = 50
+
+    init(title: String = "Untitled") {
+        self.title = title
+        self.createdAt = .now
+        self.updatedAt = .now
     }
 
-    var isGenerating: Bool = false
-    var lastError: String?
+    func ensureBackground() {
+        if background == nil { background = Background() }
+    }
 
-    private var undoStack: [IconProjectSnapshot] = []
-    private var redoStack: [IconProjectSnapshot] = []
-    private let maxUndoSteps = 50
+    /// Guaranteed non-nil background. Caller must have invoked `ensureBackground()` on entry.
+    var safeBackground: Background {
+        if let bg = background { return bg }
+        let bg = Background()
+        background = bg
+        return bg
+    }
+
+    // MARK: - Layers (ordered)
+
+    var layers: [Layer] {
+        get { rawLayers.sorted(by: { $0.orderIndex < $1.orderIndex }) }
+        set {
+            for (i, l) in newValue.enumerated() { l.orderIndex = i }
+            rawLayers = newValue
+        }
+    }
+
+    private func enforceSelectionInvariant() {
+        let ordered = layers
+        guard !ordered.isEmpty else {
+            if selectedLayerUUID != nil { selectedLayerUUID = nil }
+            return
+        }
+        if let id = selectedLayerUUID, ordered.contains(where: { $0.uuid == id }) {
+            return
+        }
+        selectedLayerUUID = ordered.last?.uuid
+    }
 
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
 
     var selectedLayer: Layer? {
-        guard let id = selectedLayerID else { return nil }
-        return layers.first { $0.id == id }
+        guard let id = selectedLayerUUID else { return nil }
+        return rawLayers.first { $0.uuid == id }
     }
 
-    var hasContent: Bool { !layers.isEmpty }
+    var hasContent: Bool { !rawLayers.isEmpty }
 
     // MARK: - Snapshot / undo
 
     private func currentSnapshot() -> IconProjectSnapshot {
         IconProjectSnapshot(
-            background: background.snapshot(),
+            background: (background ?? Background()).snapshot(),
             layers: layers.map { $0.snapshot() },
-            selectedLayerID: selectedLayerID
+            selectedLayerUUID: selectedLayerUUID,
+            isBackgroundSelected: isBackgroundSelected
         )
     }
 
     private func apply(_ snapshot: IconProjectSnapshot) {
-        background = Background(snapshot: snapshot.background)
-        layers = snapshot.layers.map { Layer(snapshot: $0) }
-        selectedLayerID = snapshot.selectedLayerID
+        if let bg = background {
+            bg.apply(snapshot.background)
+        } else {
+            let bg = Background()
+            bg.apply(snapshot.background)
+            background = bg
+        }
+
+        let context = modelContext
+        let existingByUUID = Dictionary(uniqueKeysWithValues: rawLayers.map { ($0.uuid, $0) })
+        var rebuilt: [Layer] = []
+        var seen: Set<UUID> = []
+
+        for (i, snap) in snapshot.layers.enumerated() {
+            seen.insert(snap.uuid)
+            if let existing = existingByUUID[snap.uuid] {
+                existing.apply(snap)
+                existing.orderIndex = i
+                rebuilt.append(existing)
+            } else {
+                let layer = Layer(uuid: snap.uuid, kind: snap.kind, name: snap.name)
+                layer.apply(snap)
+                layer.orderIndex = i
+                rebuilt.append(layer)
+            }
+        }
+
+        // Remove layers no longer in snapshot
+        if let context {
+            for layer in rawLayers where !seen.contains(layer.uuid) {
+                context.delete(layer)
+            }
+        }
+        rawLayers = rebuilt
+
+        selectedLayerUUID = snapshot.selectedLayerUUID
+        isBackgroundSelected = snapshot.isBackgroundSelected
     }
 
     func recordUndo() {
         undoStack.append(currentSnapshot())
-        if undoStack.count > maxUndoSteps {
-            undoStack.removeFirst(undoStack.count - maxUndoSteps)
+        if undoStack.count > Self.maxUndoSteps {
+            undoStack.removeFirst(undoStack.count - Self.maxUndoSteps)
         }
         redoStack.removeAll()
     }
@@ -95,12 +167,13 @@ final class IconProject {
     // MARK: - Layer add helpers
 
     private func append(_ layer: Layer) {
-        layers.append(layer)
-        selectedLayerID = layer.id
+        layer.orderIndex = rawLayers.count
+        rawLayers.append(layer)
+        selectedLayerUUID = layer.uuid
     }
 
     private func nextName(for kind: LayerKind, baseFallback: String) -> String {
-        let n = layers.filter { $0.kind == kind }.count + 1
+        let n = rawLayers.filter { $0.kind == kind }.count + 1
         return n == 1 ? baseFallback : "\(baseFallback) \(n)"
     }
 
@@ -167,57 +240,57 @@ final class IconProject {
 
     func setBackgroundAI(image: UIImage, prompt: String) {
         recordUndo()
-        background.kind = .ai
-        background.aiImage = image
-        background.aiPrompt = prompt
+        if background == nil { background = Background() }
+        background?.kind = .ai
+        background?.aiImage = image
+        background?.aiPrompt = prompt
     }
 
     // MARK: - Layer mutations
 
     func remove(_ layer: Layer) {
         recordUndo()
-        layers.removeAll { $0.id == layer.id }
-        if selectedLayerID == layer.id {
-            selectedLayerID = layers.last?.id
+        let removedUUID = layer.uuid
+        var ordered = layers
+        ordered.removeAll { $0.uuid == removedUUID }
+        // Reindex and assign
+        for (i, l) in ordered.enumerated() { l.orderIndex = i }
+        rawLayers = ordered
+        if let context = modelContext {
+            context.delete(layer)
+        }
+        if selectedLayerUUID == removedUUID {
+            selectedLayerUUID = ordered.last?.uuid
         }
     }
 
     func duplicate(_ layer: Layer) {
         recordUndo()
-        let copy = Layer(snapshot: layer.snapshot())
-        // New identity for the copy
-        let renamed = Layer(
-            id: UUID(),
-            kind: copy.kind,
-            name: copy.name + " copy",
-            image: copy.image,
-            sourcePrompt: copy.sourcePrompt,
-            symbolName: copy.symbolName,
-            emoji: copy.emoji,
-            text: copy.text,
-            fontWeight: copy.fontWeight,
-            tintColor: copy.tintColor
+        let snap = layer.snapshot()
+        let copy = Layer(
+            kind: snap.kind,
+            name: snap.name + " copy"
         )
-        renamed.offset = copy.offset
-        renamed.scale = copy.scale
-        renamed.rotation = copy.rotation
-        renamed.opacity = copy.opacity
-        renamed.shadowOpacity = copy.shadowOpacity
-        renamed.shadowRadius = copy.shadowRadius
-        renamed.shadowOffsetX = copy.shadowOffsetX
-        renamed.shadowOffsetY = copy.shadowOffsetY
+        copy.apply(snap)
+        copy.uuid = UUID() // new identity for the copy
 
-        if let idx = layers.firstIndex(where: { $0.id == layer.id }) {
-            layers.insert(renamed, at: idx + 1)
+        var ordered = layers
+        if let idx = ordered.firstIndex(where: { $0.uuid == layer.uuid }) {
+            ordered.insert(copy, at: idx + 1)
         } else {
-            layers.append(renamed)
+            ordered.append(copy)
         }
-        selectedLayerID = renamed.id
+        for (i, l) in ordered.enumerated() { l.orderIndex = i }
+        rawLayers = ordered
+        selectedLayerUUID = copy.uuid
     }
 
     func move(from source: IndexSet, to destination: Int) {
         recordUndo()
-        layers.move(fromOffsets: source, toOffset: destination)
+        var ordered = layers
+        ordered.move(fromOffsets: source, toOffset: destination)
+        for (i, l) in ordered.enumerated() { l.orderIndex = i }
+        rawLayers = ordered
     }
 
     func toggleVisibility(_ layer: Layer) {

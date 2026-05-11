@@ -26,7 +26,7 @@ struct EditTabContent: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
-        .onChange(of: project.selectedLayerID) { _, newID in
+        .onChange(of: project.selectedLayerUUID) { _, newID in
             if newID == nil { dismiss() }
         }
     }
@@ -135,7 +135,7 @@ struct EditTabContent: View {
                 label: "Offset X",
                 value: Binding(
                     get: { Double(layer.offset.width) },
-                    set: { layer.offset.width = CGFloat($0) }
+                    set: { layer.offset = CGSize(width: CGFloat($0), height: layer.offset.height) }
                 ),
                 range: -1.0 ... 1.0,
                 valueText: { String(format: "%+.2f", $0) },
@@ -146,7 +146,7 @@ struct EditTabContent: View {
                 label: "Offset Y",
                 value: Binding(
                     get: { Double(layer.offset.height) },
-                    set: { layer.offset.height = CGFloat($0) }
+                    set: { layer.offset = CGSize(width: layer.offset.width, height: CGFloat($0)) }
                 ),
                 range: -1.0 ... 1.0,
                 valueText: { String(format: "%+.2f", $0) },
@@ -170,8 +170,8 @@ struct EditTabContent: View {
             DialSliderRow(
                 label: "Blur",
                 value: Binding(
-                    get: { Double(layer.shadowRadius) },
-                    set: { layer.shadowRadius = CGFloat($0) }
+                    get: { layer.shadowRadius },
+                    set: { layer.shadowRadius = $0 }
                 ),
                 range: 0 ... 0.2,
                 valueText: { String(format: "%.0f%%", $0 * 100) },
@@ -181,8 +181,8 @@ struct EditTabContent: View {
             DialSliderRow(
                 label: "Offset X",
                 value: Binding(
-                    get: { Double(layer.shadowOffsetX) },
-                    set: { layer.shadowOffsetX = CGFloat($0) }
+                    get: { layer.shadowOffsetX },
+                    set: { layer.shadowOffsetX = $0 }
                 ),
                 range: -0.2 ... 0.2,
                 valueText: { String(format: "%+.2f", $0) },
@@ -192,8 +192,8 @@ struct EditTabContent: View {
             DialSliderRow(
                 label: "Offset Y",
                 value: Binding(
-                    get: { Double(layer.shadowOffsetY) },
-                    set: { layer.shadowOffsetY = CGFloat($0) }
+                    get: { layer.shadowOffsetY },
+                    set: { layer.shadowOffsetY = $0 }
                 ),
                 range: -0.2 ... 0.2,
                 valueText: { String(format: "%+.2f", $0) },

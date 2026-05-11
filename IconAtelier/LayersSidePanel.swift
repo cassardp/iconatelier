@@ -5,7 +5,7 @@ struct LayersBar: View {
     @Bindable var project: IconProject
     @Binding var isSheetOpen: Bool
 
-    @State private var draggingID: Layer.ID?
+    @State private var draggingUUID: UUID?
     @State private var dragOffset: CGFloat = 0
     @State private var dragStartIndex: Int?
     @State private var targetIndex: Int?
@@ -20,11 +20,11 @@ struct LayersBar: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.spacing) {
                     addButton
-                    ForEach(Array(uiLayers.enumerated()), id: \.element.id) { idx, layer in
+                    ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
                     BackgroundThumbnailRow(
-                        background: project.background,
+                        background: project.safeBackground,
                         isSelected: project.isBackgroundSelected
                     )
                         .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
@@ -41,7 +41,7 @@ struct LayersBar: View {
                 .padding(.vertical, Self.verticalPadding)
                 .frame(minWidth: geo.size.width, alignment: .center)
             }
-            .scrollDisabled(draggingID != nil)
+            .scrollDisabled(draggingUUID != nil)
         }
         .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
     }
@@ -99,9 +99,9 @@ struct LayersBar: View {
 
     @ViewBuilder
     private func rowView(layer: Layer, index: Int) -> some View {
-        let isDragging = draggingID == layer.id
+        let isDragging = draggingUUID == layer.uuid
         let shift = computeShift(for: index)
-        let isSelected = layer.id == project.selectedLayerID && !project.isBackgroundSelected
+        let isSelected = layer.uuid == project.selectedLayerUUID && !project.isBackgroundSelected
 
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
@@ -119,12 +119,12 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
                 let sameLayer = !project.isBackgroundSelected
-                    && project.selectedLayerID == layer.id
+                    && project.selectedLayerUUID == layer.uuid
                 if isSheetOpen && sameLayer {
                     isSheetOpen = false
                 } else {
                     project.isBackgroundSelected = false
-                    project.selectedLayerID = layer.id
+                    project.selectedLayerUUID = layer.uuid
                     isSheetOpen = true
                 }
             }
@@ -153,8 +153,8 @@ struct LayersBar: View {
                 case .first:
                     break
                 case .second(true, let drag?):
-                    if draggingID == nil {
-                        draggingID = layer.id
+                    if draggingUUID == nil {
+                        draggingUUID = layer.uuid
                         dragStartIndex = index
                         targetIndex = index
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -188,7 +188,7 @@ struct LayersBar: View {
                 let toOffset = nativeFrom < nativeTarget ? nativeTarget + 1 : nativeTarget
                 project.move(from: IndexSet(integer: nativeFrom), to: toOffset)
             }
-            draggingID = nil
+            draggingUUID = nil
             dragOffset = 0
             dragStartIndex = nil
             targetIndex = nil

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import UIKit
 
 enum BackgroundKind: String, CaseIterable, Identifiable {
@@ -12,31 +13,23 @@ enum BackgroundKind: String, CaseIterable, Identifiable {
 }
 
 @MainActor
-@Observable
+@Model
 final class Background {
-    var kind: BackgroundKind
+    var kindRaw: String = BackgroundKind.meshGradient.rawValue
 
-    // Solid
-    var solidColor: Color
+    var storedSolidColor: StoredColor = StoredColor(r: 0.0, g: 0.478, b: 1.0, a: 1.0)
+    var storedGradientColors: [StoredColor] = []
+    var storedLinearStart: StoredPoint = StoredPoint(x: 0, y: 0)
+    var storedLinearEnd: StoredPoint = StoredPoint(x: 1, y: 1)
+    var storedGradientCenter: StoredPoint = StoredPoint(x: 0.5, y: 0.5)
+    var storedMeshColors: [StoredColor] = []
 
-    // Linear / radial / conic share the color stops.
-    var gradientColors: [Color]
-
-    // Linear
-    var linearStart: UnitPoint
-    var linearEnd: UnitPoint
-
-    // Radial / conic
-    var gradientCenter: UnitPoint
-
-    // Mesh — 3x3 fixed grid. Index = row * 3 + col, row 0 = top.
-    var meshColors: [Color]
-
-    // AI
-    var aiImage: UIImage?
+    @Attribute(.externalStorage) var aiImagePNG: Data?
     var aiPrompt: String?
 
     var isHidden: Bool = false
+
+    var project: IconProject?
 
     init(
         kind: BackgroundKind = .meshGradient,
@@ -45,22 +38,68 @@ final class Background {
         linearStart: UnitPoint = .topLeading,
         linearEnd: UnitPoint = .bottomTrailing,
         gradientCenter: UnitPoint = .center,
-        meshColors: [Color] = Background.defaultMeshColors,
+        meshColors: [Color]? = nil,
         aiImage: UIImage? = nil,
         aiPrompt: String? = nil
     ) {
-        self.kind = kind
-        self.solidColor = solidColor
-        self.gradientColors = gradientColors
-        self.linearStart = linearStart
-        self.linearEnd = linearEnd
-        self.gradientCenter = gradientCenter
-        self.meshColors = meshColors
-        self.aiImage = aiImage
+        self.kindRaw = kind.rawValue
+        self.storedSolidColor = StoredColor(solidColor)
+        self.storedGradientColors = gradientColors.map { StoredColor($0) }
+        self.storedLinearStart = StoredPoint(linearStart)
+        self.storedLinearEnd = StoredPoint(linearEnd)
+        self.storedGradientCenter = StoredPoint(gradientCenter)
+        self.storedMeshColors = (meshColors ?? Background.defaultMeshColors).map { StoredColor($0) }
+        self.aiImagePNG = aiImage?.pngData()
         self.aiPrompt = aiPrompt
+        self.isHidden = false
     }
 
-    nonisolated static var defaultMeshColors: [Color] {
+    // MARK: - Bridged properties (Color, UnitPoint, UIImage)
+
+    var kind: BackgroundKind {
+        get { BackgroundKind(rawValue: kindRaw) ?? .meshGradient }
+        set { kindRaw = newValue.rawValue }
+    }
+
+    var solidColor: Color {
+        get { storedSolidColor.color }
+        set { storedSolidColor = StoredColor(newValue) }
+    }
+
+    var gradientColors: [Color] {
+        get { storedGradientColors.map { $0.color } }
+        set { storedGradientColors = newValue.map { StoredColor($0) } }
+    }
+
+    var linearStart: UnitPoint {
+        get { storedLinearStart.unitPoint }
+        set { storedLinearStart = StoredPoint(newValue) }
+    }
+
+    var linearEnd: UnitPoint {
+        get { storedLinearEnd.unitPoint }
+        set { storedLinearEnd = StoredPoint(newValue) }
+    }
+
+    var gradientCenter: UnitPoint {
+        get { storedGradientCenter.unitPoint }
+        set { storedGradientCenter = StoredPoint(newValue) }
+    }
+
+    var meshColors: [Color] {
+        get { storedMeshColors.map { $0.color } }
+        set { storedMeshColors = newValue.map { StoredColor($0) } }
+    }
+
+    var aiImage: UIImage? {
+        get { aiImagePNG.flatMap { UIImage(data: $0) } }
+        set { aiImagePNG = newValue?.pngData() }
+    }
+
+    // MARK: - Defaults
+
+    @MainActor
+    static var defaultMeshColors: [Color] {
         let tl: Color = .iaPurple
         let tr: Color = .iaBlue
         let bl: Color = .iaPink
@@ -75,17 +114,17 @@ final class Background {
     }
 }
 
-// MARK: - Snapshot for undo / persistence
+// MARK: - Snapshot for undo
 
 struct BackgroundSnapshot {
     let kind: BackgroundKind
-    let solidColor: Color
-    let gradientColors: [Color]
-    let linearStart: UnitPoint
-    let linearEnd: UnitPoint
-    let gradientCenter: UnitPoint
-    let meshColors: [Color]
-    let aiImage: UIImage?
+    let solidColor: StoredColor
+    let gradientColors: [StoredColor]
+    let linearStart: StoredPoint
+    let linearEnd: StoredPoint
+    let gradientCenter: StoredPoint
+    let meshColors: [StoredColor]
+    let aiImagePNG: Data?
     let aiPrompt: String?
     let isHidden: Bool
 }
@@ -94,31 +133,29 @@ extension Background {
     func snapshot() -> BackgroundSnapshot {
         BackgroundSnapshot(
             kind: kind,
-            solidColor: solidColor,
-            gradientColors: gradientColors,
-            linearStart: linearStart,
-            linearEnd: linearEnd,
-            gradientCenter: gradientCenter,
-            meshColors: meshColors,
-            aiImage: aiImage,
+            solidColor: storedSolidColor,
+            gradientColors: storedGradientColors,
+            linearStart: storedLinearStart,
+            linearEnd: storedLinearEnd,
+            gradientCenter: storedGradientCenter,
+            meshColors: storedMeshColors,
+            aiImagePNG: aiImagePNG,
             aiPrompt: aiPrompt,
             isHidden: isHidden
         )
     }
 
-    convenience init(snapshot s: BackgroundSnapshot) {
-        self.init(
-            kind: s.kind,
-            solidColor: s.solidColor,
-            gradientColors: s.gradientColors,
-            linearStart: s.linearStart,
-            linearEnd: s.linearEnd,
-            gradientCenter: s.gradientCenter,
-            meshColors: s.meshColors,
-            aiImage: s.aiImage,
-            aiPrompt: s.aiPrompt
-        )
-        self.isHidden = s.isHidden
+    func apply(_ s: BackgroundSnapshot) {
+        kindRaw = s.kind.rawValue
+        storedSolidColor = s.solidColor
+        storedGradientColors = s.gradientColors
+        storedLinearStart = s.linearStart
+        storedLinearEnd = s.linearEnd
+        storedGradientCenter = s.gradientCenter
+        storedMeshColors = s.meshColors
+        aiImagePNG = s.aiImagePNG
+        aiPrompt = s.aiPrompt
+        isHidden = s.isHidden
     }
 }
 
@@ -130,7 +167,8 @@ extension Color {
     nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)      // #FF2D55
     nonisolated static let iaOrange = Color(red: 1.0, green: 0.584, blue: 0.0)      // #FF9500
 
-    nonisolated static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
+    @MainActor
+    static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         let ua = UIColor(a)
         let ub = UIColor(b)
         var ra: CGFloat = 0, ga: CGFloat = 0, ba: CGFloat = 0, aa: CGFloat = 0

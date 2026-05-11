@@ -1,123 +1,122 @@
 import SwiftUI
+import SwiftData
 import UIKit
 
 struct ContentView: View {
-    @State private var project: IconProject
-    private let service = OpenAIImageService()
-
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
+    @Bindable var project: IconProject
+    private let service = OpenAIImageService()
+
     @State private var exportedImage: UIImage?
-    @State private var showingNewProjectConfirm = false
     @State private var showEditSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
     @State private var isFocusMode = false
-
-    init() {
-        let restored: IconProject
-        if let persisted = ProjectPersistence.load() {
-            restored = IconProject(persisted: persisted)
-        } else {
-            restored = IconProject()
-        }
-        _project = State(initialValue: restored)
-    }
+    @State private var isEditingTitle = false
+    @State private var draftTitle = ""
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { geo in
-                let layersBarHeight: CGFloat = isFocusMode ? 0 : 56 + 16
-                let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
-                let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
-                let blockHeight = max(0, visibleHeight - verticalMargin * 2)
-                let iconHeight = max(0, blockHeight - layersBarHeight)
-                let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-                ZStack(alignment: .top) {
-                    if isFocusMode {
-                        HomeScreenPreview(project: project)
-                            .transition(.opacity)
-                    } else {
-                        VStack(spacing: 0) {
-                            Spacer(minLength: 0)
-                            IconCanvasView(project: project)
-                                .frame(width: iconSide, height: iconSide)
-                            LayersBar(
-                                project: project,
-                                isSheetOpen: $showEditSheet
-                            )
-                            .transition(.opacity)
-                            Spacer(minLength: 0)
-                        }
-                        .frame(width: geo.size.width, height: visibleHeight)
+        GeometryReader { geo in
+            let layersBarHeight: CGFloat = isFocusMode ? 0 : 56 + 16
+            let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
+            let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
+            let blockHeight = max(0, visibleHeight - verticalMargin * 2)
+            let iconHeight = max(0, blockHeight - layersBarHeight)
+            let iconSide = max(0, min(geo.size.width - 32, iconHeight))
+            ZStack(alignment: .top) {
+                if isFocusMode {
+                    HomeScreenPreview(project: project)
                         .transition(.opacity)
+                } else {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        IconCanvasView(project: project)
+                            .frame(width: iconSide, height: iconSide)
+                        LayersBar(
+                            project: project,
+                            isSheetOpen: $showEditSheet
+                        )
+                        .transition(.opacity)
+                        Spacer(minLength: 0)
                     }
-                }
-                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if isFocusMode {
-                        withAnimation(.smooth(duration: 0.35)) { isFocusMode = false }
-                    }
-                }
-                .animation(.smooth(duration: 0.35), value: visibleHeight)
-                .animation(.smooth(duration: 0.35), value: isFocusMode)
-            }
-            .background(Color(.systemBackground).ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingNewProjectConfirm = true
-                    } label: {
-                        Image(systemName: "chevron.backward")
-                    }
-                }
-
-                ToolbarItem(placement: .principal) {
-                    HStack {
-                        Button {
-                            project.undo()
-                        } label: {
-                            Image(systemName: "arrow.uturn.backward")
-                        }
-                        .disabled(!project.canUndo)
-
-                        Button {
-                            project.redo()
-                        } label: {
-                            Image(systemName: "arrow.uturn.forward")
-                        }
-                        .disabled(!project.canRedo)
-                    }
-                }
-
-                if project.hasContent, let exportedImage {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        ShareLink(
-                            item: Image(uiImage: exportedImage),
-                            preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
-                        ) {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                    }
-                }
-
-                ToolbarItem(placement: .bottomBar) {
-                    Button {
-                        withAnimation(.smooth(duration: 0.35)) {
-                            isFocusMode.toggle()
-                        }
-                    } label: {
-                        Image(systemName: isFocusMode
-                            ? "xmark"
-                            : "arrow.up.left.and.arrow.down.right")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                    .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
+                    .frame(width: geo.size.width, height: visibleHeight)
+                    .transition(.opacity)
                 }
             }
-            .toolbar(isFocusMode ? .hidden : .visible, for: .navigationBar)
-            .toolbarBackground(isFocusMode ? .hidden : .visible, for: .bottomBar)
-            .navigationBarTitleDisplayMode(.inline)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if isFocusMode {
+                    withAnimation(.smooth(duration: 0.35)) { isFocusMode = false }
+                }
+            }
+            .animation(.smooth(duration: 0.35), value: visibleHeight)
+            .animation(.smooth(duration: 0.35), value: isFocusMode)
+        }
+        .background(Color(.systemBackground).ignoresSafeArea())
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack {
+                    Button {
+                        project.undo()
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!project.canUndo)
+
+                    Button {
+                        project.redo()
+                    } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!project.canRedo)
+                }
+            }
+
+            if project.hasContent, let exportedImage {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(
+                        item: Image(uiImage: exportedImage),
+                        preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+
+            ToolbarItem(placement: .bottomBar) {
+                Button {
+                    withAnimation(.smooth(duration: 0.35)) {
+                        isFocusMode.toggle()
+                    }
+                } label: {
+                    Image(systemName: isFocusMode
+                        ? "xmark"
+                        : "arrow.up.left.and.arrow.down.right")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
+            }
+        }
+        .toolbar(isFocusMode ? .hidden : .visible, for: .navigationBar)
+        .toolbarBackground(isFocusMode ? .hidden : .visible, for: .bottomBar)
+        .navigationTitle(project.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleMenu {
+            Button("Rename") {
+                draftTitle = project.title
+                isEditingTitle = true
+            }
+        }
+        .alert("Rename icon", isPresented: $isEditingTitle) {
+            TextField("Name", text: $draftTitle)
+            Button("Save") {
+                let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { project.title = trimmed }
+            }
+            Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $showEditSheet) {
             EditSheet(project: project, service: service)
@@ -130,28 +129,22 @@ struct ContentView: View {
             if isOpen && !wasOpen { sheetDetent = .fraction(0.5) }
         }
         .onChange(of: exportSignature) { _, _ in
-            exportedImage = renderedIcon()
+            exportedImage = IconRenderer.render(project, side: 1024)
+            IconRenderer.updateThumbnail(project)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
-                ProjectPersistence.save(project)
+                IconRenderer.updateThumbnail(project)
+                try? modelContext.save()
             }
         }
         .onAppear {
-            exportedImage = renderedIcon()
+            project.ensureBackground()
+            exportedImage = IconRenderer.render(project, side: 1024)
         }
-        .confirmationDialog(
-            "Start a new project?",
-            isPresented: $showingNewProjectConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("New project", role: .destructive) {
-                project = IconProject()
-                ProjectPersistence.clear()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will discard the current icon.")
+        .onDisappear {
+            IconRenderer.updateThumbnail(project)
+            try? modelContext.save()
         }
     }
 
@@ -162,59 +155,25 @@ struct ContentView: View {
 
     private var exportSignature: Int {
         var hasher = Hasher()
-        let bg = project.background
-        hasher.combine(bg.kind)
-        hasher.combine(bg.aiImage?.hash ?? 0)
-        hasher.combine(bg.isHidden)
+        if let bg = project.background {
+            hasher.combine(bg.kindRaw)
+            hasher.combine(bg.aiImagePNG?.hashValue ?? 0)
+            hasher.combine(bg.isHidden)
+        }
         for layer in project.layers {
-            hasher.combine(layer.id)
-            hasher.combine(layer.kind)
-            hasher.combine(layer.image?.hash ?? 0)
+            hasher.combine(layer.uuid)
+            hasher.combine(layer.kindRaw)
+            hasher.combine(layer.imagePNG?.hashValue ?? 0)
             hasher.combine(layer.symbolName)
             hasher.combine(layer.emoji)
             hasher.combine(layer.text)
-            hasher.combine(layer.scale)
-            hasher.combine(layer.rotation.radians)
-            hasher.combine(layer.offset.width)
-            hasher.combine(layer.offset.height)
+            hasher.combine(layer.scaleValue)
+            hasher.combine(layer.rotationRadians)
+            hasher.combine(layer.offsetW)
+            hasher.combine(layer.offsetH)
             hasher.combine(layer.opacity)
             hasher.combine(layer.isHidden)
         }
         return hasher.finalize()
-    }
-
-    private func renderedIcon() -> UIImage? {
-        let exportSide: CGFloat = 1024
-
-        let view = ZStack {
-            if !project.background.isHidden {
-                BackgroundView(background: project.background, side: exportSide)
-            }
-            ForEach(project.layers) { layer in
-                if !layer.isHidden {
-                    LayerContentView(layer: layer, side: exportSide)
-                        .shadow(
-                            color: .black.opacity(layer.shadowOpacity),
-                            radius: exportSide * layer.shadowRadius,
-                            x: exportSide * layer.shadowOffsetX,
-                            y: exportSide * layer.shadowOffsetY
-                        )
-                        .scaleEffect(layer.scale)
-                        .rotationEffect(layer.rotation)
-                        .opacity(layer.opacity)
-                        .offset(
-                            x: layer.offset.width * exportSide,
-                            y: layer.offset.height * exportSide
-                        )
-                }
-            }
-        }
-        .frame(width: exportSide, height: exportSide)
-        .compositingGroup()
-
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 1.0
-        renderer.proposedSize = .init(width: exportSide, height: exportSide)
-        return renderer.uiImage
     }
 }

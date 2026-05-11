@@ -86,8 +86,8 @@ explicite. Les autres surfaces de l'app restent natives par défaut.
 
 ## Roadmap & vision
 
-Voir `~/Desktop/IconLab_roadmap.md` pour la vision produit, le positionnement
-(BYOK, devs iOS indé), et la priorisation (fonds natifs → export appiconset → calques N).
+Voir `TODO.md` à la racine du projet pour le TODO technique (ce qui reste
+à faire + idées à vérifier).
 
 ## Build / test
 

@@ -81,14 +81,14 @@ struct IconCanvasView: View {
 
     private func squircleIcon(side: CGFloat) -> some View {
         ZStack {
-            if project.background.isHidden {
+            if project.safeBackground.isHidden {
                 TransparencyCheckerboard(tile: 14)
             } else {
-                BackgroundView(background: project.background, side: side)
+                BackgroundView(background: project.safeBackground, side: side)
             }
             ForEach(project.layers) { layer in
                 if !layer.isHidden {
-                    let isSelected = layer.id == project.selectedLayerID
+                    let isSelected = layer.uuid == project.selectedLayerUUID
                     OverlayLayerView(
                         layer: layer,
                         side: side,
@@ -96,7 +96,7 @@ struct IconCanvasView: View {
                         transientOffset: isSelected ? dragSnap.translation : .zero,
                         transientScale: isSelected ? gestureScale : 1.0,
                         transientAngle: isSelected ? gestureAngle : .zero,
-                        onTap: { project.selectedLayerID = layer.id }
+                        onTap: { project.selectedLayerUUID = layer.uuid }
                     )
                 }
             }
@@ -156,8 +156,10 @@ struct IconCanvasView: View {
                 )
                 let nextWidth = layer.offset.width + effective.width / side
                 let nextHeight = layer.offset.height + effective.height / side
-                layer.offset.width = min(max(nextWidth, -0.5), 0.5)
-                layer.offset.height = min(max(nextHeight, -0.5), 0.5)
+                layer.offset = CGSize(
+                    width: min(max(nextWidth, -0.5), 0.5),
+                    height: min(max(nextHeight, -0.5), 0.5)
+                )
             }
 
         let magnify = MagnifyGesture(minimumScaleDelta: 0.01)

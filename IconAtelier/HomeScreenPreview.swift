@@ -67,8 +67,8 @@ private struct RenderedAppIcon: View {
 
     var body: some View {
         ZStack {
-            if !project.background.isHidden {
-                BackgroundView(background: project.background, side: side)
+            if let bg = project.background, !bg.isHidden {
+                BackgroundView(background: bg, side: side)
             } else {
                 Color.black.opacity(0.001)
             }
