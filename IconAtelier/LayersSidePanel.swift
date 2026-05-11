@@ -3,8 +3,8 @@ import UIKit
 
 struct LayersBar: View {
     @Bindable var project: IconProject
-    var onAddLayer: () -> Void = {}
     var onSelectLayer: () -> Void = {}
+    var onSelectBackground: () -> Void = {}
 
     @State private var draggingID: Layer.ID?
     @State private var dragOffset: CGFloat = 0
@@ -24,6 +24,9 @@ struct LayersBar: View {
                     ForEach(Array(uiLayers.enumerated()), id: \.element.id) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
+                    BackgroundThumbnailRow(background: project.background)
+                        .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+                        .onTapGesture { onSelectBackground() }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, Self.verticalPadding)
@@ -35,7 +38,28 @@ struct LayersBar: View {
     }
 
     private var addButton: some View {
-        Button(action: onAddLayer) {
+        Menu {
+            Button {
+                withSpring { project.addEmptyAIOverlay() }
+            } label: {
+                Label("AI image", systemImage: "sparkles")
+            }
+            Button {
+                withSpring { project.addSymbolOverlay() }
+            } label: {
+                Label("Symbol", systemImage: "star")
+            }
+            Button {
+                withSpring { project.addEmojiOverlay() }
+            } label: {
+                Label("Emoji", systemImage: "face.smiling")
+            }
+            Button {
+                withSpring { project.addTextOverlay() }
+            } label: {
+                Label("Text", systemImage: "textformat")
+            }
+        } label: {
             RoundedRectangle(
                 cornerRadius: Self.thumbnailSize * 0.2237,
                 style: .continuous
@@ -51,8 +75,15 @@ struct LayersBar: View {
             }
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
         }
+        .menuStyle(.button)
         .buttonStyle(.plain)
         .accessibilityLabel("Add layer")
+    }
+
+    private func withSpring(_ action: () -> Void) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            action()
+        }
     }
 
     private var uiLayers: [Layer] { Array(project.layers.reversed()) }
@@ -152,6 +183,36 @@ struct LayersBar: View {
     }
 }
 
+struct BackgroundThumbnailRow: View {
+    let background: Background
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                GeometryReader { geo in
+                    let outerRadius = geo.size.width * 0.2237
+                    let inset: CGFloat = 4
+                    let innerRadius = max(0, outerRadius - inset)
+                    ZStack {
+                        BackgroundView(background: background, side: geo.size.width - inset * 2)
+                            .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
+                            .opacity(background.isHidden ? 0.4 : 1)
+                            .padding(inset)
+
+                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                            .strokeBorder(
+                                Color.secondary.opacity(0.35),
+                                style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
+                            )
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+            .accessibilityLabel("Background")
+    }
+}
+
 struct LayerThumbnailRow: View {
     let layer: Layer
     let isSelected: Bool
@@ -166,17 +227,8 @@ struct LayerThumbnailRow: View {
                     let innerRadius = max(0, outerRadius - inset)
                     ZStack {
                         ZStack {
-                            if layer.fillsCanvas {
-                                RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
-                                    .fill(Color(.secondarySystemBackground))
-                            } else {
-                                TransparencyCheckerboard(tile: 6)
-                            }
-                            if let img = layer.image {
-                                Image(uiImage: img)
-                                    .resizable()
-                                    .scaledToFill()
-                            }
+                            TransparencyCheckerboard(tile: 6)
+                            LayerContentView(layer: layer, side: geo.size.width - inset * 2)
                         }
                         .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
                         .opacity(layer.isHidden ? 0.4 : 1)

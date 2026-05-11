@@ -77,38 +77,27 @@ struct IconCanvasView: View {
             }
     }
 
-    private var selectedOverlay: Layer? {
-        guard let layer = project.selectedLayer, !layer.fillsCanvas else { return nil }
-        return layer
-    }
+    private var selectedOverlay: Layer? { project.selectedLayer }
 
     private func squircleIcon(side: CGFloat) -> some View {
         ZStack {
-            if project.background?.isHidden ?? true {
+            if project.background.isHidden {
                 TransparencyCheckerboard(tile: 14)
+            } else {
+                BackgroundView(background: project.background, side: side)
             }
             ForEach(project.layers) { layer in
-                if !layer.isHidden, let image = layer.image {
-                    if layer.fillsCanvas {
-                        BackgroundLayerView(
-                            layer: layer,
-                            image: image,
-                            side: side,
-                            onTap: { project.selectedLayerID = layer.id }
-                        )
-                    } else {
-                        let isSelected = layer.id == project.selectedLayerID
-                        OverlayLayerView(
-                            layer: layer,
-                            image: image,
-                            side: side,
-                            isSelected: isSelected,
-                            transientOffset: isSelected ? dragSnap.translation : .zero,
-                            transientScale: isSelected ? gestureScale : 1.0,
-                            transientAngle: isSelected ? gestureAngle : .zero,
-                            onTap: { project.selectedLayerID = layer.id }
-                        )
-                    }
+                if !layer.isHidden {
+                    let isSelected = layer.id == project.selectedLayerID
+                    OverlayLayerView(
+                        layer: layer,
+                        side: side,
+                        isSelected: isSelected,
+                        transientOffset: isSelected ? dragSnap.translation : .zero,
+                        transientScale: isSelected ? gestureScale : 1.0,
+                        transientAngle: isSelected ? gestureAngle : .zero,
+                        onTap: { project.selectedLayerID = layer.id }
+                    )
                 }
             }
             centerGuides(side: side)
@@ -194,26 +183,74 @@ struct IconCanvasView: View {
     }
 }
 
-private struct BackgroundLayerView: View {
-    let layer: Layer
-    let image: UIImage
+// MARK: - Background rendering
+
+struct BackgroundView: View {
+    let background: Background
     let side: CGFloat
-    let onTap: () -> Void
 
     var body: some View {
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFill()
-            .frame(width: side, height: side)
-            .opacity(layer.opacity)
-            .contentShape(Rectangle())
-            .onTapGesture { onTap() }
+        Group {
+            switch background.kind {
+            case .solid:
+                background.solidColor
+            case .linearGradient:
+                LinearGradient(
+                    colors: background.gradientColors,
+                    startPoint: background.linearStart,
+                    endPoint: background.linearEnd
+                )
+            case .radialGradient:
+                RadialGradient(
+                    colors: background.gradientColors,
+                    center: background.gradientCenter,
+                    startRadius: 0,
+                    endRadius: side * 0.75
+                )
+            case .meshGradient:
+                meshView
+            case .ai:
+                if let image = background.aiImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color(.secondarySystemBackground)
+                }
+            }
+        }
+        .frame(width: side, height: side)
+    }
+
+    @ViewBuilder
+    private var meshView: some View {
+        if #available(iOS 18.0, *) {
+            MeshGradient(
+                width: 3,
+                height: 3,
+                points: [
+                    [0,   0  ], [0.5, 0  ], [1,   0  ],
+                    [0,   0.5], [0.5, 0.5], [1,   0.5],
+                    [0,   1  ], [0.5, 1  ], [1,   1  ]
+                ],
+                colors: background.meshColors
+            )
+        } else {
+            // Pre-iOS 18 fallback: approximate with a linear gradient.
+            LinearGradient(
+                colors: [background.meshColors.first ?? .iaPurple,
+                         background.meshColors.last ?? .iaOrange],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
     }
 }
 
+// MARK: - Overlay rendering
+
 private struct OverlayLayerView: View {
     let layer: Layer
-    let image: UIImage
     let side: CGFloat
     let isSelected: Bool
     let transientOffset: CGSize
@@ -222,28 +259,57 @@ private struct OverlayLayerView: View {
     let onTap: () -> Void
 
     var body: some View {
-        let displaySide = side * 0.7
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFit()
-            .frame(width: displaySide, height: displaySide)
+        LayerContentView(layer: layer, side: side)
             .shadow(
                 color: .black.opacity(layer.shadowOpacity),
                 radius: side * layer.shadowRadius,
                 x: side * layer.shadowOffsetX,
                 y: side * layer.shadowOffsetY
             )
-        .scaleEffect(layer.scale * transientScale)
-        .rotationEffect(layer.rotation + transientAngle)
-        .opacity(layer.opacity)
-        .offset(
-            x: layer.offset.width * side + transientOffset.width,
-            y: layer.offset.height * side + transientOffset.height
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
+            .scaleEffect(layer.scale * transientScale)
+            .rotationEffect(layer.rotation + transientAngle)
+            .opacity(layer.opacity)
+            .offset(
+                x: layer.offset.width * side + transientOffset.width,
+                y: layer.offset.height * side + transientOffset.height
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { onTap() }
     }
 }
+
+struct LayerContentView: View {
+    let layer: Layer
+    let side: CGFloat
+
+    var body: some View {
+        switch layer.kind {
+        case .aiOverlay:
+            if let image = layer.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: side * 0.7, height: side * 0.7)
+            } else {
+                Color.clear
+                    .frame(width: side * 0.7, height: side * 0.7)
+            }
+        case .symbol:
+            Image(systemName: layer.symbolName)
+                .font(.system(size: side * 0.5, weight: layer.fontWeight.swiftUI))
+                .foregroundStyle(layer.tintColor)
+        case .emoji:
+            Text(layer.emoji)
+                .font(.system(size: side * 0.5))
+        case .text:
+            Text(layer.text)
+                .font(.system(size: side * 0.3, weight: layer.fontWeight.swiftUI, design: .rounded))
+                .foregroundStyle(layer.tintColor)
+        }
+    }
+}
+
+// MARK: - Transparency checkerboard
 
 struct TransparencyCheckerboard: View {
     let tile: CGFloat

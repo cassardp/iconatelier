@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct IconProjectSnapshot {
+    let background: BackgroundSnapshot
     let layers: [LayerSnapshot]
     let selectedLayerID: UUID?
 }
@@ -9,6 +10,8 @@ struct IconProjectSnapshot {
 @MainActor
 @Observable
 final class IconProject {
+    var background: Background = Background()
+
     var layers: [Layer] = [] {
         didSet { enforceSelectionInvariant() }
     }
@@ -44,24 +47,18 @@ final class IconProject {
 
     var hasContent: Bool { !layers.isEmpty }
 
-    var background: Layer? {
-        layers.first { $0.kind == .aiBackground }
-    }
-
-    var overlays: [Layer] {
-        layers.filter { $0.kind == .aiOverlay }
-    }
-
     // MARK: - Snapshot / undo
 
     private func currentSnapshot() -> IconProjectSnapshot {
         IconProjectSnapshot(
+            background: background.snapshot(),
             layers: layers.map { $0.snapshot() },
             selectedLayerID: selectedLayerID
         )
     }
 
     private func apply(_ snapshot: IconProjectSnapshot) {
+        background = Background(snapshot: snapshot.background)
         layers = snapshot.layers.map { Layer(snapshot: $0) }
         selectedLayerID = snapshot.selectedLayerID
     }
@@ -91,16 +88,87 @@ final class IconProject {
         apply(next)
     }
 
-    // MARK: - Mutations
+    // MARK: - Layer add helpers
 
-    private func performAdd(_ layer: Layer) {
-        if layer.kind == .aiBackground {
-            layers.insert(layer, at: 0)
-        } else {
-            layers.append(layer)
-        }
+    private func append(_ layer: Layer) {
+        layers.append(layer)
         selectedLayerID = layer.id
     }
+
+    private func nextName(for kind: LayerKind, baseFallback: String) -> String {
+        let n = layers.filter { $0.kind == kind }.count + 1
+        return n == 1 ? baseFallback : "\(baseFallback) \(n)"
+    }
+
+    func addAIOverlay(image: UIImage, prompt: String) {
+        recordUndo()
+        let layer = Layer(
+            kind: .aiOverlay,
+            name: nextName(for: .aiOverlay, baseFallback: "Overlay"),
+            image: image,
+            sourcePrompt: prompt
+        )
+        append(layer)
+    }
+
+    func addEmptyAIOverlay() {
+        recordUndo()
+        let layer = Layer(
+            kind: .aiOverlay,
+            name: nextName(for: .aiOverlay, baseFallback: "Overlay")
+        )
+        append(layer)
+    }
+
+    func addSymbolOverlay() {
+        recordUndo()
+        let layer = Layer(
+            kind: .symbol,
+            name: "star.fill"
+        )
+        append(layer)
+    }
+
+    func addEmojiOverlay() {
+        recordUndo()
+        let layer = Layer(
+            kind: .emoji,
+            name: "✨"
+        )
+        append(layer)
+    }
+
+    func addTextOverlay() {
+        recordUndo()
+        let layer = Layer(
+            kind: .text,
+            name: "Aa"
+        )
+        append(layer)
+    }
+
+    func fillSelectedEmptyOverlayOrAdd(image: UIImage, prompt: String) {
+        if let selected = selectedLayer,
+           selected.kind == .aiOverlay,
+           selected.image == nil {
+            recordUndo()
+            selected.image = image
+            selected.sourcePrompt = prompt
+        } else {
+            addAIOverlay(image: image, prompt: prompt)
+        }
+    }
+
+    // MARK: - Background
+
+    func setBackgroundAI(image: UIImage, prompt: String) {
+        recordUndo()
+        background.kind = .ai
+        background.aiImage = image
+        background.aiPrompt = prompt
+    }
+
+    // MARK: - Layer mutations
 
     func remove(_ layer: Layer) {
         recordUndo()
@@ -112,27 +180,35 @@ final class IconProject {
 
     func duplicate(_ layer: Layer) {
         recordUndo()
-        let copy = Layer(
-            kind: layer.kind,
-            name: layer.name + " copy",
-            image: layer.image,
-            sourcePrompt: layer.sourcePrompt
+        let copy = Layer(snapshot: layer.snapshot())
+        // New identity for the copy
+        let renamed = Layer(
+            id: UUID(),
+            kind: copy.kind,
+            name: copy.name + " copy",
+            image: copy.image,
+            sourcePrompt: copy.sourcePrompt,
+            symbolName: copy.symbolName,
+            emoji: copy.emoji,
+            text: copy.text,
+            fontWeight: copy.fontWeight,
+            tintColor: copy.tintColor
         )
-        copy.offset = layer.offset
-        copy.scale = layer.scale
-        copy.rotation = layer.rotation
-        copy.opacity = layer.opacity
-        copy.shadowOpacity = layer.shadowOpacity
-        copy.shadowRadius = layer.shadowRadius
-        copy.shadowOffsetX = layer.shadowOffsetX
-        copy.shadowOffsetY = layer.shadowOffsetY
+        renamed.offset = copy.offset
+        renamed.scale = copy.scale
+        renamed.rotation = copy.rotation
+        renamed.opacity = copy.opacity
+        renamed.shadowOpacity = copy.shadowOpacity
+        renamed.shadowRadius = copy.shadowRadius
+        renamed.shadowOffsetX = copy.shadowOffsetX
+        renamed.shadowOffsetY = copy.shadowOffsetY
 
         if let idx = layers.firstIndex(where: { $0.id == layer.id }) {
-            layers.insert(copy, at: idx + 1)
+            layers.insert(renamed, at: idx + 1)
         } else {
-            layers.append(copy)
+            layers.append(renamed)
         }
-        selectedLayerID = copy.id
+        selectedLayerID = renamed.id
     }
 
     func move(from source: IndexSet, to destination: Int) {
@@ -140,58 +216,20 @@ final class IconProject {
         layers.move(fromOffsets: source, toOffset: destination)
     }
 
-    func setOrReplaceBackground(image: UIImage, prompt: String) {
-        recordUndo()
-        if let existing = background {
-            existing.image = image
-            existing.sourcePrompt = prompt
-            selectedLayerID = existing.id
-        } else {
-            let bg = Layer(
-                kind: .aiBackground,
-                name: "Background",
-                image: image,
-                sourcePrompt: prompt
-            )
-            performAdd(bg)
-        }
-    }
-
-    func addOverlay(image: UIImage, prompt: String) {
-        recordUndo()
-        let index = overlays.count + 1
-        let name = index == 1 ? "Overlay" : "Overlay \(index)"
-        let layer = Layer(
-            kind: .aiOverlay,
-            name: name,
-            image: image,
-            sourcePrompt: prompt
-        )
-        performAdd(layer)
-    }
-
-    func addEmptyOverlay() {
-        recordUndo()
-        let index = overlays.count + 1
-        let name = index == 1 ? "Overlay" : "Overlay \(index)"
-        let layer = Layer(kind: .aiOverlay, name: name)
-        performAdd(layer)
-    }
-
-    func fillSelectedEmptyOverlayOrAdd(image: UIImage, prompt: String) {
-        if let selected = selectedLayer,
-           selected.kind == .aiOverlay,
-           selected.image == nil {
-            recordUndo()
-            selected.image = image
-            selected.sourcePrompt = prompt
-        } else {
-            addOverlay(image: image, prompt: prompt)
-        }
-    }
-
     func toggleVisibility(_ layer: Layer) {
         recordUndo()
         layer.isHidden.toggle()
+    }
+
+    func resetTransform(_ layer: Layer) {
+        recordUndo()
+        layer.offset = .zero
+        layer.scale = 1.0
+        layer.rotation = .zero
+        layer.opacity = 1.0
+        layer.shadowOpacity = 0
+        layer.shadowRadius = 0.04
+        layer.shadowOffsetX = 0
+        layer.shadowOffsetY = 0.02
     }
 }

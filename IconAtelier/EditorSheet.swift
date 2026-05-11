@@ -51,7 +51,7 @@ struct EditSheet: View {
                 switch target {
                 case .background:
                     let img = try await service.generateBackground(prompt: trimmed)
-                    project.setOrReplaceBackground(image: img, prompt: trimmed)
+                    project.setBackgroundAI(image: img, prompt: trimmed)
                 case .overlay:
                     let img = try await service.generateOverlay(prompt: trimmed)
                     project.fillSelectedEmptyOverlayOrAdd(image: img, prompt: trimmed)

@@ -2,22 +2,20 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
-    #if DEBUG
-    @State private var project = IconProject.devSample()
-    #else
     @State private var project = IconProject()
-    #endif
     private let service = OpenAIImageService()
 
     @State private var exportedImage: UIImage?
     @State private var showingNewProjectConfirm = false
     @State private var showEditSheet = false
+    @State private var showBackgroundSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
+    @State private var backgroundSheetDetent: PresentationDetent = .fraction(0.5)
 
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                let layersBarHeight: CGFloat = project.hasContent ? (56 + 16) : 0
+                let layersBarHeight: CGFloat = 56 + 16
                 let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
                 let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
                 let blockHeight = max(0, visibleHeight - verticalMargin * 2)
@@ -27,20 +25,17 @@ struct ContentView: View {
                     Spacer(minLength: 0)
                     IconCanvasView(project: project)
                         .frame(width: iconSide, height: iconSide)
-                    if project.hasContent {
-                        LayersBar(
-                            project: project,
-                            onAddLayer: {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                    project.addEmptyOverlay()
-                                }
-                            },
-                            onSelectLayer: {
-                                sheetDetent = .fraction(0.5)
-                                showEditSheet = true
-                            }
-                        )
-                    }
+                    LayersBar(
+                        project: project,
+                        onSelectLayer: {
+                            sheetDetent = .fraction(0.5)
+                            showEditSheet = true
+                        },
+                        onSelectBackground: {
+                            backgroundSheetDetent = .fraction(0.5)
+                            showBackgroundSheet = true
+                        }
+                    )
                     Spacer(minLength: 0)
                 }
                 .frame(width: geo.size.width, height: visibleHeight)
@@ -105,6 +100,13 @@ struct ContentView: View {
                 .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showBackgroundSheet) {
+            BackgroundEditorSheet(project: project, service: service)
+                .presentationDetents([.fraction(0.5), .large], selection: $backgroundSheetDetent)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
+                .presentationContentInteraction(.scrolls)
+                .presentationDragIndicator(.visible)
+        }
         .onChange(of: exportSignature) { _, _ in
             exportedImage = renderedIcon()
         }
@@ -126,14 +128,24 @@ struct ContentView: View {
     }
 
     private var sheetFraction: CGFloat {
-        (showEditSheet && sheetDetent == .fraction(0.5)) ? 0.5 : 0
+        if showEditSheet, sheetDetent == .fraction(0.5) { return 0.5 }
+        if showBackgroundSheet, backgroundSheetDetent == .fraction(0.5) { return 0.5 }
+        return 0
     }
 
     private var exportSignature: Int {
         var hasher = Hasher()
+        let bg = project.background
+        hasher.combine(bg.kind)
+        hasher.combine(bg.aiImage?.hash ?? 0)
+        hasher.combine(bg.isHidden)
         for layer in project.layers {
             hasher.combine(layer.id)
+            hasher.combine(layer.kind)
             hasher.combine(layer.image?.hash ?? 0)
+            hasher.combine(layer.symbolName)
+            hasher.combine(layer.emoji)
+            hasher.combine(layer.text)
             hasher.combine(layer.scale)
             hasher.combine(layer.rotation.radians)
             hasher.combine(layer.offset.width)
@@ -145,35 +157,28 @@ struct ContentView: View {
     }
 
     private func renderedIcon() -> UIImage? {
-        guard project.hasContent else { return nil }
-
         let exportSide: CGFloat = 1024
 
         let view = ZStack {
+            if !project.background.isHidden {
+                BackgroundView(background: project.background, side: exportSide)
+            }
             ForEach(project.layers) { layer in
-                if !layer.isHidden, let image = layer.image {
-                    if layer.fillsCanvas {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: exportSide, height: exportSide)
-                            .clipped()
-                            .opacity(layer.opacity)
-                    } else {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(
-                                width: exportSide * 0.7 * layer.scale,
-                                height: exportSide * 0.7 * layer.scale
-                            )
-                            .rotationEffect(layer.rotation)
-                            .opacity(layer.opacity)
-                            .position(
-                                x: exportSide / 2 + layer.offset.width * exportSide,
-                                y: exportSide / 2 + layer.offset.height * exportSide
-                            )
-                    }
+                if !layer.isHidden {
+                    LayerContentView(layer: layer, side: exportSide)
+                        .shadow(
+                            color: .black.opacity(layer.shadowOpacity),
+                            radius: exportSide * layer.shadowRadius,
+                            x: exportSide * layer.shadowOffsetX,
+                            y: exportSide * layer.shadowOffsetY
+                        )
+                        .scaleEffect(layer.scale)
+                        .rotationEffect(layer.rotation)
+                        .opacity(layer.opacity)
+                        .offset(
+                            x: layer.offset.width * exportSide,
+                            y: layer.offset.height * exportSide
+                        )
                 }
             }
         }

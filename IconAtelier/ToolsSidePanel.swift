@@ -8,13 +8,17 @@ struct EditTabContent: View {
     var promptFocused: FocusState<Bool>.Binding
     let onGenerate: (GenerationTarget) -> Void
 
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
                 if let layer = project.selectedLayer {
-                    transformSection(for: layer)
-                    SectionDivider()
                     actionsRow(for: layer)
+                    SectionDivider()
+                    contentSection(for: layer)
+                    SectionDivider()
+                    transformSection(for: layer)
                 }
             }
             .padding(.horizontal, 16)
@@ -23,71 +27,32 @@ struct EditTabContent: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
+        .onChange(of: project.selectedLayerID) { _, newID in
+            if newID == nil { dismiss() }
+        }
     }
 
-    private var trimmedPrompt: String {
-        promptText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canGenerate: Bool {
-        !trimmedPrompt.isEmpty && !isGenerating
-    }
-
-    // MARK: - Generate
+    // MARK: - Content (per kind)
 
     @ViewBuilder
-    private var generateSection: some View {
-        PanelSection(title: "Generate") {
-            promptRow
-
-            ActionRow(
-                title: project.background == nil ? "Generate background" : "Replace background",
-                systemImage: "photo",
-                enabled: canGenerate,
-                role: .prominent
-            ) {
-                onGenerate(.background)
-            }
-
-            ActionRow(
-                title: "Generate overlay",
-                systemImage: "square.stack.3d.up",
-                enabled: canGenerate
-            ) {
-                onGenerate(.overlay)
-            }
-        }
-    }
-
-    private var promptRow: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(.secondary)
-                .padding(.top, 2)
-
-            TextField(
-                "Describe an image…",
-                text: $promptText,
-                axis: .vertical
+    private func contentSection(for layer: Layer) -> some View {
+        switch layer.kind {
+        case .aiOverlay:
+            AIOverlayContentSection(
+                layer: layer,
+                project: project,
+                promptText: $promptText,
+                isGenerating: isGenerating,
+                promptFocused: promptFocused,
+                onGenerate: { onGenerate(.overlay) }
             )
-            .textFieldStyle(.plain)
-            .lineLimit(1 ... 4)
-            .focused(promptFocused)
-            .disabled(isGenerating)
-
-            if isGenerating {
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(.top, 2)
-            }
+        case .symbol:
+            SymbolContentSection(layer: layer, project: project)
+        case .emoji:
+            EmojiContentSection(layer: layer, project: project)
+        case .text:
+            TextContentSection(layer: layer, project: project)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(PanelStyle.rowFill)
-        )
     }
 
     // MARK: - Quick actions
@@ -102,6 +67,12 @@ struct EditTabContent: View {
                 project.toggleVisibility(layer)
             }
             CompactActionButton(
+                title: "Reset",
+                systemImage: "arrow.counterclockwise"
+            ) {
+                project.resetTransform(layer)
+            }
+            CompactActionButton(
                 title: "Duplicate",
                 systemImage: "square.on.square"
             ) {
@@ -109,8 +80,7 @@ struct EditTabContent: View {
             }
             CompactActionButton(
                 title: "Delete",
-                systemImage: "trash",
-                role: .destructive
+                systemImage: "trash"
             ) {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                     project.remove(layer)
@@ -123,8 +93,6 @@ struct EditTabContent: View {
 
     @ViewBuilder
     private func transformSection(for layer: Layer) -> some View {
-        let isOverlay = layer.kind == .aiOverlay
-
         PanelSection(title: "Transform") {
             DialSliderRow(
                 label: "Opacity",
@@ -137,103 +105,99 @@ struct EditTabContent: View {
                 onBeginEditing: { project.recordUndo() }
             )
 
-            if isOverlay {
-                DialSliderRow(
-                    label: "Scale",
-                    value: Binding(
-                        get: { Double(layer.scale) },
-                        set: { layer.scale = CGFloat($0) }
-                    ),
-                    range: 0.1 ... 5.0,
-                    valueText: { String(format: "%.2f", $0) },
-                    onBeginEditing: { project.recordUndo() }
-                )
+            DialSliderRow(
+                label: "Scale",
+                value: Binding(
+                    get: { Double(layer.scale) },
+                    set: { layer.scale = CGFloat($0) }
+                ),
+                range: 0.1 ... 5.0,
+                valueText: { String(format: "%.2f", $0) },
+                onBeginEditing: { project.recordUndo() }
+            )
 
-                DialSliderRow(
-                    label: "Rotation",
-                    value: Binding(
-                        get: { layer.rotation.degrees },
-                        set: { layer.rotation = .degrees($0) }
-                    ),
-                    range: -180 ... 180,
-                    valueText: { String(format: "%.0f°", $0) },
-                    onBeginEditing: { project.recordUndo() }
-                )
-            }
+            DialSliderRow(
+                label: "Rotation",
+                value: Binding(
+                    get: { layer.rotation.degrees },
+                    set: { layer.rotation = .degrees($0) }
+                ),
+                range: -180 ... 180,
+                valueText: { String(format: "%.0f°", $0) },
+                onBeginEditing: { project.recordUndo() }
+            )
         }
 
-        if isOverlay {
-            SectionDivider()
-            PanelSection(title: "Offset") {
-                DialSliderRow(
-                    label: "Offset X",
-                    value: Binding(
-                        get: { Double(layer.offset.width) },
-                        set: { layer.offset.width = CGFloat($0) }
-                    ),
-                    range: -1.0 ... 1.0,
-                    valueText: { String(format: "%+.2f", $0) },
-                    onBeginEditing: { project.recordUndo() }
-                )
+        SectionDivider()
+        PanelSection(title: "Offset") {
+            DialSliderRow(
+                label: "Offset X",
+                value: Binding(
+                    get: { Double(layer.offset.width) },
+                    set: { layer.offset.width = CGFloat($0) }
+                ),
+                range: -1.0 ... 1.0,
+                valueText: { String(format: "%+.2f", $0) },
+                onBeginEditing: { project.recordUndo() }
+            )
 
-                DialSliderRow(
-                    label: "Offset Y",
-                    value: Binding(
-                        get: { Double(layer.offset.height) },
-                        set: { layer.offset.height = CGFloat($0) }
-                    ),
-                    range: -1.0 ... 1.0,
-                    valueText: { String(format: "%+.2f", $0) },
-                    onBeginEditing: { project.recordUndo() }
-                )
-            }
+            DialSliderRow(
+                label: "Offset Y",
+                value: Binding(
+                    get: { Double(layer.offset.height) },
+                    set: { layer.offset.height = CGFloat($0) }
+                ),
+                range: -1.0 ... 1.0,
+                valueText: { String(format: "%+.2f", $0) },
+                onBeginEditing: { project.recordUndo() }
+            )
+        }
 
-            SectionDivider()
-            PanelSection(title: "Shadow") {
-                DialSliderRow(
-                    label: "Opacity",
-                    value: Binding(
-                        get: { layer.shadowOpacity },
-                        set: { layer.shadowOpacity = $0 }
-                    ),
-                    range: 0 ... 1,
-                    valueText: { String(format: "%.0f%%", $0 * 100) },
-                    onBeginEditing: { project.recordUndo() }
-                )
+        SectionDivider()
+        PanelSection(title: "Shadow") {
+            DialSliderRow(
+                label: "Opacity",
+                value: Binding(
+                    get: { layer.shadowOpacity },
+                    set: { layer.shadowOpacity = $0 }
+                ),
+                range: 0 ... 1,
+                valueText: { String(format: "%.0f%%", $0 * 100) },
+                onBeginEditing: { project.recordUndo() }
+            )
 
-                DialSliderRow(
-                    label: "Blur",
-                    value: Binding(
-                        get: { Double(layer.shadowRadius) },
-                        set: { layer.shadowRadius = CGFloat($0) }
-                    ),
-                    range: 0 ... 0.2,
-                    valueText: { String(format: "%.0f%%", $0 * 100) },
-                    onBeginEditing: { project.recordUndo() }
-                )
+            DialSliderRow(
+                label: "Blur",
+                value: Binding(
+                    get: { Double(layer.shadowRadius) },
+                    set: { layer.shadowRadius = CGFloat($0) }
+                ),
+                range: 0 ... 0.2,
+                valueText: { String(format: "%.0f%%", $0 * 100) },
+                onBeginEditing: { project.recordUndo() }
+            )
 
-                DialSliderRow(
-                    label: "Offset X",
-                    value: Binding(
-                        get: { Double(layer.shadowOffsetX) },
-                        set: { layer.shadowOffsetX = CGFloat($0) }
-                    ),
-                    range: -0.2 ... 0.2,
-                    valueText: { String(format: "%+.2f", $0) },
-                    onBeginEditing: { project.recordUndo() }
-                )
+            DialSliderRow(
+                label: "Offset X",
+                value: Binding(
+                    get: { Double(layer.shadowOffsetX) },
+                    set: { layer.shadowOffsetX = CGFloat($0) }
+                ),
+                range: -0.2 ... 0.2,
+                valueText: { String(format: "%+.2f", $0) },
+                onBeginEditing: { project.recordUndo() }
+            )
 
-                DialSliderRow(
-                    label: "Offset Y",
-                    value: Binding(
-                        get: { Double(layer.shadowOffsetY) },
-                        set: { layer.shadowOffsetY = CGFloat($0) }
-                    ),
-                    range: -0.2 ... 0.2,
-                    valueText: { String(format: "%+.2f", $0) },
-                    onBeginEditing: { project.recordUndo() }
-                )
-            }
+            DialSliderRow(
+                label: "Offset Y",
+                value: Binding(
+                    get: { Double(layer.shadowOffsetY) },
+                    set: { layer.shadowOffsetY = CGFloat($0) }
+                ),
+                range: -0.2 ... 0.2,
+                valueText: { String(format: "%+.2f", $0) },
+                onBeginEditing: { project.recordUndo() }
+            )
         }
     }
 
@@ -241,7 +205,7 @@ struct EditTabContent: View {
 
 // MARK: - Section divider
 
-private struct SectionDivider: View {
+struct SectionDivider: View {
     var body: some View {
         Rectangle()
             .fill(Color.primary.opacity(0.08))
@@ -252,7 +216,7 @@ private struct SectionDivider: View {
 
 // MARK: - Panel style tokens
 
-private enum PanelStyle {
+enum PanelStyle {
     static let rowFill: Color = .primary.opacity(0.06)
     static let rowFillActive: Color = .primary.opacity(0.14)
     static let cornerRadius: CGFloat = 12
@@ -263,7 +227,7 @@ private enum PanelStyle {
 
 // MARK: - Section container
 
-private struct PanelSection<Content: View>: View {
+struct PanelSection<Content: View>: View {
     let title: String
     @ViewBuilder var content: () -> Content
 
@@ -340,7 +304,7 @@ private struct CompactActionButton: View {
 
 // MARK: - Action row
 
-private struct ActionRow: View {
+struct ActionRow: View {
     enum Role {
         case standard
         case prominent
@@ -560,5 +524,225 @@ final class AxisLockedPanRecognizer: UIPanGestureRecognizer {
             }
             ancestor = v.superview
         }
+    }
+}
+
+// MARK: - Per-kind content sections
+
+struct SymbolContentSection: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    @FocusState private var nameFocused: Bool
+
+    var body: some View {
+        PanelSection(title: "Symbol") {
+            ContentField(
+                systemImage: "star",
+                placeholder: "Symbol name (e.g. star.fill)",
+                text: $layer.symbolName,
+                focused: $nameFocused,
+                project: project
+            )
+            ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+            FontWeightRow(weight: $layer.fontWeight, project: project)
+        }
+    }
+}
+
+struct EmojiContentSection: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    @FocusState private var emojiFocused: Bool
+
+    var body: some View {
+        PanelSection(title: "Emoji") {
+            ContentField(
+                systemImage: "face.smiling",
+                placeholder: "Tap and pick an emoji",
+                text: $layer.emoji,
+                focused: $emojiFocused,
+                project: project
+            )
+        }
+    }
+}
+
+struct TextContentSection: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    @FocusState private var textFocused: Bool
+
+    var body: some View {
+        PanelSection(title: "Text") {
+            ContentField(
+                systemImage: "textformat",
+                placeholder: "Text",
+                text: $layer.text,
+                focused: $textFocused,
+                project: project
+            )
+            ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+            FontWeightRow(weight: $layer.fontWeight, project: project)
+        }
+    }
+}
+
+struct AIOverlayContentSection: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+    @Binding var promptText: String
+    let isGenerating: Bool
+    var promptFocused: FocusState<Bool>.Binding
+    let onGenerate: () -> Void
+
+    var body: some View {
+        PanelSection(title: "AI image") {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+
+                TextField(
+                    "Describe an image…",
+                    text: $promptText,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
+                .lineLimit(1 ... 4)
+                .focused(promptFocused)
+                .disabled(isGenerating)
+
+                if isGenerating {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(PanelStyle.rowFill)
+            )
+
+            ActionRow(
+                title: layer.image == nil ? "Generate" : "Replace",
+                systemImage: "sparkles",
+                enabled: !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !isGenerating,
+                role: .prominent
+            ) {
+                onGenerate()
+            }
+        }
+    }
+}
+
+// MARK: - Reusable content rows
+
+private struct ContentField: View {
+    let systemImage: String
+    let placeholder: String
+    @Binding var text: String
+    var focused: FocusState<Bool>.Binding
+    let project: IconProject
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .focused(focused)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+        .onChange(of: focused.wrappedValue) { _, newValue in
+            if newValue { project.recordUndo() }
+        }
+    }
+}
+
+private struct ColorPickerRow: View {
+    let title: String
+    @Binding var color: Color
+    let project: IconProject
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "paintpalette")
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            Text(title)
+                .foregroundStyle(.primary.opacity(0.72))
+            Spacer()
+            ColorPicker(
+                "",
+                selection: Binding(
+                    get: { color },
+                    set: {
+                        project.recordUndo()
+                        color = $0
+                    }
+                ),
+                supportsOpacity: false
+            )
+            .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+}
+
+private struct FontWeightRow: View {
+    @Binding var weight: LayerFontWeight
+    let project: IconProject
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "bold")
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            Text("Weight")
+                .foregroundStyle(.primary.opacity(0.72))
+            Spacer()
+            Picker("Weight", selection: Binding(
+                get: { weight },
+                set: {
+                    project.recordUndo()
+                    weight = $0
+                }
+            )) {
+                Text("Reg").tag(LayerFontWeight.regular)
+                Text("Med").tag(LayerFontWeight.medium)
+                Text("Semi").tag(LayerFontWeight.semibold)
+                Text("Bold").tag(LayerFontWeight.bold)
+                Text("Heavy").tag(LayerFontWeight.heavy)
+            }
+            .pickerStyle(.menu)
+            .tint(.primary.opacity(0.72))
+            .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
     }
 }
