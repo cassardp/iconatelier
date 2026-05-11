@@ -3,11 +3,11 @@ import SwiftData
 import UIKit
 
 enum BackgroundKind: String, CaseIterable, Identifiable {
+    case ai
     case solid
+    case meshGradient
     case linearGradient
     case radialGradient
-    case meshGradient
-    case ai
 
     var id: String { rawValue }
 }

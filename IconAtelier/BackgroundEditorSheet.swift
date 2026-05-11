@@ -67,15 +67,82 @@ struct BackgroundEditorContent: View {
                 )
             }
         case .linearGradient:
+            linearPresetsSection(for: background)
+            SectionDivider()
             gradientStopsSection(for: background)
             SectionDivider()
             linearDirectionSection(for: background)
         case .radialGradient:
+            radialPresetsSection(for: background)
+            SectionDivider()
             gradientStopsSection(for: background)
         case .meshGradient:
+            meshPresetsSection(for: background)
+            SectionDivider()
             meshCornersSection(for: background)
         case .ai:
             aiSection(for: background)
+        }
+    }
+
+    // MARK: - Presets sections
+
+    private func linearPresetsSection(for background: Background) -> some View {
+        PanelSection(title: "Presets") {
+            BackgroundPresetsRow(
+                presets: BackgroundPresets.linear,
+                thumbnail: { preset in
+                    LinearGradient(colors: preset.colors, startPoint: preset.start, endPoint: preset.end)
+                },
+                onSelect: { preset in
+                    project.recordUndo()
+                    background.gradientColors = preset.colors
+                    background.linearStart = preset.start
+                    background.linearEnd = preset.end
+                }
+            )
+        }
+    }
+
+    private func radialPresetsSection(for background: Background) -> some View {
+        PanelSection(title: "Presets") {
+            BackgroundPresetsRow(
+                presets: BackgroundPresets.radial,
+                thumbnail: { preset in
+                    RadialGradient(colors: preset.colors,
+                                   center: .center,
+                                   startRadius: 0,
+                                   endRadius: 38)
+                },
+                onSelect: { preset in
+                    project.recordUndo()
+                    background.gradientColors = preset.colors
+                }
+            )
+        }
+    }
+
+    private func meshPresetsSection(for background: Background) -> some View {
+        PanelSection(title: "Presets") {
+            BackgroundPresetsRow(
+                presets: BackgroundPresets.mesh,
+                thumbnail: { preset in
+                    MeshGradient(
+                        width: 3,
+                        height: 3,
+                        points: [
+                            .init(0, 0),   .init(0.5, 0),   .init(1, 0),
+                            .init(0, 0.5), .init(0.5, 0.5), .init(1, 0.5),
+                            .init(0, 1),   .init(0.5, 1),   .init(1, 1),
+                        ],
+                        colors: preset.meshColors
+                    )
+                },
+                onSelect: { preset in
+                    project.recordUndo()
+                    background.meshColors = preset.meshColors
+                }
+            )
         }
     }
 
@@ -219,41 +286,28 @@ private struct KindButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: kind.systemImage)
-                    .font(.title3)
-                Text(kind.label)
-                    .font(.caption2)
-            }
-            .foregroundStyle(isSelected ? Color.accentColor : .primary.opacity(0.72))
-            .frame(width: 72, height: 56)
-            .background(
-                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.18) : PanelStyle.rowFill)
-            )
+            Text(kind.label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .fill(isSelected ? PanelStyle.rowFillSelected : PanelStyle.rowFill)
+                )
         }
         .buttonStyle(.plain)
     }
 }
 
 private extension BackgroundKind {
-    var systemImage: String {
-        switch self {
-        case .solid:          return "square.fill"
-        case .linearGradient: return "rectangle.lefthalf.inset.filled.arrow.left"
-        case .radialGradient: return "circle.dashed.inset.filled"
-        case .meshGradient:   return "square.grid.3x3.fill"
-        case .ai:             return "sparkles"
-        }
-    }
-
     var label: String {
         switch self {
         case .solid:          return "Solid"
         case .linearGradient: return "Linear"
         case .radialGradient: return "Radial"
         case .meshGradient:   return "Mesh"
-        case .ai:             return "AI"
+        case .ai:             return "AI Generated"
         }
     }
 }
@@ -310,11 +364,11 @@ private struct DirectionButton: View {
         Button(action: action) {
             Image(systemName: direction.systemImage)
                 .font(.title3)
-                .foregroundStyle(isSelected ? Color.accentColor : .primary.opacity(0.72))
+                .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .background(
                     RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                        .fill(isSelected ? Color.accentColor.opacity(0.18) : PanelStyle.rowFill)
+                        .fill(isSelected ? PanelStyle.rowFillSelected : PanelStyle.rowFill)
                 )
         }
         .buttonStyle(.plain)

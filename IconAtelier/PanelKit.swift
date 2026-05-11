@@ -6,6 +6,7 @@ import UIKit
 enum PanelStyle {
     static let rowFill: Color = .primary.opacity(0.06)
     static let rowFillActive: Color = .primary.opacity(0.14)
+    static let rowFillSelected: Color = .primary.opacity(0.28)
     static let cornerRadius: CGFloat = 12
     static let rowHeight: CGFloat = 52
     static let sliderHeight: CGFloat = 48
