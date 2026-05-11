@@ -239,7 +239,7 @@ struct LayerThumbnailRow: View {
                     ZStack {
                         ZStack {
                             TransparencyCheckerboard(tile: 6)
-                            LayerContentView(layer: layer, side: geo.size.width - inset * 2)
+                            OverlayLayerRender(layer: layer, side: geo.size.width - inset * 2)
                         }
                         .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
                         .opacity(layer.isHidden ? 0.4 : 1)

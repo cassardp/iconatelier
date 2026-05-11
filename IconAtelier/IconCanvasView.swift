@@ -308,6 +308,26 @@ private struct OverlayLayerView: View {
     let onTap: () -> Void
 
     var body: some View {
+        OverlayLayerRender(
+            layer: layer,
+            side: side,
+            transientOffset: transientOffset,
+            transientScale: transientScale,
+            transientAngle: transientAngle
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+}
+
+struct OverlayLayerRender: View {
+    let layer: Layer
+    let side: CGFloat
+    var transientOffset: CGSize = .zero
+    var transientScale: CGFloat = 1.0
+    var transientAngle: Angle = .zero
+
+    var body: some View {
         LayerContentView(layer: layer, side: side)
             .shadow(
                 color: .black.opacity(layer.shadowOpacity),
@@ -322,8 +342,6 @@ private struct OverlayLayerView: View {
                 x: layer.offset.width * side + transientOffset.width,
                 y: layer.offset.height * side + transientOffset.height
             )
-            .contentShape(Rectangle())
-            .onTapGesture { onTap() }
     }
 }
 
@@ -354,6 +372,7 @@ struct LayerContentView: View {
             Text(layer.text)
                 .font(.system(size: side * 0.3, weight: layer.fontWeight.swiftUI, design: .rounded))
                 .foregroundStyle(layer.tintColor)
+                .fixedSize()
         }
     }
 }
