@@ -68,6 +68,22 @@ qui reste en français.
 - Architecture MV (pas MVVM)
 - BYOK via `Secrets.swift` aujourd'hui, à migrer vers Keychain + écran Settings
 
+## Composants natifs vs custom
+
+Règle générale : **toujours privilégier les composants natifs SwiftUI/iOS**.
+Ne basculer en custom que quand le design l'exige et que natif ne peut pas
+le rendre.
+
+### Exception assumée : la sheet d'édition (EditSheet)
+
+La sheet d'édition est **intentionnellement custom** : custom sliders
+(`DialSliderRow` avec fill horizontal et gesture UIKit), custom sections
+(`PanelSection`), custom separators (`SectionDivider`), pas de
+`NavigationStack`, pas de `Form`, pas de `List`.
+
+Cette exception est validée — ne pas la « renativiser » sans demande
+explicite. Les autres surfaces de l'app restent natives par défaut.
+
 ## Roadmap & vision
 
 Voir `~/Desktop/IconLab_roadmap.md` pour la vision produit, le positionnement

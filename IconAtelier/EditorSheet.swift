@@ -17,17 +17,15 @@ struct EditSheet: View {
     @FocusState private var promptFocused: Bool
 
     var body: some View {
-        NavigationStack {
-            EditTabContent(
-                project: project,
-                promptText: $promptText,
-                isGenerating: isGenerating,
-                promptFocused: $promptFocused,
-                onGenerate: generate
-            )
-            .navigationTitle("Edit")
-            .navigationBarTitleDisplayMode(.inline)
-        }
+        EditTabContent(
+            project: project,
+            promptText: $promptText,
+            isGenerating: isGenerating,
+            promptFocused: $promptFocused,
+            onGenerate: generate
+        )
+        .preferredColorScheme(.dark)
+        .presentationBackground(Color(.systemBackground))
         .alert(
             "Generation failed",
             isPresented: Binding(

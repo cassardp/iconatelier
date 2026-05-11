@@ -10,15 +10,19 @@ struct EditTabContent: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                generateSection
-                Divider()
-                selectionSection
+            VStack(spacing: 18) {
+                if let layer = project.selectedLayer {
+                    transformSection(for: layer)
+                    SectionDivider()
+                    actionsRow(for: layer)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .padding(.top, 28)
+            .padding(.bottom, 14)
         }
         .scrollDismissesKeyboard(.interactively)
+        .scrollIndicators(.hidden)
     }
 
     private var trimmedPrompt: String {
@@ -31,231 +35,452 @@ struct EditTabContent: View {
 
     // MARK: - Generate
 
+    @ViewBuilder
     private var generateSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Generate")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+        PanelSection(title: "Generate") {
+            promptRow
 
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.secondary)
-
-                TextField("Describe an image…", text: $promptText, axis: .vertical)
-                    .lineLimit(1 ... 4)
-                    .textFieldStyle(.plain)
-                    .focused(promptFocused)
-                    .disabled(isGenerating)
-                    .submitLabel(.return)
-
-                if isGenerating {
-                    ProgressView()
-                        .controlSize(.small)
-                }
+            ActionRow(
+                title: project.background == nil ? "Generate background" : "Replace background",
+                systemImage: "photo",
+                enabled: canGenerate,
+                role: .prominent
+            ) {
+                onGenerate(.background)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
+
+            ActionRow(
+                title: "Generate overlay",
+                systemImage: "square.stack.3d.up",
+                enabled: canGenerate
+            ) {
+                onGenerate(.overlay)
+            }
+        }
+    }
+
+    private var promptRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
+
+            TextField(
+                "Describe an image…",
+                text: $promptText,
+                axis: .vertical
+            )
+            .textFieldStyle(.plain)
+            .lineLimit(1 ... 4)
+            .focused(promptFocused)
+            .disabled(isGenerating)
+
+            if isGenerating {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+
+    // MARK: - Quick actions
+
+    @ViewBuilder
+    private func actionsRow(for layer: Layer) -> some View {
+        HStack(spacing: 8) {
+            CompactActionButton(
+                title: layer.isHidden ? "Show" : "Hide",
+                systemImage: layer.isHidden ? "eye" : "eye.slash"
+            ) {
+                project.toggleVisibility(layer)
+            }
+            CompactActionButton(
+                title: "Duplicate",
+                systemImage: "square.on.square"
+            ) {
+                project.duplicate(layer)
+            }
+            CompactActionButton(
+                title: "Delete",
+                systemImage: "trash",
+                role: .destructive
+            ) {
+                project.remove(layer)
+            }
+        }
+    }
+
+    // MARK: - Transform
+
+    @ViewBuilder
+    private func transformSection(for layer: Layer) -> some View {
+        let isOverlay = layer.kind == .aiOverlay
+
+        PanelSection(title: "Transform") {
+            DialSliderRow(
+                label: "Opacity",
+                value: Binding(
+                    get: { layer.opacity },
+                    set: { layer.opacity = $0 }
+                ),
+                range: 0 ... 1,
+                valueText: { String(format: "%.0f%%", $0 * 100) },
+                onBeginEditing: { project.recordUndo() }
             )
 
-            HStack(spacing: 10) {
-                Button {
-                    onGenerate(.background)
-                } label: {
-                    Label(
-                        project.background == nil ? "as Background" : "Replace background",
-                        systemImage: "photo"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-                .disabled(!canGenerate)
+            if isOverlay {
+                DialSliderRow(
+                    label: "Scale",
+                    value: Binding(
+                        get: { Double(layer.scale) },
+                        set: { layer.scale = CGFloat($0) }
+                    ),
+                    range: 0.1 ... 5.0,
+                    valueText: { String(format: "%.2f", $0) },
+                    onBeginEditing: { project.recordUndo() }
+                )
 
-                Button {
-                    onGenerate(.overlay)
-                } label: {
-                    Label("as Overlay", systemImage: "sparkles")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-                .disabled(!canGenerate)
+                DialSliderRow(
+                    label: "Rotation",
+                    value: Binding(
+                        get: { layer.rotation.degrees },
+                        set: { layer.rotation = .degrees($0) }
+                    ),
+                    range: -180 ... 180,
+                    valueText: { String(format: "%.0f°", $0) },
+                    onBeginEditing: { project.recordUndo() }
+                )
+            }
+        }
+
+        if isOverlay {
+            SectionDivider()
+            PanelSection(title: "Offset") {
+                DialSliderRow(
+                    label: "Offset X",
+                    value: Binding(
+                        get: { Double(layer.offset.width) },
+                        set: { layer.offset.width = CGFloat($0) }
+                    ),
+                    range: -1.0 ... 1.0,
+                    valueText: { String(format: "%+.2f", $0) },
+                    onBeginEditing: { project.recordUndo() }
+                )
+
+                DialSliderRow(
+                    label: "Offset Y",
+                    value: Binding(
+                        get: { Double(layer.offset.height) },
+                        set: { layer.offset.height = CGFloat($0) }
+                    ),
+                    range: -1.0 ... 1.0,
+                    valueText: { String(format: "%+.2f", $0) },
+                    onBeginEditing: { project.recordUndo() }
+                )
             }
         }
     }
 
-    // MARK: - Selection / contextual tools
+}
 
-    private var selectionSection: some View {
-        let layer = project.selectedLayer
-        let isOverlay = layer?.kind == .aiOverlay
-        let hasLayer = layer != nil
+// MARK: - Section divider
 
-        return VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Selection")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(layer?.name ?? "None")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-
-            opacityRow(layer: layer, enabled: hasLayer)
-            scaleRow(layer: layer, enabled: isOverlay)
-            rotationRow(layer: layer, enabled: isOverlay)
-
-            HStack(spacing: 10) {
-                Button {
-                    if let layer { recenterOverlay(layer) }
-                } label: {
-                    Label("Center", systemImage: "scope")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!isOverlay)
-
-                Button {
-                    if let layer { project.duplicate(layer) }
-                } label: {
-                    Label("Duplicate", systemImage: "square.on.square")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!hasLayer)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    if let layer { project.toggleVisibility(layer) }
-                } label: {
-                    Label(
-                        layer?.isHidden == true ? "Show" : "Hide",
-                        systemImage: layer?.isHidden == true ? "eye" : "eye.slash"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!hasLayer)
-
-                Button(role: .destructive) {
-                    if let layer { project.remove(layer) }
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!hasLayer)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func opacityRow(layer: Layer?, enabled: Bool) -> some View {
-        SliderRow(
-            label: "Opacity",
-            symbol: "drop.fill",
-            value: Binding(
-                get: { layer?.opacity ?? 1.0 },
-                set: { layer?.opacity = $0 }
-            ),
-            range: 0 ... 1,
-            enabled: enabled,
-            onBeginEditing: { project.recordUndo() }
-        )
-    }
-
-    @ViewBuilder
-    private func scaleRow(layer: Layer?, enabled: Bool) -> some View {
-        SliderRow(
-            label: "Scale",
-            symbol: "arrow.up.left.and.arrow.down.right",
-            value: Binding(
-                get: { layer?.scale ?? 1.0 },
-                set: { layer?.scale = $0 }
-            ),
-            range: 0.1 ... 3.0,
-            enabled: enabled,
-            onBeginEditing: { project.recordUndo() }
-        )
-    }
-
-    @ViewBuilder
-    private func rotationRow(layer: Layer?, enabled: Bool) -> some View {
-        SliderRow(
-            label: "Rotation",
-            symbol: "arrow.clockwise",
-            value: Binding(
-                get: { layer?.rotation.degrees ?? 0 },
-                set: { layer?.rotation = .degrees($0) }
-            ),
-            range: -180 ... 180,
-            enabled: enabled,
-            onBeginEditing: { project.recordUndo() }
-        )
-    }
-
-    private func recenterOverlay(_ layer: Layer) {
-        project.recordUndo()
-        layer.offset = .zero
+private struct SectionDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(height: 1)
+            .padding(.horizontal, 4)
     }
 }
 
-private struct SliderRow: View {
-    let label: String
-    let symbol: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let enabled: Bool
-    let onBeginEditing: () -> Void
+// MARK: - Panel style tokens
+
+private enum PanelStyle {
+    static let rowFill: Color = .white.opacity(0.06)
+    static let rowFillActive: Color = .white.opacity(0.14)
+    static let cornerRadius: CGFloat = 12
+    static let rowHeight: CGFloat = 52
+    static let sliderHeight: CGFloat = 48
+    static let rowInsetH: CGFloat = 16
+}
+
+// MARK: - Section container
+
+private struct PanelSection<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    @State private var isExpanded = true
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-
-            Text(label)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .leading)
-
-            Slider(
-                value: $value,
-                in: range,
-                onEditingChanged: { editing in
-                    if editing { onBeginEditing() }
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.smooth(duration: 0.25)) { isExpanded.toggle() }
+            } label: {
+                HStack {
+                    Text(title)
+                        .font(.footnote.weight(.semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
                 }
-            )
-            .controlSize(.small)
+                .contentShape(Rectangle())
+                .padding(.horizontal, 4)
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 6) {
+                    content()
+                }
+                .transition(
+                    .opacity.combined(with: .move(edge: .top))
+                )
+            }
         }
-        .disabled(!enabled)
-        .opacity(enabled ? 1.0 : 0.5)
     }
 }
 
-extension SliderRow {
-    init(
-        label: String,
-        symbol: String,
-        value: Binding<CGFloat>,
-        range: ClosedRange<Double>,
-        enabled: Bool,
-        onBeginEditing: @escaping () -> Void
-    ) {
-        self.label = label
-        self.symbol = symbol
-        self._value = Binding(
-            get: { Double(value.wrappedValue) },
-            set: { value.wrappedValue = CGFloat($0) }
-        )
-        self.range = range
-        self.enabled = enabled
-        self.onBeginEditing = onBeginEditing
+// MARK: - Compact icon+label action button
+
+private struct CompactActionButton: View {
+    enum Role {
+        case standard
+        case destructive
+    }
+
+    let title: String
+    let systemImage: String
+    var role: Role = .standard
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(iconColor)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .fill(PanelStyle.rowFill)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    private var iconColor: Color {
+        role == .destructive ? .red : .primary
+    }
+}
+
+// MARK: - Action row
+
+private struct ActionRow: View {
+    enum Role {
+        case standard
+        case prominent
+        case destructive
+    }
+
+    let title: String
+    let systemImage: String
+    var enabled: Bool = true
+    var role: Role = .standard
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(iconColor)
+                    .frame(width: 22)
+                Text(title)
+                    .foregroundStyle(textColor)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight)
+            .padding(.horizontal, PanelStyle.rowInsetH)
+            .background(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                    .fill(rowFill)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+    }
+
+    private var rowFill: Color {
+        switch role {
+        case .standard, .destructive:
+            return PanelStyle.rowFill
+        case .prominent:
+            return Color.accentColor.opacity(0.25)
+        }
+    }
+
+    private var textColor: Color {
+        switch role {
+        case .destructive: return .red
+        case .standard, .prominent: return .primary
+        }
+    }
+
+    private var iconColor: Color {
+        switch role {
+        case .destructive: return .red
+        case .standard: return .secondary
+        case .prominent: return .accentColor
+        }
+    }
+}
+
+// MARK: - DialKit-style slider row with inline fill
+
+private struct DialSliderRow: View {
+    let label: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let valueText: (Double) -> String
+    let onBeginEditing: () -> Void
+
+    private var fraction: Double {
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        return min(max((value - range.lowerBound) / span, 0), 1)
+    }
+
+    private func update(at x: CGFloat, width: CGFloat) {
+        guard width > 0 else { return }
+        let f = min(max(Double(x / width), 0), 1)
+        let span = range.upperBound - range.lowerBound
+        value = range.lowerBound + f * span
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let shape = RoundedRectangle(
+                cornerRadius: PanelStyle.cornerRadius,
+                style: .continuous
+            )
+
+            ZStack(alignment: .leading) {
+                shape
+                    .fill(PanelStyle.rowFill)
+
+                shape
+                    .fill(PanelStyle.rowFillActive)
+                    .frame(width: max(0, geo.size.width * fraction))
+
+                HStack {
+                    Text(label)
+                        .foregroundStyle(.primary.opacity(0.72))
+                    Spacer()
+                    Text(valueText(value))
+                        .foregroundStyle(.primary.opacity(0.72))
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, PanelStyle.rowInsetH)
+            }
+            .contentShape(shape)
+            .gesture(
+                ScrollSafeHorizontalPan(
+                    onBegan: { x in
+                        onBeginEditing()
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        update(at: x, width: geo.size.width)
+                    },
+                    onChanged: { x in
+                        update(at: x, width: geo.size.width)
+                    },
+                    onEnded: {}
+                )
+            )
+        }
+        .frame(height: PanelStyle.sliderHeight)
+    }
+}
+
+// MARK: - Scroll-friendly horizontal pan
+
+private struct ScrollSafeHorizontalPan: UIGestureRecognizerRepresentable {
+    let onBegan: (CGFloat) -> Void
+    let onChanged: (CGFloat) -> Void
+    let onEnded: () -> Void
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onBegan: (CGFloat) -> Void = { _ in }
+        var onChanged: (CGFloat) -> Void = { _ in }
+        var onEnded: () -> Void = {}
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> AxisLockedPanRecognizer {
+        let pan = AxisLockedPanRecognizer()
+        pan.delegate = context.coordinator
+        return pan
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: AxisLockedPanRecognizer, context: Context) {
+        context.coordinator.onBegan = onBegan
+        context.coordinator.onChanged = onChanged
+        context.coordinator.onEnded = onEnded
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: AxisLockedPanRecognizer, context: Context) {
+        guard let view = recognizer.view else { return }
+        let x = recognizer.location(in: view).x
+        switch recognizer.state {
+        case .began: context.coordinator.onBegan(x)
+        case .changed: context.coordinator.onChanged(x)
+        case .ended, .cancelled, .failed: context.coordinator.onEnded()
+        default: break
+        }
+    }
+}
+
+final class AxisLockedPanRecognizer: UIPanGestureRecognizer {
+    private var didDecide = false
+
+    override func reset() {
+        super.reset()
+        didDecide = false
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesMoved(touches, with: event)
+        guard !didDecide, let v = view else { return }
+        let t = translation(in: v)
+        let dx = abs(t.x)
+        let dy = abs(t.y)
+        if max(dx, dy) > 8 {
+            didDecide = true
+            // Vertical motion → fail so the ScrollView's pan can scroll.
+            if dy > dx { state = .failed }
+        }
     }
 }
