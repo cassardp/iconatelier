@@ -206,10 +206,18 @@ struct BackgroundThumbnailRow: View {
                     let inset: CGFloat = 4
                     let innerRadius = max(0, outerRadius - inset)
                     ZStack {
-                        BackgroundView(background: background, side: geo.size.width - inset * 2)
-                            .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
-                            .opacity(background.isHidden ? 0.4 : 1)
-                            .padding(inset)
+                        ZStack {
+                            TransparencyCheckerboard(tile: 6)
+                            if background.isHidden {
+                                Image(systemName: "eye.slash")
+                                    .font(.title3)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                BackgroundView(background: background, side: geo.size.width - inset * 2)
+                            }
+                        }
+                        .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
+                        .padding(inset)
 
                         RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                             .strokeBorder(
@@ -271,10 +279,15 @@ struct LayerThumbnailRow: View {
                     ZStack {
                         ZStack {
                             TransparencyCheckerboard(tile: 6)
-                            OverlayLayerRender(layer: layer, side: geo.size.width - inset * 2)
+                            if layer.isHidden {
+                                Image(systemName: "eye.slash")
+                                    .font(.title3)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                OverlayLayerRender(layer: layer, side: geo.size.width - inset * 2)
+                            }
                         }
                         .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
-                        .opacity(layer.isHidden ? 0.4 : 1)
                         .padding(inset)
 
                         RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
