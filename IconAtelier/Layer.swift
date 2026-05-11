@@ -27,6 +27,31 @@ enum LayerFontWeight: String, CaseIterable {
     }
 }
 
+enum LayerFontDesign: String, CaseIterable {
+    case `default`
+    case serif
+    case rounded
+    case monospaced
+
+    var swiftUI: Font.Design {
+        switch self {
+        case .default:    return .default
+        case .serif:      return .serif
+        case .rounded:    return .rounded
+        case .monospaced: return .monospaced
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .default:    return "System"
+        case .serif:      return "Serif"
+        case .rounded:    return "Rounded"
+        case .monospaced: return "Mono"
+        }
+    }
+}
+
 @Model
 final class Layer {
     var uuid: UUID = UUID()
@@ -41,6 +66,7 @@ final class Layer {
     var emoji: String = "✨"
     var text: String = "Aa"
     var fontWeightRaw: String = LayerFontWeight.bold.rawValue
+    var fontDesignRaw: String = LayerFontDesign.rounded.rawValue
 
     var storedTintColor: StoredColor = StoredColor.white
 
@@ -70,6 +96,7 @@ final class Layer {
         emoji: String = "✨",
         text: String = "Aa",
         fontWeight: LayerFontWeight = .bold,
+        fontDesign: LayerFontDesign = .rounded,
         tintColor: Color = .white
     ) {
         self.uuid = uuid
@@ -81,6 +108,7 @@ final class Layer {
         self.emoji = emoji
         self.text = text
         self.fontWeightRaw = fontWeight.rawValue
+        self.fontDesignRaw = fontDesign.rawValue
         self.storedTintColor = StoredColor(tintColor)
     }
 
@@ -94,6 +122,11 @@ final class Layer {
     var fontWeight: LayerFontWeight {
         get { LayerFontWeight(rawValue: fontWeightRaw) ?? .bold }
         set { fontWeightRaw = newValue.rawValue }
+    }
+
+    var fontDesign: LayerFontDesign {
+        get { LayerFontDesign(rawValue: fontDesignRaw) ?? .rounded }
+        set { fontDesignRaw = newValue.rawValue }
     }
 
     var image: UIImage? {
@@ -134,6 +167,7 @@ struct LayerSnapshot {
     let emoji: String
     let text: String
     let fontWeight: LayerFontWeight
+    let fontDesign: LayerFontDesign
     let tintColor: StoredColor
     let offsetW: Double
     let offsetH: Double
@@ -161,6 +195,7 @@ extension Layer {
             emoji: emoji,
             text: text,
             fontWeight: fontWeight,
+            fontDesign: fontDesign,
             tintColor: storedTintColor,
             offsetW: offsetW,
             offsetH: offsetH,
@@ -186,6 +221,7 @@ extension Layer {
         emoji = s.emoji
         text = s.text
         fontWeightRaw = s.fontWeight.rawValue
+        fontDesignRaw = s.fontDesign.rawValue
         storedTintColor = s.tintColor
         offsetW = s.offsetW
         offsetH = s.offsetH

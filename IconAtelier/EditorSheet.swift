@@ -45,11 +45,20 @@ struct EditSheet: View {
             promptFocused = false
             if isBg {
                 bgAIPromptText = project.safeBackground.aiPrompt ?? ""
+            } else {
+                promptText = project.layer(withID: session.selectedLayerUUID)?.sourcePrompt ?? ""
             }
+        }
+        .onChange(of: session.selectedLayerUUID) { _, _ in
+            guard !session.isBackgroundSelected else { return }
+            promptFocused = false
+            promptText = project.layer(withID: session.selectedLayerUUID)?.sourcePrompt ?? ""
         }
         .onAppear {
             if session.isBackgroundSelected {
                 bgAIPromptText = project.safeBackground.aiPrompt ?? ""
+            } else {
+                promptText = project.layer(withID: session.selectedLayerUUID)?.sourcePrompt ?? ""
             }
         }
         .alert(
@@ -87,7 +96,6 @@ struct EditSheet: View {
                         prompt: trimmed
                     )
                     session.selectLayer(layer.uuid)
-                    promptText = ""
                 }
             } catch {
                 generationError = error.localizedDescription

@@ -9,10 +9,37 @@ struct IconProjectSnapshot {
 
 @Model
 final class IconProject {
+    /// Stable identifier for sync, sharing, and gallery publication.
+    var uuid: UUID = UUID()
+
     var title: String = "Untitled"
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
     @Attribute(.externalStorage) var thumbnailPNG: Data?
+
+    // MARK: - Target app metadata
+    /// Display name of the app this icon is designed for (may differ from `title`).
+    var appName: String?
+    /// App Store URL of the target app (e.g. https://apps.apple.com/app/id...).
+    var appStoreURL: URL?
+    /// Bundle identifier of the target app, when known.
+    var appBundleID: String?
+
+    // MARK: - Gallery metadata
+    /// Free-form caption / description shown in the gallery.
+    var notes: String?
+    /// User-defined tags for search and filtering.
+    var tags: [String] = []
+    /// Display name credited as author when published.
+    var authorName: String?
+
+    // MARK: - Publication state
+    /// Whether the icon is intended to be visible in the public gallery.
+    var isPublic: Bool = false
+    /// Server-assigned identifier once the icon has been uploaded.
+    var publishedID: String?
+    /// Timestamp of the most recent successful publish.
+    var publishedAt: Date?
 
     @Relationship(deleteRule: .cascade, inverse: \Background.project)
     var background: Background?

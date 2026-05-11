@@ -370,7 +370,8 @@ struct LayerContentView: View {
                 .font(.system(size: side * 0.5))
         case .text:
             Text(layer.text)
-                .font(.system(size: side * 0.3, weight: layer.fontWeight.swiftUI, design: .rounded))
+                .font(.system(size: side * 0.3, weight: layer.fontWeight.swiftUI))
+                .fontDesign(layer.fontDesign.swiftUI)
                 .foregroundStyle(layer.tintColor)
                 .fixedSize()
         }

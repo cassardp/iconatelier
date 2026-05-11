@@ -122,7 +122,7 @@ struct ContentView: View {
             }
         }) {
             EditSheet(project: project, session: session, service: service)
-                .presentationDetents([.fraction(0.5)], selection: $sheetDetent)
+                .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
                 .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)

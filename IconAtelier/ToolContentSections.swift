@@ -55,6 +55,7 @@ struct TextContentSection: View {
                 project: project
             )
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+            FontDesignRow(design: $layer.fontDesign, project: project)
             FontWeightRow(weight: $layer.fontWeight, project: project)
         }
     }
@@ -69,34 +70,6 @@ struct AIOverlayContentSection: View {
     let onGenerate: () -> Void
 
     var body: some View {
-        PanelSection(title: "Prompt ideas") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(BackgroundPresets.overlayPrompts) { preset in
-                        Button {
-                            promptText = preset.prompt
-                        } label: {
-                            Text(preset.name)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.primary.opacity(0.72))
-                                .padding(.horizontal, 14)
-                                .frame(height: 36)
-                                .background(
-                                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                                        .fill(PanelStyle.rowFill)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isGenerating)
-                    }
-                }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 2)
-            }
-        }
-
-        SectionDivider()
-
         PanelSection(title: "AI image") {
             HStack(alignment: .top, spacing: 10) {
                 TextField(
@@ -130,6 +103,34 @@ struct AIOverlayContentSection: View {
                 role: .prominent
             ) {
                 onGenerate()
+            }
+        }
+
+        SectionDivider()
+
+        PanelSection(title: "Prompt ideas") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(BackgroundPresets.overlayPrompts) { preset in
+                        Button {
+                            promptText = preset.prompt
+                        } label: {
+                            Text(preset.name)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary.opacity(0.72))
+                                .padding(.horizontal, 14)
+                                .frame(height: 36)
+                                .background(
+                                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                                        .fill(PanelStyle.rowFill)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isGenerating)
+                    }
+                }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 2)
             }
         }
     }
@@ -182,6 +183,39 @@ private struct ColorPickerRow: View {
                 ),
                 supportsOpacity: false
             )
+            .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+}
+
+private struct FontDesignRow: View {
+    @Binding var design: LayerFontDesign
+    let project: IconProject
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Font")
+                .foregroundStyle(.primary.opacity(0.72))
+            Spacer()
+            Picker("Font", selection: Binding(
+                get: { design },
+                set: {
+                    project.recordUndo()
+                    design = $0
+                }
+            )) {
+                ForEach(LayerFontDesign.allCases, id: \.self) { d in
+                    Text(d.displayName).tag(d)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(.primary.opacity(0.72))
             .labelsHidden()
         }
         .padding(.horizontal, 14)

@@ -70,8 +70,10 @@ struct LayersBar: View {
                 Label("Text", systemImage: "textformat")
             }
         } label: {
+            let inset: CGFloat = 4
+            let innerSize = Self.thumbnailSize - inset * 2
             RoundedRectangle(
-                cornerRadius: Self.thumbnailSize * 0.2237,
+                cornerRadius: innerSize * 0.2237,
                 style: .continuous
             )
             .strokeBorder(
@@ -80,9 +82,10 @@ struct LayersBar: View {
             )
             .overlay {
                 Image(systemName: "plus")
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(.secondary)
             }
+            .frame(width: innerSize, height: innerSize)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
         }
         .menuStyle(.button)
@@ -219,11 +222,13 @@ struct BackgroundThumbnailRow: View {
                         .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
                         .padding(inset)
 
-                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? LayersBar.selectedBorderColor : LayersBar.idleBorderColor,
-                                lineWidth: LayersBar.borderWidth
-                            )
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                                .strokeBorder(
+                                    LayersBar.selectedBorderColor,
+                                    lineWidth: LayersBar.borderWidth
+                                )
+                        }
                     }
                     .animation(.smooth(duration: 0.18), value: isSelected)
                 }
@@ -290,11 +295,13 @@ struct LayerThumbnailRow: View {
                         .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
                         .padding(inset)
 
-                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? LayersBar.selectedBorderColor : LayersBar.idleBorderColor,
-                                lineWidth: LayersBar.borderWidth
-                            )
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                                .strokeBorder(
+                                    LayersBar.selectedBorderColor,
+                                    lineWidth: LayersBar.borderWidth
+                                )
+                        }
                     }
                     .animation(.smooth(duration: 0.18), value: isSelected)
                 }

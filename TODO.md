@@ -56,6 +56,12 @@
 - Presets par catégorie : Productivité, Jeu, Finance, Santé, Météo, Voyage, etc.
 - Chaque preset = combo (style de fond + style d'overlay + palette).
 
+### Bibliothèque d'assets IA générés (réutilisation)
+- Conserver l'historique des images IA générées (backgrounds + overlays) dans le projet ou globalement.
+- Les exposer sur la Home (galerie d'assets) et au moment d'ajouter un élément (« choisir parmi mes images IA »), pour éviter de relancer un appel API quand on a déjà l'image qu'il faut.
+- À décider : portée (par projet vs global), purge / quota, dedup par prompt+seed, miniatures persistées.
+- Stockage probable : SwiftData + fichiers sur disque (`Application Support`), pas tout en base.
+
 ### Couleur de fond extraite d'un calque
 - Une fois un calque généré, proposer un fond avec sa couleur dominante / palette complémentaire.
 - Bypass API pour le fond → instantané.
