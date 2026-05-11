@@ -14,8 +14,6 @@ struct ContentView: View {
     @State private var showEditSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
     @State private var isFocusMode = false
-    @State private var isEditingTitle = false
-    @State private var draftTitle = ""
 
     var body: some View {
         GeometryReader { geo in
@@ -104,20 +102,6 @@ struct ContentView: View {
         .toolbarBackground(isFocusMode ? .hidden : .visible, for: .bottomBar)
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarTitleMenu {
-            Button("Rename") {
-                draftTitle = project.title
-                isEditingTitle = true
-            }
-        }
-        .alert("Rename icon", isPresented: $isEditingTitle) {
-            TextField("Name", text: $draftTitle)
-            Button("Save") {
-                let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { project.title = trimmed }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
         .sheet(isPresented: $showEditSheet) {
             EditSheet(project: project, service: service)
                 .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)

@@ -9,6 +9,8 @@ struct GalleryView: View {
 
     @State private var path = NavigationPath()
     @State private var deletionTarget: IconProject?
+    @State private var renameTarget: IconProject?
+    @State private var draftTitle: String = ""
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 200), spacing: 16)
@@ -32,6 +34,12 @@ struct GalleryView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .contextMenu {
+                                    Button {
+                                        draftTitle = project.title
+                                        renameTarget = project
+                                    } label: {
+                                        Label("Rename", systemImage: "pencil")
+                                    }
                                     Button(role: .destructive) {
                                         deletionTarget = project
                                     } label: {
@@ -44,7 +52,7 @@ struct GalleryView: View {
                     }
                 }
             }
-            .navigationTitle("My Icons")
+            .navigationTitle("Icon Atelier")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -74,6 +82,23 @@ struct GalleryView: View {
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("This cannot be undone.")
+            }
+            .alert(
+                "Rename icon",
+                isPresented: Binding(
+                    get: { renameTarget != nil },
+                    set: { if !$0 { renameTarget = nil } }
+                )
+            ) {
+                TextField("Name", text: $draftTitle)
+                Button("Save") {
+                    if let project = renameTarget {
+                        let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty { project.title = trimmed }
+                    }
+                    renameTarget = nil
+                }
+                Button("Cancel", role: .cancel) { renameTarget = nil }
             }
         }
     }
