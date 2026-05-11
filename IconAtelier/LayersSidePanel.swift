@@ -281,6 +281,7 @@ struct LayerThumbnailRow: View {
                     let outerRadius = geo.size.width * 0.2237
                     let inset: CGFloat = 4
                     let innerRadius = max(0, outerRadius - inset)
+                    let contentSide = max(0, geo.size.width - inset * 2)
                     ZStack {
                         ZStack {
                             TransparencyCheckerboard(tile: 6)
@@ -289,9 +290,10 @@ struct LayerThumbnailRow: View {
                                     .font(.title3)
                                     .foregroundStyle(.secondary)
                             } else {
-                                OverlayLayerRender(layer: layer, side: geo.size.width - inset * 2)
+                                OverlayLayerRender(layer: layer, side: contentSide)
                             }
                         }
+                        .frame(width: contentSide, height: contentSide)
                         .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
                         .padding(inset)
 

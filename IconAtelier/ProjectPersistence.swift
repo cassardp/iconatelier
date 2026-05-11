@@ -10,14 +10,14 @@ enum IconRenderer {
             }
             ForEach(project.layers) { layer in
                 if !layer.isHidden {
-                    LayerContentView(layer: layer, side: side)
+                    let s = CGFloat(layer.scale)
+                    LayerContentView(layer: layer, side: side, scale: s)
                         .shadow(
                             color: .black.opacity(layer.shadowOpacity),
-                            radius: side * CGFloat(layer.shadowRadius),
-                            x: side * CGFloat(layer.shadowOffsetX),
-                            y: side * CGFloat(layer.shadowOffsetY)
+                            radius: side * CGFloat(layer.shadowRadius) * s,
+                            x: side * CGFloat(layer.shadowOffsetX) * s,
+                            y: side * CGFloat(layer.shadowOffsetY) * s
                         )
-                        .scaleEffect(layer.scale)
                         .rotationEffect(layer.rotation)
                         .opacity(layer.opacity)
                         .offset(

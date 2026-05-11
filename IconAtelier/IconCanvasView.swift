@@ -328,14 +328,14 @@ struct OverlayLayerRender: View {
     var transientAngle: Angle = .zero
 
     var body: some View {
-        LayerContentView(layer: layer, side: side)
+        let effectiveScale = layer.scale * transientScale
+        LayerContentView(layer: layer, side: side, scale: effectiveScale)
             .shadow(
                 color: .black.opacity(layer.shadowOpacity),
-                radius: side * layer.shadowRadius,
-                x: side * layer.shadowOffsetX,
-                y: side * layer.shadowOffsetY
+                radius: side * layer.shadowRadius * effectiveScale,
+                x: side * layer.shadowOffsetX * effectiveScale,
+                y: side * layer.shadowOffsetY * effectiveScale
             )
-            .scaleEffect(layer.scale * transientScale)
             .rotationEffect(layer.rotation + transientAngle)
             .opacity(layer.opacity)
             .offset(
@@ -348,29 +348,32 @@ struct OverlayLayerRender: View {
 struct LayerContentView: View {
     let layer: Layer
     let side: CGFloat
+    var scale: CGFloat = 1.0
 
     var body: some View {
         switch layer.kind {
         case .aiOverlay:
+            let aiSide = side * 0.7 * scale
             if let image = layer.image {
                 Image(uiImage: image)
                     .resizable()
+                    .interpolation(.high)
                     .scaledToFit()
-                    .frame(width: side * 0.7, height: side * 0.7)
+                    .frame(width: aiSide, height: aiSide)
             } else {
                 Color.clear
-                    .frame(width: side * 0.7, height: side * 0.7)
+                    .frame(width: aiSide, height: aiSide)
             }
         case .symbol:
             Image(systemName: layer.symbolName)
-                .font(.system(size: side * 0.5, weight: layer.fontWeight.swiftUI))
+                .font(.system(size: side * 0.5 * scale, weight: layer.fontWeight.swiftUI))
                 .foregroundStyle(layer.tintColor)
         case .emoji:
             Text(layer.emoji)
-                .font(.system(size: side * 0.5))
+                .font(.system(size: side * 0.5 * scale))
         case .text:
             Text(layer.text)
-                .font(.system(size: side * 0.3, weight: layer.fontWeight.swiftUI))
+                .font(.system(size: side * 0.3 * scale, weight: layer.fontWeight.swiftUI))
                 .fontDesign(layer.fontDesign.swiftUI)
                 .foregroundStyle(layer.tintColor)
                 .fixedSize()

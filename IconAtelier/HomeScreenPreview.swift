@@ -74,14 +74,14 @@ private struct RenderedAppIcon: View {
             }
             ForEach(project.layers) { layer in
                 if !layer.isHidden {
-                    LayerContentView(layer: layer, side: side)
+                    let s = CGFloat(layer.scale)
+                    LayerContentView(layer: layer, side: side, scale: s)
                         .shadow(
                             color: .black.opacity(layer.shadowOpacity),
-                            radius: side * layer.shadowRadius,
-                            x: side * layer.shadowOffsetX,
-                            y: side * layer.shadowOffsetY
+                            radius: side * layer.shadowRadius * s,
+                            x: side * layer.shadowOffsetX * s,
+                            y: side * layer.shadowOffsetY * s
                         )
-                        .scaleEffect(layer.scale)
                         .rotationEffect(layer.rotation)
                         .opacity(layer.opacity)
                         .offset(
