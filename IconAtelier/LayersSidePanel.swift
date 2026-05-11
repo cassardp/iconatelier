@@ -217,17 +217,18 @@ struct BackgroundThumbnailRow: View {
                             .opacity(background.isHidden ? 0.4 : 1)
                             .padding(inset)
 
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                                .strokeBorder(Color.primary, lineWidth: 2)
-                        } else {
-                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                                .strokeBorder(
-                                    Color.secondary.opacity(0.5),
-                                    style: StrokeStyle(lineWidth: 1.5, dash: [4])
-                                )
-                        }
+                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                            .strokeBorder(
+                                Color.secondary.opacity(0.5),
+                                style: StrokeStyle(lineWidth: 1.5, dash: [4])
+                            )
+                            .opacity(isSelected ? 0 : 1)
+
+                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                            .strokeBorder(Color.primary, lineWidth: 2)
+                            .opacity(isSelected ? 1 : 0)
                     }
+                    .animation(.smooth(duration: 0.18), value: isSelected)
                 }
             }
             .contentShape(Rectangle())
@@ -262,6 +263,7 @@ struct LayerThumbnailRow: View {
                                 lineWidth: 2
                             )
                     }
+                    .animation(.smooth(duration: 0.18), value: isSelected)
                 }
             }
             .contentShape(Rectangle())

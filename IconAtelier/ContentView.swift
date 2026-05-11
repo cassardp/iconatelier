@@ -2,13 +2,25 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
-    @State private var project = IconProject()
+    @State private var project: IconProject
     private let service = OpenAIImageService()
+
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var exportedImage: UIImage?
     @State private var showingNewProjectConfirm = false
     @State private var showEditSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
+
+    init() {
+        let restored: IconProject
+        if let persisted = ProjectPersistence.load() {
+            restored = IconProject(persisted: persisted)
+        } else {
+            restored = IconProject()
+        }
+        _project = State(initialValue: restored)
+    }
 
     var body: some View {
         NavigationStack {
@@ -97,6 +109,11 @@ struct ContentView: View {
         .onChange(of: exportSignature) { _, _ in
             exportedImage = renderedIcon()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background || phase == .inactive {
+                ProjectPersistence.save(project)
+            }
+        }
         .onAppear {
             exportedImage = renderedIcon()
         }
@@ -107,6 +124,7 @@ struct ContentView: View {
         ) {
             Button("New project", role: .destructive) {
                 project = IconProject()
+                ProjectPersistence.clear()
             }
             Button("Cancel", role: .cancel) {}
         } message: {

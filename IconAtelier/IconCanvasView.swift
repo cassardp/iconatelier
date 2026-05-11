@@ -145,6 +145,7 @@ struct IconCanvasView: View {
                 state.axes = nextAxes
                 state.isActive = true
             }
+            .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
                 project.recordUndo()
@@ -163,6 +164,7 @@ struct IconCanvasView: View {
             .updating($gestureScale) { value, state, _ in
                 state = value.magnification
             }
+            .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
                 project.recordUndo()
@@ -173,6 +175,7 @@ struct IconCanvasView: View {
             .updating($gestureAngle) { value, state, _ in
                 state = value.rotation
             }
+            .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
                 project.recordUndo()
@@ -180,6 +183,12 @@ struct IconCanvasView: View {
             }
 
         return drag.simultaneously(with: magnify).simultaneously(with: rotate)
+    }
+
+    private func promoteOverlaySelection() {
+        if project.isBackgroundSelected, selectedOverlay != nil {
+            project.isBackgroundSelected = false
+        }
     }
 }
 
