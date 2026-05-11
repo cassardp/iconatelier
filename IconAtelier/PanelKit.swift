@@ -111,27 +111,21 @@ struct ActionRow: View {
     }
 
     let title: String
-    let systemImage: String
     var enabled: Bool = true
     var role: Role = .standard
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .foregroundStyle(iconColor)
-                    .frame(width: 22)
-                Text(title)
-                    .foregroundStyle(textColor)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight)
-            .padding(.horizontal, PanelStyle.rowInsetH)
-            .background(
-                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                    .fill(rowFill)
-            )
+            Text(title)
+                .font(.body.weight(.medium))
+                .foregroundStyle(textColor)
+                .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight)
+                .padding(.horizontal, PanelStyle.rowInsetH)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .fill(rowFill)
+                )
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -153,14 +147,6 @@ struct ActionRow: View {
         case .standard, .prominent: return .primary
         }
     }
-
-    private var iconColor: Color {
-        switch role {
-        case .destructive: return .red
-        case .standard: return .secondary
-        case .prominent: return .accentColor
-        }
-    }
 }
 
 // MARK: - DialKit-style slider row with inline fill
@@ -170,6 +156,7 @@ struct DialSliderRow: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let valueText: (Double) -> String
+    var defaultValue: Double? = nil
     let onBeginEditing: () -> Void
 
     private var fraction: Double {
@@ -178,11 +165,27 @@ struct DialSliderRow: View {
         return min(max((value - range.lowerBound) / span, 0), 1)
     }
 
+    private var canReset: Bool {
+        guard let d = defaultValue else { return false }
+        let span = range.upperBound - range.lowerBound
+        let epsilon = max(span * 0.001, 1e-6)
+        return abs(value - d) > epsilon
+    }
+
     private func update(at x: CGFloat, width: CGFloat) {
         guard width > 0 else { return }
         let f = min(max(Double(x / width), 0), 1)
         let span = range.upperBound - range.lowerBound
         value = range.lowerBound + f * span
+    }
+
+    private func performReset() {
+        guard let d = defaultValue, canReset else { return }
+        onBeginEditing()
+        UISelectionFeedbackGenerator().selectionChanged()
+        withAnimation(.smooth(duration: 0.2)) {
+            value = d
+        }
     }
 
     var body: some View {
@@ -200,11 +203,25 @@ struct DialSliderRow: View {
                     .fill(PanelStyle.rowFillActive)
                     .frame(width: max(0, geo.size.width * fraction))
 
-                HStack {
+                HStack(spacing: 8) {
                     Text(label)
                         .foregroundStyle(.primary.opacity(0.72))
+                    if defaultValue != nil {
+                        Button(action: performReset) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24, height: 24)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(canReset ? 1 : 0.25)
+                        .disabled(!canReset)
+                        .accessibilityLabel("Reset \(label)")
+                    }
                     Spacer()
                     Text(valueText(value))
+                        .font(.subheadline)
                         .foregroundStyle(.primary.opacity(0.72))
                         .monospacedDigit()
                 }

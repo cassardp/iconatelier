@@ -11,7 +11,6 @@ struct SymbolContentSection: View {
     var body: some View {
         PanelSection(title: "Symbol") {
             ContentField(
-                systemImage: "star",
                 placeholder: "Symbol name (e.g. star.fill)",
                 text: $layer.symbolName,
                 focused: $nameFocused,
@@ -32,7 +31,6 @@ struct EmojiContentSection: View {
     var body: some View {
         PanelSection(title: "Emoji") {
             ContentField(
-                systemImage: "face.smiling",
                 placeholder: "Tap and pick an emoji",
                 text: $layer.emoji,
                 focused: $emojiFocused,
@@ -51,7 +49,6 @@ struct TextContentSection: View {
     var body: some View {
         PanelSection(title: "Text") {
             ContentField(
-                systemImage: "textformat",
                 placeholder: "Text",
                 text: $layer.text,
                 focused: $textFocused,
@@ -74,10 +71,6 @@ struct AIOverlayContentSection: View {
     var body: some View {
         PanelSection(title: "AI image") {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-
                 TextField(
                     "Describe an image…",
                     text: $promptText,
@@ -104,7 +97,6 @@ struct AIOverlayContentSection: View {
 
             ActionRow(
                 title: layer.image == nil ? "Generate" : "Replace",
-                systemImage: "sparkles",
                 enabled: !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !isGenerating,
                 role: .prominent
@@ -118,32 +110,26 @@ struct AIOverlayContentSection: View {
 // MARK: - Reusable content rows
 
 private struct ContentField: View {
-    let systemImage: String
     let placeholder: String
     @Binding var text: String
     var focused: FocusState<Bool>.Binding
     let project: IconProject
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .focused(focused)
-        }
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                .fill(PanelStyle.rowFill)
-        )
-        .onChange(of: focused.wrappedValue) { _, newValue in
-            if newValue { project.recordUndo() }
-        }
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+            .focused(focused)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                    .fill(PanelStyle.rowFill)
+            )
+            .onChange(of: focused.wrappedValue) { _, newValue in
+                if newValue { project.recordUndo() }
+            }
     }
 }
 
@@ -154,9 +140,6 @@ private struct ColorPickerRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "paintpalette")
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
             Text(title)
                 .foregroundStyle(.primary.opacity(0.72))
             Spacer()
@@ -188,9 +171,6 @@ private struct FontWeightRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "bold")
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
             Text("Weight")
                 .foregroundStyle(.primary.opacity(0.72))
             Spacer()

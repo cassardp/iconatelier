@@ -109,6 +109,7 @@ struct EditTabContent: View {
                 ),
                 range: 0 ... 1,
                 valueText: { String(format: "%.0f%%", $0 * 100) },
+                defaultValue: 1.0,
                 onBeginEditing: { project.recordUndo() }
             )
 
@@ -120,6 +121,7 @@ struct EditTabContent: View {
                 ),
                 range: 0.1 ... 5.0,
                 valueText: { String(format: "%.2f", $0) },
+                defaultValue: 1.0,
                 onBeginEditing: { project.recordUndo() }
             )
 
@@ -131,6 +133,7 @@ struct EditTabContent: View {
                 ),
                 range: -180 ... 180,
                 valueText: { String(format: "%.0f°", $0) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
         }
@@ -145,6 +148,7 @@ struct EditTabContent: View {
                 ),
                 range: -1.0 ... 1.0,
                 valueText: { String(format: "%+.2f", $0) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
 
@@ -156,6 +160,7 @@ struct EditTabContent: View {
                 ),
                 range: -1.0 ... 1.0,
                 valueText: { String(format: "%+.2f", $0) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
         }
@@ -170,6 +175,7 @@ struct EditTabContent: View {
                 ),
                 range: 0 ... 1,
                 valueText: { String(format: "%.0f%%", $0 * 100) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
 
@@ -181,6 +187,7 @@ struct EditTabContent: View {
                 ),
                 range: 0 ... 0.2,
                 valueText: { String(format: "%.0f%%", $0 * 100) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
 
@@ -192,6 +199,7 @@ struct EditTabContent: View {
                 ),
                 range: -0.2 ... 0.2,
                 valueText: { String(format: "%+.2f", $0) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
 
@@ -203,6 +211,7 @@ struct EditTabContent: View {
                 ),
                 range: -0.2 ... 0.2,
                 valueText: { String(format: "%+.2f", $0) },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
         }

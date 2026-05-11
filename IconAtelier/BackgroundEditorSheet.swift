@@ -294,7 +294,6 @@ struct BackgroundEditorContent: View {
 
             ActionRow(
                 title: background.aiImage == nil ? "Generate" : "Replace",
-                systemImage: "sparkles",
                 enabled: !aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && !isGenerating,
                 role: .prominent
