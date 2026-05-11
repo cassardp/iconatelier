@@ -10,6 +10,7 @@ struct LayersBar: View {
     @State private var dragOffset: CGFloat = 0
     @State private var dragStartIndex: Int?
     @State private var targetIndex: Int?
+    @State private var dragStartX: CGFloat = 0
 
     private static let thumbnailSize: CGFloat = 56
     private static let spacing: CGFloat = 8
@@ -121,7 +122,11 @@ struct LayersBar: View {
                 session.selectLayer(layer.uuid)
                 isSheetOpen = true
             }
-            .gesture(longPressDragGesture(for: layer, at: index))
+            .gesture(
+                LongPressDragRecognizer { recognizer, location in
+                    handleReorder(state: recognizer.state, x: location.x, layer: layer, index: index)
+                }
+            )
     }
 
     private func computeShift(for index: Int) -> CGFloat {
@@ -138,34 +143,30 @@ struct LayersBar: View {
         return 0
     }
 
-    private func longPressDragGesture(for layer: Layer, at index: Int) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.25)
-            .sequenced(before: DragGesture(minimumDistance: 0))
-            .onChanged { value in
-                switch value {
-                case .first:
-                    break
-                case .second(true, let drag?):
-                    if draggingUUID == nil {
-                        draggingUUID = layer.uuid
-                        dragStartIndex = index
-                        targetIndex = index
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    }
-                    dragOffset = drag.translation.width
-                    let movedItems = Int((dragOffset / Self.itemStride).rounded())
-                    let proposed = max(0, min(uiLayers.count - 1, index + movedItems))
-                    if proposed != targetIndex {
-                        targetIndex = proposed
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
-                default:
-                    break
-                }
+    private func handleReorder(state: UIGestureRecognizer.State, x: CGFloat, layer: Layer, index: Int) {
+        switch state {
+        case .began:
+            draggingUUID = layer.uuid
+            dragStartIndex = index
+            targetIndex = index
+            dragStartX = x
+            dragOffset = 0
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        case .changed:
+            guard draggingUUID == layer.uuid else { return }
+            dragOffset = x - dragStartX
+            let movedItems = Int((dragOffset / Self.itemStride).rounded())
+            let proposed = max(0, min(uiLayers.count - 1, index + movedItems))
+            if proposed != targetIndex {
+                targetIndex = proposed
+                UISelectionFeedbackGenerator().selectionChanged()
             }
-            .onEnded { _ in
-                finalizeDrag()
-            }
+        case .ended, .cancelled, .failed:
+            guard draggingUUID == layer.uuid else { return }
+            finalizeDrag()
+        default:
+            break
+        }
     }
 
     private func finalizeDrag() {
@@ -221,6 +222,37 @@ struct BackgroundThumbnailRow: View {
             }
             .contentShape(Rectangle())
             .accessibilityLabel("Background")
+    }
+}
+
+struct LongPressDragRecognizer: UIGestureRecognizerRepresentable {
+    var minimumDuration: TimeInterval = 0.3
+    var allowableMovement: CGFloat = 4
+    let onChange: (UILongPressGestureRecognizer, CGPoint) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let recognizer = UILongPressGestureRecognizer()
+        recognizer.minimumPressDuration = minimumDuration
+        recognizer.allowableMovement = allowableMovement
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        onChange(recognizer, context.converter.localLocation)
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
     }
 }
 
