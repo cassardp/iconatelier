@@ -10,7 +10,7 @@ struct IconCanvasView: View {
 
     @GestureState private var dragSnap: DragSnapState = DragSnapState()
     @GestureState private var gestureScale: CGFloat = 1.0
-    @GestureState private var gestureAngle: Angle = .zero
+    @GestureState private var rotationSnap: RotationSnapState = RotationSnapState()
 
     private struct SnapAxes: OptionSet, Equatable {
         let rawValue: Int
@@ -24,7 +24,25 @@ struct IconCanvasView: View {
         var isActive: Bool = false
     }
 
+    private struct RotationSnapState: Equatable {
+        var delta: Angle = .zero
+        var isSnapped: Bool = false
+    }
+
     private static let snapThreshold: CGFloat = 8
+    private static let rotationSnapThreshold: Double = 5
+
+    private static func snappedRotation(
+        layerRotation: Angle,
+        rawDelta: Angle
+    ) -> (delta: Angle, isSnapped: Bool) {
+        let total = (layerRotation + rawDelta).degrees
+        let nearest = (total / 90).rounded() * 90
+        if abs(total - nearest) < rotationSnapThreshold {
+            return (.degrees(nearest) - layerRotation, true)
+        }
+        return (rawDelta, false)
+    }
 
     private static func snapped(
         translation: CGSize,
@@ -98,7 +116,7 @@ struct IconCanvasView: View {
                         isSelected: isSelected,
                         transientOffset: isSelected ? dragSnap.translation : .zero,
                         transientScale: isSelected ? gestureScale : 1.0,
-                        transientAngle: isSelected ? gestureAngle : .zero,
+                        transientAngle: isSelected ? rotationSnap.delta : .zero,
                         onTap: { session.selectLayer(layer.uuid) }
                     )
                 }
@@ -177,14 +195,31 @@ struct IconCanvasView: View {
             }
 
         let rotate = RotateGesture(minimumAngleDelta: .degrees(1))
-            .updating($gestureAngle) { value, state, _ in
-                state = value.rotation
+            .updating($rotationSnap) { value, state, _ in
+                guard let layer = selectedOverlay else {
+                    state.delta = value.rotation
+                    state.isSnapped = false
+                    return
+                }
+                let (delta, isSnapped) = Self.snappedRotation(
+                    layerRotation: layer.rotation,
+                    rawDelta: value.rotation
+                )
+                if isSnapped && !state.isSnapped {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+                state.delta = delta
+                state.isSnapped = isSnapped
             }
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
                 project.recordUndo()
-                layer.rotation += value.rotation
+                let (delta, _) = Self.snappedRotation(
+                    layerRotation: layer.rotation,
+                    rawDelta: value.rotation
+                )
+                layer.rotation += delta
             }
 
         return drag.simultaneously(with: magnify).simultaneously(with: rotate)
