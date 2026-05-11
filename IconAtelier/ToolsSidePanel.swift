@@ -112,7 +112,9 @@ struct EditTabContent: View {
                 systemImage: "trash",
                 role: .destructive
             ) {
-                project.remove(layer)
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    project.remove(layer)
+                }
             }
         }
     }
