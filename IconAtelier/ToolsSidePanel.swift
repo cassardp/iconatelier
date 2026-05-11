@@ -185,6 +185,53 @@ struct EditTabContent: View {
                     onBeginEditing: { project.recordUndo() }
                 )
             }
+
+            SectionDivider()
+            PanelSection(title: "Shadow") {
+                DialSliderRow(
+                    label: "Opacity",
+                    value: Binding(
+                        get: { layer.shadowOpacity },
+                        set: { layer.shadowOpacity = $0 }
+                    ),
+                    range: 0 ... 1,
+                    valueText: { String(format: "%.0f%%", $0 * 100) },
+                    onBeginEditing: { project.recordUndo() }
+                )
+
+                DialSliderRow(
+                    label: "Blur",
+                    value: Binding(
+                        get: { Double(layer.shadowRadius) },
+                        set: { layer.shadowRadius = CGFloat($0) }
+                    ),
+                    range: 0 ... 0.2,
+                    valueText: { String(format: "%.0f%%", $0 * 100) },
+                    onBeginEditing: { project.recordUndo() }
+                )
+
+                DialSliderRow(
+                    label: "Offset X",
+                    value: Binding(
+                        get: { Double(layer.shadowOffsetX) },
+                        set: { layer.shadowOffsetX = CGFloat($0) }
+                    ),
+                    range: -0.2 ... 0.2,
+                    valueText: { String(format: "%+.2f", $0) },
+                    onBeginEditing: { project.recordUndo() }
+                )
+
+                DialSliderRow(
+                    label: "Offset Y",
+                    value: Binding(
+                        get: { Double(layer.shadowOffsetY) },
+                        set: { layer.shadowOffsetY = CGFloat($0) }
+                    ),
+                    range: -0.2 ... 0.2,
+                    valueText: { String(format: "%+.2f", $0) },
+                    onBeginEditing: { project.recordUndo() }
+                )
+            }
         }
     }
 
@@ -195,7 +242,7 @@ struct EditTabContent: View {
 private struct SectionDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.08))
+            .fill(Color.primary.opacity(0.08))
             .frame(height: 1)
             .padding(.horizontal, 4)
     }
@@ -204,8 +251,8 @@ private struct SectionDivider: View {
 // MARK: - Panel style tokens
 
 private enum PanelStyle {
-    static let rowFill: Color = .white.opacity(0.06)
-    static let rowFillActive: Color = .white.opacity(0.14)
+    static let rowFill: Color = .primary.opacity(0.06)
+    static let rowFillActive: Color = .primary.opacity(0.14)
     static let cornerRadius: CGFloat = 12
     static let rowHeight: CGFloat = 52
     static let sliderHeight: CGFloat = 48
@@ -246,6 +293,7 @@ private struct PanelSection<Content: View>: View {
                 VStack(spacing: 6) {
                     content()
                 }
+                .padding(.top, 6)
                 .transition(
                     .opacity.combined(with: .move(edge: .top))
                 )
@@ -431,7 +479,10 @@ private struct ScrollSafeHorizontalPan: UIGestureRecognizerRepresentable {
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            true
+            // Ancestor pans (ScrollView, sheet drag-to-dismiss) are made to
+            // require this recognizer to fail before they activate — so they
+            // must not run simultaneously.
+            false
         }
     }
 
@@ -465,10 +516,19 @@ private struct ScrollSafeHorizontalPan: UIGestureRecognizerRepresentable {
 
 final class AxisLockedPanRecognizer: UIPanGestureRecognizer {
     private var didDecide = false
+    private var didLinkAncestors = false
 
     override func reset() {
         super.reset()
         didDecide = false
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesBegan(touches, with: event)
+        if !didLinkAncestors {
+            didLinkAncestors = true
+            linkAncestorPans()
+        }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
@@ -477,10 +537,25 @@ final class AxisLockedPanRecognizer: UIPanGestureRecognizer {
         let t = translation(in: v)
         let dx = abs(t.x)
         let dy = abs(t.y)
-        if max(dx, dy) > 8 {
+        if max(dx, dy) > 4 {
             didDecide = true
             // Vertical motion → fail so the ScrollView's pan can scroll.
             if dy > dx { state = .failed }
+        }
+    }
+
+    /// Make every pan recognizer up the view chain (ScrollView, sheet
+    /// drag-to-dismiss, …) wait for this recognizer's verdict before they
+    /// activate. Once we either succeed (horizontal) or fail (vertical),
+    /// they react accordingly — they no longer steal vertical movement
+    /// while we're tracking a horizontal slider drag.
+    private func linkAncestorPans() {
+        var ancestor: UIView? = view?.superview
+        while let v = ancestor {
+            for gr in v.gestureRecognizers ?? [] where gr is UIPanGestureRecognizer {
+                gr.require(toFail: self)
+            }
+            ancestor = v.superview
         }
     }
 }
