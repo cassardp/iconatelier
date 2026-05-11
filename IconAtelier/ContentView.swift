@@ -10,6 +10,7 @@ struct ContentView: View {
     @Bindable var project: IconProject
     private let service = OpenAIImageService()
 
+    @State private var session = ProjectSession()
     @State private var exportedImage: UIImage?
     @State private var showEditSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
@@ -30,10 +31,11 @@ struct ContentView: View {
                 } else {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        IconCanvasView(project: project)
+                        IconCanvasView(project: project, session: session)
                             .frame(width: iconSide, height: iconSide)
                         LayersBar(
                             project: project,
+                            session: session,
                             isSheetOpen: $showEditSheet
                         )
                         .transition(.opacity)
@@ -92,7 +94,7 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: isFocusMode
                         ? "xmark"
-                        : "arrow.up.left.and.arrow.down.right")
+                        : "apps.iphone")
                         .contentTransition(.symbolEffect(.replace))
                 }
                 .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
@@ -103,7 +105,7 @@ struct ContentView: View {
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showEditSheet) {
-            EditSheet(project: project, service: service)
+            EditSheet(project: project, session: session, service: service)
                 .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
                 .presentationContentInteraction(.scrolls)

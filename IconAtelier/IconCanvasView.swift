@@ -5,6 +5,7 @@ struct IconCanvasView: View {
     enum SwipeDirection { case left, right }
 
     @Bindable var project: IconProject
+    let session: ProjectSession
     var onSwipe: (SwipeDirection) -> Void = { _ in }
 
     @GestureState private var dragSnap: DragSnapState = DragSnapState()
@@ -77,7 +78,9 @@ struct IconCanvasView: View {
             }
     }
 
-    private var selectedOverlay: Layer? { project.selectedLayer }
+    private var selectedOverlay: Layer? {
+        project.layer(withID: session.selectedLayerUUID)
+    }
 
     private func squircleIcon(side: CGFloat) -> some View {
         ZStack {
@@ -88,7 +91,7 @@ struct IconCanvasView: View {
             }
             ForEach(project.layers) { layer in
                 if !layer.isHidden {
-                    let isSelected = layer.uuid == project.selectedLayerUUID
+                    let isSelected = layer.uuid == session.selectedLayerUUID
                     OverlayLayerView(
                         layer: layer,
                         side: side,
@@ -96,7 +99,7 @@ struct IconCanvasView: View {
                         transientOffset: isSelected ? dragSnap.translation : .zero,
                         transientScale: isSelected ? gestureScale : 1.0,
                         transientAngle: isSelected ? gestureAngle : .zero,
-                        onTap: { project.selectedLayerUUID = layer.uuid }
+                        onTap: { session.selectLayer(layer.uuid) }
                     )
                 }
             }
@@ -188,8 +191,8 @@ struct IconCanvasView: View {
     }
 
     private func promoteOverlaySelection() {
-        if project.isBackgroundSelected, selectedOverlay != nil {
-            project.isBackgroundSelected = false
+        if session.isBackgroundSelected, selectedOverlay != nil {
+            session.isBackgroundSelected = false
         }
     }
 }

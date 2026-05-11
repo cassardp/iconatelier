@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EditTabContent: View {
     @Bindable var project: IconProject
+    let session: ProjectSession
     @Binding var promptText: String
     let isGenerating: Bool
     var promptFocused: FocusState<Bool>.Binding
@@ -12,7 +13,7 @@ struct EditTabContent: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                if let layer = project.selectedLayer {
+                if let layer = project.layer(withID: session.selectedLayerUUID) {
                     actionsRow(for: layer)
                     SectionDivider()
                     contentSection(for: layer)
@@ -26,7 +27,7 @@ struct EditTabContent: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
-        .onChange(of: project.selectedLayerUUID) { _, newID in
+        .onChange(of: session.selectedLayerUUID) { _, newID in
             if newID == nil { dismiss() }
         }
     }
@@ -76,7 +77,8 @@ struct EditTabContent: View {
                 systemImage: "square.on.square"
             ) {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    project.duplicate(layer)
+                    let copy = project.duplicate(layer)
+                    session.selectLayer(copy.uuid)
                 }
             }
             CompactActionButton(
@@ -84,7 +86,11 @@ struct EditTabContent: View {
                 systemImage: "trash"
             ) {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let wasSelected = session.selectedLayerUUID == layer.uuid
                     project.remove(layer)
+                    if wasSelected {
+                        session.selectedLayerUUID = project.layers.last?.uuid
+                    }
                 }
             }
         }

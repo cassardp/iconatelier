@@ -9,6 +9,7 @@ enum GenerationTarget: Identifiable, Hashable {
 
 struct EditSheet: View {
     @Bindable var project: IconProject
+    let session: ProjectSession
     let service: OpenAIImageService
 
     @State private var promptText: String = ""
@@ -19,7 +20,7 @@ struct EditSheet: View {
 
     var body: some View {
         Group {
-            if project.isBackgroundSelected {
+            if session.isBackgroundSelected {
                 BackgroundEditorContent(
                     project: project,
                     aiPromptText: $bgAIPromptText,
@@ -30,6 +31,7 @@ struct EditSheet: View {
             } else {
                 EditTabContent(
                     project: project,
+                    session: session,
                     promptText: $promptText,
                     isGenerating: isGenerating,
                     promptFocused: $promptFocused,
@@ -39,14 +41,14 @@ struct EditSheet: View {
         }
         .preferredColorScheme(.dark)
         .presentationBackground(Color(.systemBackground))
-        .onChange(of: project.isBackgroundSelected) { _, isBg in
+        .onChange(of: session.isBackgroundSelected) { _, isBg in
             promptFocused = false
             if isBg {
                 bgAIPromptText = project.safeBackground.aiPrompt ?? ""
             }
         }
         .onAppear {
-            if project.isBackgroundSelected {
+            if session.isBackgroundSelected {
                 bgAIPromptText = project.safeBackground.aiPrompt ?? ""
             }
         }
@@ -79,7 +81,12 @@ struct EditSheet: View {
                     project.setBackgroundAI(image: img, prompt: trimmed)
                 case .overlay:
                     let img = try await service.generateOverlay(prompt: trimmed)
-                    project.fillSelectedEmptyOverlayOrAdd(image: img, prompt: trimmed)
+                    let layer = project.fillSelectedEmptyOverlayOrAdd(
+                        selected: project.layer(withID: session.selectedLayerUUID),
+                        image: img,
+                        prompt: trimmed
+                    )
+                    session.selectLayer(layer.uuid)
                     promptText = ""
                 }
             } catch {

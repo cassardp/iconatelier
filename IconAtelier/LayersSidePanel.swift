@@ -3,6 +3,7 @@ import UIKit
 
 struct LayersBar: View {
     @Bindable var project: IconProject
+    let session: ProjectSession
     @Binding var isSheetOpen: Bool
 
     @State private var draggingUUID: UUID?
@@ -25,16 +26,12 @@ struct LayersBar: View {
                     }
                     BackgroundThumbnailRow(
                         background: project.safeBackground,
-                        isSelected: project.isBackgroundSelected
+                        isSelected: session.isBackgroundSelected
                     )
                         .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
                         .onTapGesture {
-                            if isSheetOpen && project.isBackgroundSelected {
-                                isSheetOpen = false
-                            } else {
-                                project.isBackgroundSelected = true
-                                isSheetOpen = true
-                            }
+                            session.selectBackground()
+                            isSheetOpen = true
                         }
                 }
                 .padding(.horizontal, 16)
@@ -49,22 +46,22 @@ struct LayersBar: View {
     private var addButton: some View {
         Menu {
             Button {
-                withSpring { project.addEmptyAIOverlay() }
+                withSpring { session.selectLayer(project.addEmptyAIOverlay().uuid) }
             } label: {
                 Label("AI image", systemImage: "sparkles")
             }
             Button {
-                withSpring { project.addSymbolOverlay() }
+                withSpring { session.selectLayer(project.addSymbolOverlay().uuid) }
             } label: {
                 Label("Symbol", systemImage: "star")
             }
             Button {
-                withSpring { project.addEmojiOverlay() }
+                withSpring { session.selectLayer(project.addEmojiOverlay().uuid) }
             } label: {
                 Label("Emoji", systemImage: "face.smiling")
             }
             Button {
-                withSpring { project.addTextOverlay() }
+                withSpring { session.selectLayer(project.addTextOverlay().uuid) }
             } label: {
                 Label("Text", systemImage: "textformat")
             }
@@ -101,7 +98,7 @@ struct LayersBar: View {
     private func rowView(layer: Layer, index: Int) -> some View {
         let isDragging = draggingUUID == layer.uuid
         let shift = computeShift(for: index)
-        let isSelected = layer.uuid == project.selectedLayerUUID && !project.isBackgroundSelected
+        let isSelected = layer.uuid == session.selectedLayerUUID && !session.isBackgroundSelected
 
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
@@ -118,15 +115,8 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: shift)
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
-                let sameLayer = !project.isBackgroundSelected
-                    && project.selectedLayerUUID == layer.uuid
-                if isSheetOpen && sameLayer {
-                    isSheetOpen = false
-                } else {
-                    project.isBackgroundSelected = false
-                    project.selectedLayerUUID = layer.uuid
-                    isSheetOpen = true
-                }
+                session.selectLayer(layer.uuid)
+                isSheetOpen = true
             }
             .gesture(longPressDragGesture(for: layer, at: index))
     }

@@ -5,8 +5,6 @@ import UIKit
 struct IconProjectSnapshot {
     let background: BackgroundSnapshot
     let layers: [LayerSnapshot]
-    let selectedLayerUUID: UUID?
-    let isBackgroundSelected: Bool
 }
 
 @MainActor
@@ -22,14 +20,6 @@ final class IconProject {
 
     @Relationship(deleteRule: .cascade, inverse: \Layer.project)
     var rawLayers: [Layer] = []
-
-    @Transient var selectedLayerUUID: UUID? {
-        didSet {
-            if selectedLayerUUID != nil { isBackgroundSelected = false }
-            enforceSelectionInvariant()
-        }
-    }
-    @Transient var isBackgroundSelected: Bool = false
 
     @Transient var isGenerating: Bool = false
     @Transient var lastError: String? = nil
@@ -66,24 +56,12 @@ final class IconProject {
         }
     }
 
-    private func enforceSelectionInvariant() {
-        let ordered = layers
-        guard !ordered.isEmpty else {
-            if selectedLayerUUID != nil { selectedLayerUUID = nil }
-            return
-        }
-        if let id = selectedLayerUUID, ordered.contains(where: { $0.uuid == id }) {
-            return
-        }
-        selectedLayerUUID = ordered.last?.uuid
-    }
-
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
 
-    var selectedLayer: Layer? {
-        guard let id = selectedLayerUUID else { return nil }
-        return rawLayers.first { $0.uuid == id }
+    func layer(withID uuid: UUID?) -> Layer? {
+        guard let uuid else { return nil }
+        return rawLayers.first { $0.uuid == uuid }
     }
 
     var hasContent: Bool { !rawLayers.isEmpty }
@@ -93,9 +71,7 @@ final class IconProject {
     private func currentSnapshot() -> IconProjectSnapshot {
         IconProjectSnapshot(
             background: (background ?? Background()).snapshot(),
-            layers: layers.map { $0.snapshot() },
-            selectedLayerUUID: selectedLayerUUID,
-            isBackgroundSelected: isBackgroundSelected
+            layers: layers.map { $0.snapshot() }
         )
     }
 
@@ -134,9 +110,6 @@ final class IconProject {
             }
         }
         rawLayers = rebuilt
-
-        selectedLayerUUID = snapshot.selectedLayerUUID
-        isBackgroundSelected = snapshot.isBackgroundSelected
     }
 
     func recordUndo() {
@@ -166,10 +139,11 @@ final class IconProject {
 
     // MARK: - Layer add helpers
 
-    private func append(_ layer: Layer) {
+    @discardableResult
+    private func append(_ layer: Layer) -> Layer {
         layer.orderIndex = rawLayers.count
         rawLayers.append(layer)
-        selectedLayerUUID = layer.uuid
+        return layer
     }
 
     private func nextName(for kind: LayerKind, baseFallback: String) -> String {
@@ -177,62 +151,57 @@ final class IconProject {
         return n == 1 ? baseFallback : "\(baseFallback) \(n)"
     }
 
-    func addAIOverlay(image: UIImage, prompt: String) {
+    @discardableResult
+    func addAIOverlay(image: UIImage, prompt: String) -> Layer {
         recordUndo()
-        let layer = Layer(
+        return append(Layer(
             kind: .aiOverlay,
             name: nextName(for: .aiOverlay, baseFallback: "Overlay"),
             image: image,
             sourcePrompt: prompt
-        )
-        append(layer)
+        ))
     }
 
-    func addEmptyAIOverlay() {
+    @discardableResult
+    func addEmptyAIOverlay() -> Layer {
         recordUndo()
-        let layer = Layer(
+        return append(Layer(
             kind: .aiOverlay,
             name: nextName(for: .aiOverlay, baseFallback: "Overlay")
-        )
-        append(layer)
+        ))
     }
 
-    func addSymbolOverlay() {
+    @discardableResult
+    func addSymbolOverlay() -> Layer {
         recordUndo()
-        let layer = Layer(
-            kind: .symbol,
-            name: "star.fill"
-        )
-        append(layer)
+        return append(Layer(kind: .symbol, name: "star.fill"))
     }
 
-    func addEmojiOverlay() {
+    @discardableResult
+    func addEmojiOverlay() -> Layer {
         recordUndo()
-        let layer = Layer(
-            kind: .emoji,
-            name: "✨"
-        )
-        append(layer)
+        return append(Layer(kind: .emoji, name: "✨"))
     }
 
-    func addTextOverlay() {
+    @discardableResult
+    func addTextOverlay() -> Layer {
         recordUndo()
-        let layer = Layer(
-            kind: .text,
-            name: "Aa"
-        )
-        append(layer)
+        return append(Layer(kind: .text, name: "Aa"))
     }
 
-    func fillSelectedEmptyOverlayOrAdd(image: UIImage, prompt: String) {
-        if let selected = selectedLayer,
-           selected.kind == .aiOverlay,
-           selected.image == nil {
+    @discardableResult
+    func fillSelectedEmptyOverlayOrAdd(
+        selected: Layer?,
+        image: UIImage,
+        prompt: String
+    ) -> Layer {
+        if let selected, selected.kind == .aiOverlay, selected.image == nil {
             recordUndo()
             selected.image = image
             selected.sourcePrompt = prompt
+            return selected
         } else {
-            addAIOverlay(image: image, prompt: prompt)
+            return addAIOverlay(image: image, prompt: prompt)
         }
     }
 
@@ -253,24 +222,18 @@ final class IconProject {
         let removedUUID = layer.uuid
         var ordered = layers
         ordered.removeAll { $0.uuid == removedUUID }
-        // Reindex and assign
         for (i, l) in ordered.enumerated() { l.orderIndex = i }
         rawLayers = ordered
         if let context = modelContext {
             context.delete(layer)
         }
-        if selectedLayerUUID == removedUUID {
-            selectedLayerUUID = ordered.last?.uuid
-        }
     }
 
-    func duplicate(_ layer: Layer) {
+    @discardableResult
+    func duplicate(_ layer: Layer) -> Layer {
         recordUndo()
         let snap = layer.snapshot()
-        let copy = Layer(
-            kind: snap.kind,
-            name: snap.name + " copy"
-        )
+        let copy = Layer(kind: snap.kind, name: snap.name + " copy")
         copy.apply(snap)
         copy.uuid = UUID() // new identity for the copy
 
@@ -282,7 +245,7 @@ final class IconProject {
         }
         for (i, l) in ordered.enumerated() { l.orderIndex = i }
         rawLayers = ordered
-        selectedLayerUUID = copy.uuid
+        return copy
     }
 
     func move(from source: IndexSet, to destination: Int) {
