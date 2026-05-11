@@ -25,6 +25,12 @@ struct MeshPreset: Identifiable {
     let bottomRight: Color
 }
 
+struct AIPromptPreset: Identifiable {
+    let id = UUID()
+    let name: String
+    let prompt: String
+}
+
 // MARK: - Hex helper
 
 private extension Color {
@@ -207,6 +213,45 @@ enum BackgroundPresets {
               topRight: Color(hex: 0xFF6A00),
               bottomLeft: Color(hex: 0x1A1A2E),
               bottomRight: Color(hex: 0xE50000)),
+    ]
+
+    static let aiPrompts: [AIPromptPreset] = [
+        .init(name: "Aurora",
+              prompt: "Northern lights flowing across a deep night sky, ribbons of teal and magenta, soft ethereal glow, abstract"),
+        .init(name: "Holographic",
+              prompt: "Holographic iridescent foil, smooth chromatic shimmer of pink, cyan and violet, futuristic premium finish"),
+        .init(name: "Liquid Glass",
+              prompt: "Glossy liquid metal surface, soft reflections, smooth chrome with subtle color tints, luxurious"),
+        .init(name: "Sunset Sky",
+              prompt: "Dreamy sunset sky, gradient from coral pink to warm orange and deep purple, wispy clouds, painterly"),
+        .init(name: "Deep Space",
+              prompt: "Cosmic nebula in deep space, swirling blues and purples, scattered stars, ethereal galactic dust"),
+        .init(name: "Tropical",
+              prompt: "Lush tropical jungle, vivid emerald palm leaves on turquoise background, sunlight filtering through"),
+        .init(name: "Marble",
+              prompt: "Polished white marble with delicate gold veins, luxurious stone texture, soft natural light"),
+        .init(name: "Neon City",
+              prompt: "Cyberpunk neon glow, abstract magenta and cyan light trails, blurred urban night, bokeh"),
+        .init(name: "Watercolor",
+              prompt: "Soft watercolor wash, blended pastel pinks and lavender on textured paper, organic edges"),
+        .init(name: "Crystal",
+              prompt: "Translucent crystal facets refracting prismatic light, jewel-like, sharp geometric edges"),
+        .init(name: "Ocean",
+              prompt: "Calm ocean surface from above, gentle turquoise waves, sparkles of sunlight, serene"),
+        .init(name: "Forest Mist",
+              prompt: "Misty pine forest at dawn, soft layered greens, atmospheric depth, dreamy fog"),
+        .init(name: "Geometric",
+              prompt: "Minimalist geometric composition, soft shadows on pastel shapes, modern clean design"),
+        .init(name: "Paper",
+              prompt: "Crumpled craft paper texture, warm beige and cream tones, soft directional light, organic"),
+        .init(name: "Galaxy",
+              prompt: "Spiral galaxy seen from afar, soft pink and indigo gas clouds, dense stars, cosmic dust"),
+        .init(name: "Risograph",
+              prompt: "Risograph print texture, overlapping warm and cool tones with grain, retro screen print feel"),
+        .init(name: "Velvet",
+              prompt: "Rich deep velvet fabric, soft folds catching warm light, jewel tone burgundy and emerald"),
+        .init(name: "Sand Dunes",
+              prompt: "Smooth sand dunes at golden hour, warm beige curves with soft shadows, minimal and serene"),
     ]
 }
 
