@@ -20,6 +20,11 @@ final class Layer: Identifiable {
     var rotation: Angle = .zero
     var opacity: Double = 1.0
 
+    var shadowOpacity: Double = 0
+    var shadowRadius: CGFloat = 0.04
+    var shadowOffsetX: CGFloat = 0
+    var shadowOffsetY: CGFloat = 0.02
+
     var isHidden: Bool = false
     var isLocked: Bool = false
 
@@ -50,6 +55,10 @@ struct LayerSnapshot {
     let scale: CGFloat
     let rotation: Angle
     let opacity: Double
+    let shadowOpacity: Double
+    let shadowRadius: CGFloat
+    let shadowOffsetX: CGFloat
+    let shadowOffsetY: CGFloat
     let isHidden: Bool
     let isLocked: Bool
 }
@@ -66,6 +75,10 @@ extension Layer {
             scale: scale,
             rotation: rotation,
             opacity: opacity,
+            shadowOpacity: shadowOpacity,
+            shadowRadius: shadowRadius,
+            shadowOffsetX: shadowOffsetX,
+            shadowOffsetY: shadowOffsetY,
             isHidden: isHidden,
             isLocked: isLocked
         )
@@ -83,6 +96,10 @@ extension Layer {
         self.scale = snapshot.scale
         self.rotation = snapshot.rotation
         self.opacity = snapshot.opacity
+        self.shadowOpacity = snapshot.shadowOpacity
+        self.shadowRadius = snapshot.shadowRadius
+        self.shadowOffsetX = snapshot.shadowOffsetX
+        self.shadowOffsetY = snapshot.shadowOffsetY
         self.isHidden = snapshot.isHidden
         self.isLocked = snapshot.isLocked
     }

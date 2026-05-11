@@ -122,6 +122,10 @@ final class IconProject {
         copy.scale = layer.scale
         copy.rotation = layer.rotation
         copy.opacity = layer.opacity
+        copy.shadowOpacity = layer.shadowOpacity
+        copy.shadowRadius = layer.shadowRadius
+        copy.shadowOffsetX = layer.shadowOffsetX
+        copy.shadowOffsetY = layer.shadowOffsetY
 
         if let idx = layers.firstIndex(where: { $0.id == layer.id }) {
             layers.insert(copy, at: idx + 1)

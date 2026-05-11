@@ -227,6 +227,12 @@ private struct OverlayLayerView: View {
             .resizable()
             .scaledToFit()
             .frame(width: displaySide, height: displaySide)
+            .shadow(
+                color: .black.opacity(layer.shadowOpacity),
+                radius: side * layer.shadowRadius,
+                x: side * layer.shadowOffsetX,
+                y: side * layer.shadowOffsetY
+            )
         .scaleEffect(layer.scale * transientScale)
         .rotationEffect(layer.rotation + transientAngle)
         .opacity(layer.opacity)
