@@ -16,8 +16,12 @@ final class IconProject {
         didSet { enforceSelectionInvariant() }
     }
     var selectedLayerID: Layer.ID? {
-        didSet { enforceSelectionInvariant() }
+        didSet {
+            if selectedLayerID != nil { isBackgroundSelected = false }
+            enforceSelectionInvariant()
+        }
     }
+    var isBackgroundSelected: Bool = false
 
     private func enforceSelectionInvariant() {
         guard !layers.isEmpty else {

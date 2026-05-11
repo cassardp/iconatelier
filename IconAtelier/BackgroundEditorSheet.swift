@@ -1,14 +1,12 @@
 import SwiftUI
 import UIKit
 
-struct BackgroundEditorSheet: View {
+struct BackgroundEditorContent: View {
     @Bindable var project: IconProject
-    let service: OpenAIImageService
-
-    @State private var aiPromptText: String = ""
-    @State private var isGenerating: Bool = false
-    @State private var generationError: String?
-    @FocusState private var promptFocused: Bool
+    @Binding var aiPromptText: String
+    let isGenerating: Bool
+    var promptFocused: FocusState<Bool>.Binding
+    let onGenerate: () -> Void
 
     var body: some View {
         @Bindable var background = project.background
@@ -24,23 +22,6 @@ struct BackgroundEditorSheet: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
-        .preferredColorScheme(.dark)
-        .presentationBackground(Color(.systemBackground))
-        .onAppear {
-            aiPromptText = background.aiPrompt ?? ""
-        }
-        .alert(
-            "Generation failed",
-            isPresented: Binding(
-                get: { generationError != nil },
-                set: { if !$0 { generationError = nil } }
-            ),
-            presenting: generationError
-        ) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { message in
-            Text(message)
-        }
     }
 
     // MARK: - Kind picker
@@ -193,7 +174,7 @@ struct BackgroundEditorSheet: View {
                 )
                 .textFieldStyle(.plain)
                 .lineLimit(1 ... 4)
-                .focused($promptFocused)
+                .focused(promptFocused)
                 .disabled(isGenerating)
 
                 if isGenerating {
@@ -217,27 +198,8 @@ struct BackgroundEditorSheet: View {
                     && !isGenerating,
                 role: .prominent
             ) {
-                generate()
+                onGenerate()
             }
-        }
-    }
-
-    // MARK: - Generate
-
-    private func generate() {
-        let trimmed = aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isGenerating else { return }
-        isGenerating = true
-        generationError = nil
-        promptFocused = false
-        Task {
-            do {
-                let img = try await service.generateBackground(prompt: trimmed)
-                project.setBackgroundAI(image: img, prompt: trimmed)
-            } catch {
-                generationError = error.localizedDescription
-            }
-            isGenerating = false
         }
     }
 }

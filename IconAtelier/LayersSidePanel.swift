@@ -3,8 +3,7 @@ import UIKit
 
 struct LayersBar: View {
     @Bindable var project: IconProject
-    var onSelectLayer: () -> Void = {}
-    var onSelectBackground: () -> Void = {}
+    @Binding var isSheetOpen: Bool
 
     @State private var draggingID: Layer.ID?
     @State private var dragOffset: CGFloat = 0
@@ -24,9 +23,19 @@ struct LayersBar: View {
                     ForEach(Array(uiLayers.enumerated()), id: \.element.id) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
-                    BackgroundThumbnailRow(background: project.background)
+                    BackgroundThumbnailRow(
+                        background: project.background,
+                        isSelected: project.isBackgroundSelected
+                    )
                         .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
-                        .onTapGesture { onSelectBackground() }
+                        .onTapGesture {
+                            if isSheetOpen && project.isBackgroundSelected {
+                                isSheetOpen = false
+                            } else {
+                                project.isBackgroundSelected = true
+                                isSheetOpen = true
+                            }
+                        }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, Self.verticalPadding)
@@ -92,7 +101,7 @@ struct LayersBar: View {
     private func rowView(layer: Layer, index: Int) -> some View {
         let isDragging = draggingID == layer.id
         let shift = computeShift(for: index)
-        let isSelected = layer.id == project.selectedLayerID
+        let isSelected = layer.id == project.selectedLayerID && !project.isBackgroundSelected
 
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
@@ -109,8 +118,15 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: shift)
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
-                project.selectedLayerID = layer.id
-                onSelectLayer()
+                let sameLayer = !project.isBackgroundSelected
+                    && project.selectedLayerID == layer.id
+                if isSheetOpen && sameLayer {
+                    isSheetOpen = false
+                } else {
+                    project.isBackgroundSelected = false
+                    project.selectedLayerID = layer.id
+                    isSheetOpen = true
+                }
             }
             .gesture(longPressDragGesture(for: layer, at: index))
     }
@@ -185,6 +201,7 @@ struct LayersBar: View {
 
 struct BackgroundThumbnailRow: View {
     let background: Background
+    let isSelected: Bool
 
     var body: some View {
         Color.clear
@@ -200,11 +217,16 @@ struct BackgroundThumbnailRow: View {
                             .opacity(background.isHidden ? 0.4 : 1)
                             .padding(inset)
 
-                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                            .strokeBorder(
-                                Color.secondary.opacity(0.35),
-                                style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
-                            )
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                                .strokeBorder(Color.primary, lineWidth: 2)
+                        } else {
+                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                                .strokeBorder(
+                                    Color.secondary.opacity(0.5),
+                                    style: StrokeStyle(lineWidth: 1.5, dash: [4])
+                                )
+                        }
                     }
                 }
             }

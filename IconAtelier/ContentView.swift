@@ -8,9 +8,7 @@ struct ContentView: View {
     @State private var exportedImage: UIImage?
     @State private var showingNewProjectConfirm = false
     @State private var showEditSheet = false
-    @State private var showBackgroundSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
-    @State private var backgroundSheetDetent: PresentationDetent = .fraction(0.5)
 
     var body: some View {
         NavigationStack {
@@ -27,14 +25,7 @@ struct ContentView: View {
                         .frame(width: iconSide, height: iconSide)
                     LayersBar(
                         project: project,
-                        onSelectLayer: {
-                            sheetDetent = .fraction(0.5)
-                            showEditSheet = true
-                        },
-                        onSelectBackground: {
-                            backgroundSheetDetent = .fraction(0.5)
-                            showBackgroundSheet = true
-                        }
+                        isSheetOpen: $showEditSheet
                     )
                     Spacer(minLength: 0)
                 }
@@ -100,12 +91,8 @@ struct ContentView: View {
                 .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showBackgroundSheet) {
-            BackgroundEditorSheet(project: project, service: service)
-                .presentationDetents([.fraction(0.5), .large], selection: $backgroundSheetDetent)
-                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
-                .presentationContentInteraction(.scrolls)
-                .presentationDragIndicator(.visible)
+        .onChange(of: showEditSheet) { wasOpen, isOpen in
+            if isOpen && !wasOpen { sheetDetent = .fraction(0.5) }
         }
         .onChange(of: exportSignature) { _, _ in
             exportedImage = renderedIcon()
@@ -129,7 +116,6 @@ struct ContentView: View {
 
     private var sheetFraction: CGFloat {
         if showEditSheet, sheetDetent == .fraction(0.5) { return 0.5 }
-        if showBackgroundSheet, backgroundSheetDetent == .fraction(0.5) { return 0.5 }
         return 0
     }
 

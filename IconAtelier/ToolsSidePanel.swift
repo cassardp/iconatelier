@@ -76,7 +76,9 @@ struct EditTabContent: View {
                 title: "Duplicate",
                 systemImage: "square.on.square"
             ) {
-                project.duplicate(layer)
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    project.duplicate(layer)
+                }
             }
             CompactActionButton(
                 title: "Delete",

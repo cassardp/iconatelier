@@ -12,20 +12,44 @@ struct EditSheet: View {
     let service: OpenAIImageService
 
     @State private var promptText: String = ""
+    @State private var bgAIPromptText: String = ""
     @State private var isGenerating: Bool = false
     @State private var generationError: String?
     @FocusState private var promptFocused: Bool
 
     var body: some View {
-        EditTabContent(
-            project: project,
-            promptText: $promptText,
-            isGenerating: isGenerating,
-            promptFocused: $promptFocused,
-            onGenerate: generate
-        )
+        Group {
+            if project.isBackgroundSelected {
+                BackgroundEditorContent(
+                    project: project,
+                    aiPromptText: $bgAIPromptText,
+                    isGenerating: isGenerating,
+                    promptFocused: $promptFocused,
+                    onGenerate: { generate(.background) }
+                )
+            } else {
+                EditTabContent(
+                    project: project,
+                    promptText: $promptText,
+                    isGenerating: isGenerating,
+                    promptFocused: $promptFocused,
+                    onGenerate: generate
+                )
+            }
+        }
         .preferredColorScheme(.dark)
         .presentationBackground(Color(.systemBackground))
+        .onChange(of: project.isBackgroundSelected) { _, isBg in
+            promptFocused = false
+            if isBg {
+                bgAIPromptText = project.background.aiPrompt ?? ""
+            }
+        }
+        .onAppear {
+            if project.isBackgroundSelected {
+                bgAIPromptText = project.background.aiPrompt ?? ""
+            }
+        }
         .alert(
             "Generation failed",
             isPresented: Binding(
@@ -41,7 +65,8 @@ struct EditSheet: View {
     }
 
     private func generate(_ target: GenerationTarget) {
-        let trimmed = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = target == .background ? bgAIPromptText : promptText
+        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isGenerating else { return }
         isGenerating = true
         generationError = nil
@@ -55,8 +80,8 @@ struct EditSheet: View {
                 case .overlay:
                     let img = try await service.generateOverlay(prompt: trimmed)
                     project.fillSelectedEmptyOverlayOrAdd(image: img, prompt: trimmed)
+                    promptText = ""
                 }
-                promptText = ""
             } catch {
                 generationError = error.localizedDescription
             }
