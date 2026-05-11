@@ -362,12 +362,19 @@ struct LayerContentView: View {
 
 struct TransparencyCheckerboard: View {
     let tile: CGFloat
-    var light: Color = Color(white: 0.92)
-    var dark: Color = Color(white: 0.78)
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var lightTile: Color {
+        colorScheme == .dark ? Color(white: 0.22) : Color(white: 0.92)
+    }
+
+    private var darkTile: Color {
+        colorScheme == .dark ? Color(white: 0.32) : Color(white: 0.78)
+    }
 
     var body: some View {
         Canvas(rendersAsynchronously: false) { context, size in
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(light))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(lightTile))
             let cols = Int(ceil(size.width / tile))
             let rows = Int(ceil(size.height / tile))
             var path = Path()
@@ -381,7 +388,7 @@ struct TransparencyCheckerboard: View {
                     ))
                 }
             }
-            context.fill(path, with: .color(dark))
+            context.fill(path, with: .color(darkTile))
         }
         .drawingGroup()
         .allowsHitTesting(false)

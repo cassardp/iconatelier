@@ -17,7 +17,7 @@ struct LayersBar: View {
     private static let itemStride: CGFloat = thumbnailSize + spacing
     static let borderWidth: CGFloat = 2
     static let idleBorderColor: Color = Color(.systemGray3)
-    static let selectedBorderColor: Color = .primary
+    static let selectedBorderColor: Color = .secondary
 
     var body: some View {
         GeometryReader { geo in
