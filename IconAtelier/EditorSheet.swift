@@ -39,7 +39,7 @@ struct EditSheet: View {
                 )
             }
         }
-        .preferredColorScheme(.dark)
+        .sheetUserInterfaceStyle(.dark)
         .presentationBackground(Color(.systemBackground))
         .onChange(of: session.isBackgroundSelected) { _, isBg in
             promptFocused = false

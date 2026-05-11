@@ -27,7 +27,6 @@ enum LayerFontWeight: String, CaseIterable {
     }
 }
 
-@MainActor
 @Model
 final class Layer {
     var uuid: UUID = UUID()

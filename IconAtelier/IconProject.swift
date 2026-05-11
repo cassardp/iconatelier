@@ -7,7 +7,6 @@ struct IconProjectSnapshot {
     let layers: [LayerSnapshot]
 }
 
-@MainActor
 @Model
 final class IconProject {
     var title: String = "Untitled"

@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showEditSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
     @State private var isFocusMode = false
+    @State private var dismissAfterSheetClose = false
 
     var body: some View {
         GeometryReader { geo in
@@ -103,7 +104,7 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: isFocusMode
                         ? "xmark"
-                        : "apps.iphone")
+                        : "eye")
                         .contentTransition(.symbolEffect(.replace))
                 }
                 .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
@@ -114,7 +115,12 @@ struct ContentView: View {
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .sheet(isPresented: $showEditSheet) {
+        .sheet(isPresented: $showEditSheet, onDismiss: {
+            if dismissAfterSheetClose {
+                dismissAfterSheetClose = false
+                dismiss()
+            }
+        }) {
             EditSheet(project: project, session: session, service: service)
                 .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
@@ -153,13 +159,11 @@ struct ContentView: View {
         IconRenderer.updateThumbnail(project)
         try? modelContext.save()
         if showEditSheet {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                showEditSheet = false
-            }
+            dismissAfterSheetClose = true
+            showEditSheet = false
+        } else {
+            dismiss()
         }
-        dismiss()
     }
 
     private var sheetFraction: CGFloat {

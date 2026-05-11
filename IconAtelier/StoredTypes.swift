@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-struct StoredColor: Codable, Hashable {
+nonisolated struct StoredColor: Codable, Hashable, Sendable {
     var r: Double
     var g: Double
     var b: Double
@@ -13,7 +13,6 @@ struct StoredColor: Codable, Hashable {
         self.r = r; self.g = g; self.b = b; self.a = a
     }
 
-    @MainActor
     init(_ color: Color) {
         let ui = UIColor(color)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -26,7 +25,7 @@ struct StoredColor: Codable, Hashable {
     }
 }
 
-struct StoredPoint: Codable, Hashable {
+nonisolated struct StoredPoint: Codable, Hashable, Sendable {
     var x: Double
     var y: Double
 

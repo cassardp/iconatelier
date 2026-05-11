@@ -12,7 +12,6 @@ enum BackgroundKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-@MainActor
 @Model
 final class Background {
     var kindRaw: String = BackgroundKind.meshGradient.rawValue
@@ -98,8 +97,7 @@ final class Background {
 
     // MARK: - Defaults
 
-    @MainActor
-    static var defaultMeshColors: [Color] {
+    nonisolated static var defaultMeshColors: [Color] {
         let tl: Color = .iaPurple
         let tr: Color = .iaBlue
         let bl: Color = .iaPink
@@ -167,8 +165,7 @@ extension Color {
     nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)      // #FF2D55
     nonisolated static let iaOrange = Color(red: 1.0, green: 0.584, blue: 0.0)      // #FF9500
 
-    @MainActor
-    static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
+    nonisolated static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         let ua = UIColor(a)
         let ub = UIColor(b)
         var ra: CGFloat = 0, ga: CGFloat = 0, ba: CGFloat = 0, aa: CGFloat = 0

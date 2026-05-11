@@ -15,6 +15,9 @@ struct LayersBar: View {
     private static let spacing: CGFloat = 8
     private static let verticalPadding: CGFloat = 8
     private static let itemStride: CGFloat = thumbnailSize + spacing
+    static let borderWidth: CGFloat = 2
+    static let idleBorderColor: Color = Color(.systemGray3)
+    static let selectedBorderColor: Color = .primary
 
     var body: some View {
         GeometryReader { geo in
@@ -71,8 +74,8 @@ struct LayersBar: View {
                 style: .continuous
             )
             .strokeBorder(
-                Color.secondary.opacity(0.5),
-                style: StrokeStyle(lineWidth: 1.5, dash: [4])
+                LayersBar.idleBorderColor,
+                style: StrokeStyle(lineWidth: LayersBar.borderWidth, dash: [4])
             )
             .overlay {
                 Image(systemName: "plus")
@@ -209,14 +212,9 @@ struct BackgroundThumbnailRow: View {
 
                         RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                             .strokeBorder(
-                                Color.secondary.opacity(0.5),
-                                style: StrokeStyle(lineWidth: 1.5, dash: [4])
+                                isSelected ? LayersBar.selectedBorderColor : LayersBar.idleBorderColor,
+                                lineWidth: LayersBar.borderWidth
                             )
-                            .opacity(isSelected ? 0 : 1)
-
-                        RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
-                            .strokeBorder(Color.primary, lineWidth: 2)
-                            .opacity(isSelected ? 1 : 0)
                     }
                     .animation(.smooth(duration: 0.18), value: isSelected)
                 }
@@ -249,8 +247,8 @@ struct LayerThumbnailRow: View {
 
                         RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                             .strokeBorder(
-                                isSelected ? Color.primary : Color.clear,
-                                lineWidth: 2
+                                isSelected ? LayersBar.selectedBorderColor : LayersBar.idleBorderColor,
+                                lineWidth: LayersBar.borderWidth
                             )
                     }
                     .animation(.smooth(duration: 0.18), value: isSelected)
