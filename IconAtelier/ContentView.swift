@@ -17,6 +17,11 @@ struct ContentView: View {
     @State private var isFocusMode = false
     @State private var dismissAfterSheetClose = false
 
+    @State private var aiPromptText: String = ""
+    @State private var isGeneratingAI: Bool = false
+    @State private var aiError: String?
+    @FocusState private var aiPromptFocused: Bool
+
     var body: some View {
         GeometryReader { geo in
             let layersBarHeight: CGFloat = isFocusMode ? 0 : 56 + 16
@@ -57,6 +62,19 @@ struct ContentView: View {
             .animation(.smooth(duration: 0.35), value: isFocusMode)
         }
         .background(Color(.systemBackground).ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !isFocusMode {
+                AIPromptBar(
+                    text: $aiPromptText,
+                    placeholder: promptPlaceholder,
+                    isGenerating: isGeneratingAI,
+                    canSubmit: canSubmitPrompt,
+                    focused: $aiPromptFocused,
+                    onGenerate: generate
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -85,6 +103,18 @@ struct ContentView: View {
                 }
             }
 
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.smooth(duration: 0.35)) {
+                        isFocusMode.toggle()
+                    }
+                } label: {
+                    Image(systemName: isFocusMode ? "xmark" : "eye")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
+            }
+
             if project.hasContent, let exportedImage {
                 ToolbarItem(placement: .topBarTrailing) {
                     ShareLink(
@@ -95,23 +125,8 @@ struct ContentView: View {
                     }
                 }
             }
-
-            ToolbarItem(placement: .bottomBar) {
-                Button {
-                    withAnimation(.smooth(duration: 0.35)) {
-                        isFocusMode.toggle()
-                    }
-                } label: {
-                    Image(systemName: isFocusMode
-                        ? "xmark"
-                        : "eye")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
-            }
         }
         .toolbar(isFocusMode ? .hidden : .visible, for: .navigationBar)
-        .toolbarBackground(isFocusMode ? .hidden : .visible, for: .bottomBar)
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -121,7 +136,7 @@ struct ContentView: View {
                 dismiss()
             }
         }) {
-            EditSheet(project: project, session: session, service: service)
+            EditSheet(project: project, session: session)
                 .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
                 .presentationContentInteraction(.scrolls)
@@ -152,6 +167,79 @@ struct ContentView: View {
         .onDisappear {
             IconRenderer.updateThumbnail(project)
             try? modelContext.save()
+        }
+        .alert(
+            "Generation failed",
+            isPresented: Binding(
+                get: { aiError != nil },
+                set: { if !$0 { aiError = nil } }
+            ),
+            presenting: aiError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    // MARK: - AI prompt
+
+    private enum PromptTarget {
+        case background
+        case overlay(layerID: UUID)
+    }
+
+    private var currentTarget: PromptTarget? {
+        if session.isBackgroundSelected { return .background }
+        if let id = session.selectedLayerUUID { return .overlay(layerID: id) }
+        return nil
+    }
+
+    private var promptPlaceholder: String {
+        switch currentTarget {
+        case .background: return "Describe a background…"
+        case .overlay:    return "Describe an image…"
+        case .none:       return "Select a layer or background…"
+        }
+    }
+
+    private var canSubmitPrompt: Bool {
+        !isGeneratingAI
+            && currentTarget != nil
+            && !aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func generate() {
+        guard let target = currentTarget else { return }
+        let trimmed = aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isGeneratingAI else { return }
+        isGeneratingAI = true
+        aiError = nil
+        aiPromptFocused = false
+        Task {
+            do {
+                switch target {
+                case .background:
+                    let img = try await service.generateBackground(prompt: trimmed)
+                    project.setBackgroundAI(image: img, prompt: trimmed)
+                case .overlay(let layerID):
+                    let img = try await service.generateOverlay(prompt: trimmed)
+                    if let layer = project.layer(withID: layerID) {
+                        project.recordUndo()
+                        layer.kind = .aiOverlay
+                        layer.image = img
+                        layer.sourcePrompt = trimmed
+                        session.selectLayer(layer.uuid)
+                    } else {
+                        let layer = project.addAIOverlay(image: img, prompt: trimmed)
+                        session.selectLayer(layer.uuid)
+                    }
+                }
+                aiPromptText = ""
+            } catch {
+                aiError = error.localizedDescription
+            }
+            isGeneratingAI = false
         }
     }
 

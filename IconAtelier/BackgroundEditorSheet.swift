@@ -3,10 +3,7 @@ import UIKit
 
 struct BackgroundEditorContent: View {
     @Bindable var project: IconProject
-    @Binding var aiPromptText: String
-    let isGenerating: Bool
-    var promptFocused: FocusState<Bool>.Binding
-    let onGenerate: () -> Void
+    let session: ProjectSession
 
     var body: some View {
         @Bindable var background = project.safeBackground
@@ -26,16 +23,21 @@ struct BackgroundEditorContent: View {
 
     // MARK: - Kind picker
 
+    private static let pickerKinds: [BackgroundKind] = [
+        .solid, .linearGradient, .radialGradient, .meshGradient
+    ]
+
     @ViewBuilder
     private func kindPicker(for background: Background) -> some View {
         PanelSection(title: "Background type") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(BackgroundKind.allCases) { kind in
-                        KindButton(
-                            kind: kind,
+                    ForEach(Self.pickerKinds) { kind in
+                        BackgroundKindButton(
+                            label: kind.label,
                             isSelected: background.kind == kind,
                             action: {
+                                guard background.kind != kind else { return }
                                 project.recordUndo()
                                 background.kind = kind
                             }
@@ -81,7 +83,7 @@ struct BackgroundEditorContent: View {
             SectionDivider()
             meshCornersSection(for: background)
         case .ai:
-            aiSection(for: background)
+            EmptyView()
         }
     }
 
@@ -232,84 +234,18 @@ struct BackgroundEditorContent: View {
         )
     }
 
-    @ViewBuilder
-    private func aiSection(for background: Background) -> some View {
-        PanelSection(title: "AI image") {
-            HStack(alignment: .top, spacing: 10) {
-                TextField(
-                    "Describe a background…",
-                    text: $aiPromptText,
-                    axis: .vertical
-                )
-                .textFieldStyle(.plain)
-                .lineLimit(1 ... 4)
-                .focused(promptFocused)
-                .disabled(isGenerating)
-
-                if isGenerating {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(.top, 2)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(PanelStyle.rowFill)
-            )
-
-            ActionRow(
-                title: background.aiImage == nil ? "Generate" : "Replace",
-                enabled: !aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && !isGenerating,
-                role: .prominent
-            ) {
-                onGenerate()
-            }
-        }
-
-        SectionDivider()
-
-        PanelSection(title: "Prompt ideas") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(BackgroundPresets.aiPrompts) { preset in
-                        Button {
-                            aiPromptText = preset.prompt
-                        } label: {
-                            Text(preset.name)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.primary.opacity(0.72))
-                                .padding(.horizontal, 14)
-                                .frame(height: 36)
-                                .background(
-                                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                                        .fill(PanelStyle.rowFill)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isGenerating)
-                    }
-                }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 2)
-            }
-        }
-    }
 }
 
-// MARK: - Kind button (icon-only chip)
+// MARK: - Kind button
 
-private struct KindButton: View {
-    let kind: BackgroundKind
+private struct BackgroundKindButton: View {
+    let label: String
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(kind.label)
+            Text(label)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
                 .padding(.horizontal, 16)
@@ -330,7 +266,7 @@ private extension BackgroundKind {
         case .linearGradient: return "Linear"
         case .radialGradient: return "Radial"
         case .meshGradient:   return "Mesh"
-        case .ai:             return "AI Generated"
+        case .ai:             return "AI"
         }
     }
 }

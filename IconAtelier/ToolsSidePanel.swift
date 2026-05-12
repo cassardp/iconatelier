@@ -3,10 +3,6 @@ import SwiftUI
 struct EditTabContent: View {
     @Bindable var project: IconProject
     let session: ProjectSession
-    @Binding var promptText: String
-    let isGenerating: Bool
-    var promptFocused: FocusState<Bool>.Binding
-    let onGenerate: (GenerationTarget) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -15,8 +11,11 @@ struct EditTabContent: View {
             VStack(spacing: 18) {
                 if let layer = project.layer(withID: session.selectedLayerUUID) {
                     actionsRow(for: layer)
-                    SectionDivider()
-                    contentSection(for: layer)
+                    if layer.kind != .aiOverlay {
+                        SectionDivider()
+                        kindPicker(for: layer)
+                        contentSection(for: layer)
+                    }
                     SectionDivider()
                     transformSection(for: layer)
                 }
@@ -32,25 +31,46 @@ struct EditTabContent: View {
         }
     }
 
+    // MARK: - Kind picker (text vs symbol)
+
+    private enum OverlayMode: String, CaseIterable, Identifiable {
+        case text
+        case symbol
+        var id: String { rawValue }
+        var label: String { self == .text ? "Text" : "Symbol" }
+    }
+
+    @ViewBuilder
+    private func kindPicker(for layer: Layer) -> some View {
+        Picker("Type", selection: Binding<OverlayMode>(
+            get: { layer.kind == .symbol ? .symbol : .text },
+            set: { mode in
+                let newKind: LayerKind = mode == .symbol ? .symbol : .text
+                guard layer.kind != newKind else { return }
+                project.recordUndo()
+                if layer.kind == .emoji, newKind == .text, !layer.emoji.isEmpty {
+                    layer.text = layer.emoji
+                }
+                layer.kind = newKind
+            }
+        )) {
+            ForEach(OverlayMode.allCases) { mode in
+                Text(mode.label).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
     // MARK: - Content (per kind)
 
     @ViewBuilder
     private func contentSection(for layer: Layer) -> some View {
         switch layer.kind {
         case .aiOverlay:
-            AIOverlayContentSection(
-                layer: layer,
-                project: project,
-                promptText: $promptText,
-                isGenerating: isGenerating,
-                promptFocused: promptFocused,
-                onGenerate: { onGenerate(.overlay) }
-            )
+            EmptyView()
         case .symbol:
             SymbolContentSection(layer: layer, project: project)
-        case .emoji:
-            EmojiContentSection(layer: layer, project: project)
-        case .text:
+        case .text, .emoji:
             TextContentSection(layer: layer, project: project)
         }
     }

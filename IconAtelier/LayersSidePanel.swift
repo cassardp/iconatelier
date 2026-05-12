@@ -28,15 +28,7 @@ struct LayersBar: View {
                     ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
-                    BackgroundThumbnailRow(
-                        background: project.safeBackground,
-                        isSelected: session.isBackgroundSelected
-                    )
-                        .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
-                        .onTapGesture {
-                            session.selectBackground()
-                            isSheetOpen = true
-                        }
+                    backgroundButton
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, Self.verticalPadding)
@@ -47,28 +39,23 @@ struct LayersBar: View {
         .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
     }
 
+    private var backgroundButton: some View {
+        BackgroundThumbnailRow(
+            background: project.safeBackground,
+            isSelected: session.isBackgroundSelected
+        )
+        .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+        .onTapGesture {
+            session.selectBackground()
+            isSheetOpen = true
+        }
+    }
+
     private var addButton: some View {
-        Menu {
-            Button {
-                withSpring { session.selectLayer(project.addEmptyAIOverlay().uuid) }
-            } label: {
-                Label("AI image", systemImage: "sparkles")
-            }
-            Button {
-                withSpring { session.selectLayer(project.addSymbolOverlay().uuid) }
-            } label: {
-                Label("Symbol", systemImage: "star")
-            }
-            Button {
-                withSpring { session.selectLayer(project.addEmojiOverlay().uuid) }
-            } label: {
-                Label("Emoji", systemImage: "face.smiling")
-            }
-            Button {
-                withSpring { session.selectLayer(project.addTextOverlay().uuid) }
-            } label: {
-                Label("Text", systemImage: "textformat")
-            }
+        Button {
+            let layer = project.addTextOverlay()
+            withSpring { session.selectLayer(layer.uuid) }
+            isSheetOpen = true
         } label: {
             let inset: CGFloat = 4
             let innerSize = Self.thumbnailSize - inset * 2
@@ -88,7 +75,6 @@ struct LayersBar: View {
             .frame(width: innerSize, height: innerSize)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
         .accessibilityLabel("Add layer")
     }
@@ -123,7 +109,9 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
                 session.selectLayer(layer.uuid)
-                isSheetOpen = true
+                if layer.kind != .aiOverlay || layer.image != nil {
+                    isSheetOpen = true
+                }
             }
             .gesture(
                 LongPressDragRecognizer { recognizer, location in
