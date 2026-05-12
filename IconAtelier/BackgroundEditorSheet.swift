@@ -343,9 +343,6 @@ private struct BackgroundColorRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "paintpalette")
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
             Text(title)
                 .foregroundStyle(.primary.opacity(0.72))
             Spacer()

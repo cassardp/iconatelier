@@ -76,6 +76,7 @@ struct IconCanvasView: View {
                     .gesture(canvasGesture(side: canvasSide))
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .geometryGroup()
             .contentShape(Rectangle())
             .gesture(swipeGesture)
             .onTapGesture {

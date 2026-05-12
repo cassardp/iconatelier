@@ -5,6 +5,7 @@ struct EditTabContent: View {
     let session: ProjectSession
 
     @Environment(\.dismiss) private var dismiss
+    @Namespace private var kindPickerNamespace
 
     var body: some View {
         ScrollView {
@@ -42,23 +43,50 @@ struct EditTabContent: View {
 
     @ViewBuilder
     private func kindPicker(for layer: Layer) -> some View {
-        Picker("Type", selection: Binding<OverlayMode>(
-            get: { layer.kind == .symbol ? .symbol : .text },
-            set: { mode in
-                let newKind: LayerKind = mode == .symbol ? .symbol : .text
-                guard layer.kind != newKind else { return }
-                project.recordUndo()
-                if layer.kind == .emoji, newKind == .text, !layer.emoji.isEmpty {
-                    layer.text = layer.emoji
-                }
-                layer.kind = newKind
-            }
-        )) {
+        let current: OverlayMode = layer.kind == .symbol ? .symbol : .text
+        HStack(spacing: 4) {
             ForEach(OverlayMode.allCases) { mode in
-                Text(mode.label).tag(mode)
+                let isSelected = mode == current
+                Button {
+                    guard !isSelected else { return }
+                    let newKind: LayerKind = mode == .symbol ? .symbol : .text
+                    project.recordUndo()
+                    if layer.kind == .emoji, newKind == .text, !layer.emoji.isEmpty {
+                        layer.text = layer.emoji
+                    }
+                    withAnimation(.smooth(duration: 0.25)) {
+                        layer.kind = newKind
+                    }
+                } label: {
+                    Text(mode.label)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary.opacity(isSelected ? 1 : 0.6))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background {
+                            if isSelected {
+                                RoundedRectangle(
+                                    cornerRadius: PanelStyle.cornerRadius - 4,
+                                    style: .continuous
+                                )
+                                .fill(PanelStyle.rowFillActive)
+                                .matchedGeometryEffect(
+                                    id: "kindPickerSelection",
+                                    in: kindPickerNamespace
+                                )
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .pickerStyle(.segmented)
+        .padding(4)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
     }
 
     // MARK: - Content (per kind)
