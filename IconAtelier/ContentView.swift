@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var dismissAfterSheetClose = false
 
     @State private var aiPromptText: String = ""
+    @State private var aiPromptImages: [UIImage] = []
     @State private var isGeneratingAI: Bool = false
     @State private var aiError: String?
     @FocusState private var aiPromptFocused: Bool
@@ -58,14 +59,20 @@ struct ContentView: View {
                     withAnimation(.smooth(duration: 0.35)) { isFocusMode = false }
                 }
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if aiPromptFocused { aiPromptFocused = false }
+                }
+            )
             .animation(.smooth(duration: 0.35), value: visibleHeight)
             .animation(.smooth(duration: 0.35), value: isFocusMode)
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(Color.appPageBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isFocusMode {
                 AIPromptBar(
                     text: $aiPromptText,
+                    attachments: $aiPromptImages,
                     placeholder: promptPlaceholder,
                     isGenerating: isGeneratingAI,
                     canSubmit: canSubmitPrompt,
@@ -143,7 +150,10 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
-            if isOpen && !wasOpen { sheetDetent = .fraction(0.5) }
+            if isOpen && !wasOpen {
+                aiPromptFocused = false
+                sheetDetent = .fraction(0.5)
+            }
         }
         .onChange(of: exportSignature) { _, _ in
             exportedImage = IconRenderer.render(project, side: 1024)
@@ -213,6 +223,7 @@ struct ContentView: View {
         guard let target = currentTarget else { return }
         let trimmed = aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isGeneratingAI else { return }
+        let references = aiPromptImages
         isGeneratingAI = true
         aiError = nil
         aiPromptFocused = false
@@ -220,10 +231,16 @@ struct ContentView: View {
             do {
                 switch target {
                 case .background:
-                    let img = try await service.generateBackground(prompt: trimmed)
+                    let img = try await service.generateBackground(
+                        prompt: trimmed,
+                        references: references
+                    )
                     project.setBackgroundAI(image: img, prompt: trimmed)
                 case .overlay(let layerID):
-                    let img = try await service.generateOverlay(prompt: trimmed)
+                    let img = try await service.generateOverlay(
+                        prompt: trimmed,
+                        references: references
+                    )
                     if let layer = project.layer(withID: layerID) {
                         project.recordUndo()
                         layer.kind = .aiOverlay
@@ -236,6 +253,7 @@ struct ContentView: View {
                     }
                 }
                 aiPromptText = ""
+                aiPromptImages = []
             } catch {
                 aiError = error.localizedDescription
             }

@@ -6,6 +6,7 @@ enum OpenAIImageError: LocalizedError {
     case http(status: Int, body: String)
     case decoding
     case noData
+    case imageEncoding
 
     var errorDescription: String? {
         switch self {
@@ -13,26 +14,30 @@ enum OpenAIImageError: LocalizedError {
         case .http(let status, let body): "HTTP \(status): \(body)"
         case .decoding: "Invalid OpenAI response."
         case .noData: "No image returned."
+        case .imageEncoding: "Could not prepare reference image."
         }
     }
 }
 
 struct OpenAIImageService {
-    private let endpoint = URL(string: "https://api.openai.com/v1/images/generations")!
+    private let generationsURL = URL(string: "https://api.openai.com/v1/images/generations")!
+    private let editsURL = URL(string: "https://api.openai.com/v1/images/edits")!
 
-    func generateBackground(prompt: String) async throws -> UIImage {
-        try await generate(
+    func generateBackground(prompt: String, references: [UIImage] = []) async throws -> UIImage {
+        try await run(
             model: "gpt-image-2",
             prompt: Self.wrapBackgroundPrompt(prompt),
-            background: nil
+            background: nil,
+            references: references
         )
     }
 
-    func generateOverlay(prompt: String) async throws -> UIImage {
-        try await generate(
+    func generateOverlay(prompt: String, references: [UIImage] = []) async throws -> UIImage {
+        try await run(
             model: "gpt-image-1.5",
             prompt: Self.wrapOverlayPrompt(prompt),
-            background: "transparent"
+            background: "transparent",
+            references: references
         )
     }
 
@@ -66,28 +71,33 @@ struct OpenAIImageService {
         """
     }
 
-    private func generate(model: String, prompt: String, background: String?) async throws -> UIImage {
+    private func run(
+        model: String,
+        prompt: String,
+        background: String?,
+        references: [UIImage]
+    ) async throws -> UIImage {
         guard let apiKey = await APIKeyStore.shared.load(), !apiKey.isEmpty else {
             throw OpenAIImageError.missingAPIKey
         }
 
-        var body: [String: Any] = [
-            "model": model,
-            "prompt": prompt,
-            "size": "1024x1024",
-            "n": 1,
-            "output_format": "png",
-        ]
-        if let background {
-            body["background"] = background
+        let request: URLRequest
+        if references.isEmpty {
+            request = try makeGenerationRequest(
+                apiKey: apiKey,
+                model: model,
+                prompt: prompt,
+                background: background
+            )
+        } else {
+            request = try makeEditRequest(
+                apiKey: apiKey,
+                model: model,
+                prompt: prompt,
+                background: background,
+                references: references
+            )
         }
-
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        request.timeoutInterval = 120
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -110,5 +120,113 @@ struct OpenAIImageService {
             throw OpenAIImageError.noData
         }
         return image
+    }
+
+    private func makeGenerationRequest(
+        apiKey: String,
+        model: String,
+        prompt: String,
+        background: String?
+    ) throws -> URLRequest {
+        var body: [String: Any] = [
+            "model": model,
+            "prompt": prompt,
+            "size": "1024x1024",
+            "n": 1,
+            "output_format": "png",
+        ]
+        if let background {
+            body["background"] = background
+        }
+
+        var request = URLRequest(url: generationsURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 120
+        return request
+    }
+
+    private func makeEditRequest(
+        apiKey: String,
+        model: String,
+        prompt: String,
+        background: String?,
+        references: [UIImage]
+    ) throws -> URLRequest {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+
+        func appendField(_ name: String, _ value: String) {
+            body.append("--\(boundary)\r\n")
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+            body.append("\(value)\r\n")
+        }
+
+        appendField("model", model)
+        appendField("prompt", prompt)
+        appendField("size", "1024x1024")
+        appendField("n", "1")
+        appendField("output_format", "png")
+        if let background {
+            appendField("background", background)
+        }
+
+        for (index, image) in references.enumerated() {
+            guard let pngData = Self.preparePNGSquare(image) else {
+                throw OpenAIImageError.imageEncoding
+            }
+            body.append("--\(boundary)\r\n")
+            body.append(
+                "Content-Disposition: form-data; name=\"image[]\"; filename=\"ref_\(index).png\"\r\n"
+            )
+            body.append("Content-Type: image/png\r\n\r\n")
+            body.append(pngData)
+            body.append("\r\n")
+        }
+
+        body.append("--\(boundary)--\r\n")
+
+        var request = URLRequest(url: editsURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(
+            "multipart/form-data; boundary=\(boundary)",
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.httpBody = body
+        request.timeoutInterval = 120
+        return request
+    }
+
+    static func preparePNGSquare(_ image: UIImage, side: CGFloat = 1024) -> Data? {
+        let target = CGSize(width: side, height: side)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: target, format: format)
+        return renderer.pngData { _ in
+            let sourceSize = image.size
+            guard sourceSize.width > 0, sourceSize.height > 0 else { return }
+            let scale = max(side / sourceSize.width, side / sourceSize.height)
+            let drawSize = CGSize(
+                width: sourceSize.width * scale,
+                height: sourceSize.height * scale
+            )
+            let origin = CGPoint(
+                x: (side - drawSize.width) / 2,
+                y: (side - drawSize.height) / 2
+            )
+            image.draw(in: CGRect(origin: origin, size: drawSize))
+        }
+    }
+}
+
+private extension Data {
+    mutating func append(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
+        }
     }
 }

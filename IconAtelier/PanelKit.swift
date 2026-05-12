@@ -13,6 +13,16 @@ enum PanelStyle {
     static let rowInsetH: CGFloat = 16
 }
 
+extension Color {
+    /// Page background sitting between `.systemBackground` (pure white) and
+    /// `.secondarySystemBackground`, with an adaptive dark-mode counterpart.
+    static let appPageBackground = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(white: 0.07, alpha: 1)
+            : UIColor(white: 0.965, alpha: 1)
+    })
+}
+
 // MARK: - Section divider
 
 struct SectionDivider: View {
