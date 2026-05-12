@@ -17,8 +17,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		4EF49A362FAF815D00669CC5 /* IconAtelier */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = IconAtelier;
 			sourceTree = "<group>";
 		};
