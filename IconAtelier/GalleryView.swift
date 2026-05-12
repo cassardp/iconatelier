@@ -13,7 +13,7 @@ struct GalleryView: View {
     @State private var showSettings: Bool = false
     @State private var isSelecting: Bool = false
     @State private var selectedUUIDs: Set<UUID> = []
-    @AppStorage("galleryColumnCount") private var columnCount: Int = 2
+    @AppStorage("galleryColumnCount") private var columnCount: Int = 3
     @Namespace private var galleryNamespace
     @State private var tileSide: CGFloat = 0
     @State private var pinchTriggered: Bool = false
