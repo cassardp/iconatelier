@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import UIKit
+import ImageIO
 
 struct GalleryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -307,8 +307,10 @@ private struct GalleryCell: View {
 
     @ViewBuilder
     private var thumbnail: some View {
-        if let data = project.thumbnailPNG, let image = UIImage(data: data) {
-            Image(uiImage: image)
+        if let data = project.thumbnailPNG,
+           let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            Image(decorative: cgImage, scale: 1)
                 .resizable()
                 .interpolation(.medium)
         } else {
