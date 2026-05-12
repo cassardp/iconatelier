@@ -48,9 +48,16 @@ struct GalleryView: View {
                     }
                 }
             }
-            .navigationTitle("Icon Atelier")
-            .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                    .disabled(isSelecting)
+                }
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(isSelecting ? "Done" : "Select") {
@@ -60,18 +67,6 @@ struct GalleryView: View {
                             }
                         }
                     }
-                }
-                if #available(iOS 26.0, *) {
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
-                    .disabled(isSelecting)
                 }
             }
             .overlay(alignment: .bottom) {
