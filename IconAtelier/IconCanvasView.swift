@@ -73,7 +73,7 @@ struct IconCanvasView: View {
             ZStack {
                 squircleIcon(side: canvasSide)
                     .contentShape(Rectangle())
-                    .gesture(canvasGesture(side: canvasSide))
+                    .highPriorityGesture(canvasGesture(side: canvasSide))
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .geometryGroup()
@@ -358,6 +358,15 @@ struct LayerContentView: View {
     var scale: CGFloat = 1.0
 
     var body: some View {
+        content
+            .scaleEffect(
+                x: layer.isFlippedHorizontally ? -1 : 1,
+                y: layer.isFlippedVertically ? -1 : 1
+            )
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch layer.kind {
         case .aiOverlay:
             let aiSide = side * 0.7 * scale

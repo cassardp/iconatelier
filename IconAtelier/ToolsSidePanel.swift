@@ -115,6 +115,22 @@ struct EditTabContent: View {
                 project.toggleVisibility(layer)
             }
             CompactActionButton(
+                title: "Flip Horizontal",
+                systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right"
+            ) {
+                withAnimation(.smooth(duration: 0.25)) {
+                    project.flipHorizontally(layer)
+                }
+            }
+            CompactActionButton(
+                title: "Flip Vertical",
+                systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down"
+            ) {
+                withAnimation(.smooth(duration: 0.25)) {
+                    project.flipVertically(layer)
+                }
+            }
+            CompactActionButton(
                 title: "Reset",
                 systemImage: "arrow.counterclockwise"
             ) {

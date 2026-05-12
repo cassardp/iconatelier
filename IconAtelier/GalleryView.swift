@@ -8,29 +8,32 @@ struct GalleryView: View {
     private var projects: [IconProject]
 
     @State private var path = NavigationPath()
-    @State private var deletionTarget: IconProject?
     @State private var renameTarget: IconProject?
     @State private var draftTitle: String = ""
     @State private var showSettings: Bool = false
     @State private var isSelecting: Bool = false
     @State private var selectedUUIDs: Set<UUID> = []
-    @State private var showBulkDeletion: Bool = false
     @AppStorage("galleryColumnCount") private var columnCount: Int = 2
     @Namespace private var galleryNamespace
     @State private var tileSide: CGFloat = 0
     @State private var pinchTriggered: Bool = false
+    @State private var isPinching: Bool = false
+    @GestureState private var pinchScale: CGFloat = 1.0
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
     }
 
-    private var columnsIconName: String {
-        columnCount >= 4 ? "plus.magnifyingglass" : "minus.magnifyingglass"
-    }
-
     private var pinchGesture: some Gesture {
         MagnifyGesture(minimumScaleDelta: 0.05)
+            .updating($pinchScale) { value, state, _ in
+                // Very subtle live feedback so the grid hints at the pinch
+                // direction without visibly resizing.
+                let damped = 1 + (value.magnification - 1) * 0.15
+                state = min(max(damped, 0.96), 1.04)
+            }
             .onChanged { value in
+                if !isPinching { isPinching = true }
                 guard !pinchTriggered, !isSelecting else { return }
                 if value.magnification > 1.25, columnCount > 2 {
                     pinchTriggered = true
@@ -40,7 +43,14 @@ struct GalleryView: View {
                     withAnimation(.smooth(duration: 0.35)) { columnCount += 1 }
                 }
             }
-            .onEnded { _ in pinchTriggered = false }
+            .onEnded { _ in
+                pinchTriggered = false
+                // Keep tap-suppression briefly so a finger lifted just after a
+                // pinch doesn't fire a stray Button tap and open an icon.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    isPinching = false
+                }
+            }
     }
 
     var body: some View {
@@ -69,10 +79,13 @@ struct GalleryView: View {
                         }
                         .padding(20)
                         .padding(.bottom, 80)
+                        .scaleEffect(pinchScale, anchor: .center)
                         .animation(.smooth(duration: 0.35), value: columnCount)
                         .animation(.smooth(duration: 0.35), value: projects.count)
+                        .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: pinchScale)
                     }
                     .simultaneousGesture(pinchGesture)
+                    .sensoryFeedback(.selection, trigger: columnCount)
                 }
             }
             .toolbar {
@@ -94,21 +107,6 @@ struct GalleryView: View {
                             }
                         }
                     }
-                    if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            withAnimation(.smooth(duration: 0.35)) {
-                                columnCount = columnCount >= 4 ? 2 : columnCount + 1
-                            }
-                        } label: {
-                            Image(systemName: columnsIconName)
-                                .contentTransition(.symbolEffect(.replace))
-                        }
-                        .accessibilityLabel("Change column count")
-                        .disabled(isSelecting)
-                    }
                 }
             }
             .overlay(alignment: .bottom) {
@@ -128,22 +126,6 @@ struct GalleryView: View {
                 ContentView(project: project)
                     .navigationTransition(.zoom(sourceID: project.uuid, in: galleryNamespace))
             }
-            .confirmationDialog(
-                "Delete this icon?",
-                isPresented: Binding(
-                    get: { deletionTarget != nil },
-                    set: { if !$0 { deletionTarget = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: deletionTarget
-            ) { project in
-                Button("Delete", role: .destructive) {
-                    delete(project)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("This cannot be undone.")
-            }
             .alert(
                 "Rename icon",
                 isPresented: Binding(
@@ -161,20 +143,6 @@ struct GalleryView: View {
                 }
                 Button("Cancel", role: .cancel) { renameTarget = nil }
             }
-            .confirmationDialog(
-                selectedUUIDs.count <= 1
-                    ? "Delete this icon?"
-                    : "Delete \(selectedUUIDs.count) icons?",
-                isPresented: $showBulkDeletion,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    deleteSelected()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This cannot be undone.")
-            }
             .onChange(of: projects.count) { _, _ in
                 if projects.isEmpty && isSelecting {
                     isSelecting = false
@@ -187,6 +155,7 @@ struct GalleryView: View {
     @ViewBuilder
     private func cell(for project: IconProject) -> some View {
         Button {
+            guard !isPinching else { return }
             if isSelecting {
                 toggleSelection(project)
             } else {
@@ -227,7 +196,7 @@ struct GalleryView: View {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 }
                 Button(role: .destructive) {
-                    deletionTarget = project
+                    delete(project)
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
@@ -252,7 +221,7 @@ struct GalleryView: View {
     private var deleteSelectedButton: some View {
         Button {
             if !selectedUUIDs.isEmpty {
-                showBulkDeletion = true
+                deleteSelected()
             }
         } label: {
             Image(systemName: "trash")
@@ -314,7 +283,6 @@ struct GalleryView: View {
             modelContext.delete(project)
         }
         try? modelContext.save()
-        deletionTarget = nil
     }
 }
 

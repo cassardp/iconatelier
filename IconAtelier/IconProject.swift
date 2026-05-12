@@ -315,12 +315,24 @@ final class IconProject {
         layer.isHidden.toggle()
     }
 
+    func flipHorizontally(_ layer: Layer) {
+        recordUndo()
+        layer.isFlippedHorizontally.toggle()
+    }
+
+    func flipVertically(_ layer: Layer) {
+        recordUndo()
+        layer.isFlippedVertically.toggle()
+    }
+
     func resetTransform(_ layer: Layer) {
         recordUndo()
         layer.offset = .zero
         layer.scale = 1.0
         layer.rotation = .zero
         layer.opacity = 1.0
+        layer.isFlippedHorizontally = false
+        layer.isFlippedVertically = false
         layer.shadowOpacity = 0
         layer.shadowRadius = 0.04
         layer.shadowOffsetX = 0

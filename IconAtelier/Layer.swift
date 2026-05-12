@@ -83,6 +83,8 @@ final class Layer {
 
     var isHidden: Bool = false
     var isLocked: Bool = false
+    var isFlippedHorizontally: Bool = false
+    var isFlippedVertically: Bool = false
 
     var project: IconProject?
 
@@ -180,6 +182,8 @@ struct LayerSnapshot {
     let shadowOffsetY: Double
     let isHidden: Bool
     let isLocked: Bool
+    let isFlippedHorizontally: Bool
+    let isFlippedVertically: Bool
     let orderIndex: Int
 }
 
@@ -208,6 +212,8 @@ extension Layer {
             shadowOffsetY: shadowOffsetY,
             isHidden: isHidden,
             isLocked: isLocked,
+            isFlippedHorizontally: isFlippedHorizontally,
+            isFlippedVertically: isFlippedVertically,
             orderIndex: orderIndex
         )
     }
@@ -234,6 +240,8 @@ extension Layer {
         shadowOffsetY = s.shadowOffsetY
         isHidden = s.isHidden
         isLocked = s.isLocked
+        isFlippedHorizontally = s.isFlippedHorizontally
+        isFlippedVertically = s.isFlippedVertically
         orderIndex = s.orderIndex
     }
 }

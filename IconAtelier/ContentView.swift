@@ -14,7 +14,6 @@ struct ContentView: View {
     @State private var showEditSheet = false
     @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
-    @State private var dismissAfterSheetClose = false
 
     @State private var aiPromptText: String = ""
     @State private var aiPromptImages: [UIImage] = []
@@ -106,12 +105,7 @@ struct ContentView: View {
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .sheet(isPresented: $showEditSheet, onDismiss: {
-            if dismissAfterSheetClose {
-                dismissAfterSheetClose = false
-                dismiss()
-            }
-        }) {
+        .sheet(isPresented: $showEditSheet) {
             EditSheet(project: project, session: session)
                 .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
@@ -145,8 +139,7 @@ struct ContentView: View {
             }
         }
         .onDisappear {
-            IconRenderer.updateThumbnail(project)
-            try? modelContext.save()
+            persistSnapshotInBackground()
         }
         .alert(
             "Generation failed",
@@ -232,13 +225,20 @@ struct ContentView: View {
     }
 
     private func closeProject() {
-        IconRenderer.updateThumbnail(project)
-        try? modelContext.save()
-        if showEditSheet {
-            dismissAfterSheetClose = true
-            showEditSheet = false
-        } else {
-            dismiss()
+        showEditSheet = false
+        dismiss()
+        persistSnapshotInBackground()
+    }
+
+    private func persistSnapshotInBackground() {
+        let projectRef = project
+        let ctx = modelContext
+        Task { @MainActor in
+            // Yield once so the dismiss/zoom-out animation can start before
+            // the synchronous ImageRenderer pass blocks the main actor.
+            await Task.yield()
+            IconRenderer.updateThumbnail(projectRef)
+            try? ctx.save()
         }
     }
 
@@ -267,6 +267,8 @@ struct ContentView: View {
             hasher.combine(layer.offsetH)
             hasher.combine(layer.opacity)
             hasher.combine(layer.isHidden)
+            hasher.combine(layer.isFlippedHorizontally)
+            hasher.combine(layer.isFlippedVertically)
         }
         return hasher.finalize()
     }
