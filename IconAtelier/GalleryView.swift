@@ -24,12 +24,18 @@ struct GalleryView: View {
         NavigationStack(path: $path) {
             Group {
                 if projects.isEmpty {
-                    Text("Tap + to start designing")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 16) {
+                        Text("Tap the + button")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Image(systemName: "arrow.down")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 100)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 20) {
@@ -45,35 +51,27 @@ struct GalleryView: View {
             .navigationTitle("Icon Atelier")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if isSelecting {
-                        Button("Done") {
+                if !projects.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(isSelecting ? "Done" : "Select") {
                             withAnimation(.easeInOut(duration: 0.2)) {
-                                isSelecting = false
-                                selectedUUIDs.removeAll()
+                                isSelecting.toggle()
+                                if !isSelecting { selectedUUIDs.removeAll() }
                             }
                         }
-                    } else {
-                        Menu {
-                            if !projects.isEmpty {
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        isSelecting = true
-                                    }
-                                } label: {
-                                    Label("Select", systemImage: "checkmark.circle")
-                                }
-                            }
-                            Button {
-                                showSettings = true
-                            } label: {
-                                Label("Settings", systemImage: "gearshape")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                        .accessibilityLabel("More")
                     }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                    .disabled(isSelecting)
                 }
             }
             .overlay(alignment: .bottom) {
