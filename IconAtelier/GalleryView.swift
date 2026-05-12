@@ -22,11 +22,7 @@ struct GalleryView: View {
     }
 
     private var columnsIconName: String {
-        switch columnCount {
-        case 2: "square.grid.2x2"
-        case 3: "square.grid.3x3"
-        default: "square.grid.4x3.fill"
-        }
+        columnCount >= 4 ? "plus.magnifyingglass" : "minus.magnifyingglass"
     }
 
     private var showsTitle: Bool { columnCount <= 3 }
@@ -56,6 +52,7 @@ struct GalleryView: View {
                         }
                         .padding(20)
                         .padding(.bottom, 80)
+                        .animation(.smooth(duration: 0.35), value: columnCount)
                     }
                 }
             }
@@ -71,8 +68,19 @@ struct GalleryView: View {
                 }
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
+                        Button(isSelecting ? "Done" : "Select") {
                             withAnimation(.easeInOut(duration: 0.2)) {
+                                isSelecting.toggle()
+                                if !isSelecting { selectedUUIDs.removeAll() }
+                            }
+                        }
+                    }
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            withAnimation(.smooth(duration: 0.35)) {
                                 columnCount = columnCount >= 4 ? 2 : columnCount + 1
                             }
                         } label: {
@@ -81,17 +89,6 @@ struct GalleryView: View {
                         }
                         .accessibilityLabel("Change column count")
                         .disabled(isSelecting)
-                    }
-                    if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(isSelecting ? "Done" : "Select") {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isSelecting.toggle()
-                                if !isSelecting { selectedUUIDs.removeAll() }
-                            }
-                        }
                     }
                 }
             }
