@@ -12,11 +12,11 @@ struct EditTabContent: View {
             VStack(spacing: 18) {
                 if let layer = project.layer(withID: session.selectedLayerUUID) {
                     actionsRow(for: layer)
+                    SectionDivider()
                     if layer.kind != .aiOverlay {
-                        SectionDivider()
                         kindPicker(for: layer)
-                        contentSection(for: layer)
                     }
+                    contentSection(for: layer)
                     SectionDivider()
                     transformSection(for: layer)
                 }
@@ -95,7 +95,7 @@ struct EditTabContent: View {
     private func contentSection(for layer: Layer) -> some View {
         switch layer.kind {
         case .aiOverlay:
-            EmptyView()
+            AIOverlayContentSection(layer: layer, project: project)
         case .symbol:
             SymbolContentSection(layer: layer, project: project)
         case .text, .emoji:

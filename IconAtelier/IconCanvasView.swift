@@ -367,6 +367,7 @@ struct LayerContentView: View {
                     .interpolation(.high)
                     .scaledToFit()
                     .frame(width: aiSide, height: aiSide)
+                    .colorMultiply(layer.tintColor)
             } else {
                 Color.clear
                     .frame(width: aiSide, height: aiSide)

@@ -65,6 +65,17 @@ private struct SymbolPickerRow: View {
     }
 }
 
+struct AIOverlayContentSection: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    var body: some View {
+        PanelSection(title: "Color") {
+            ColorPickerRow(title: "Tint", color: $layer.tintColor, project: project)
+        }
+    }
+}
+
 struct EmojiContentSection: View {
     @Bindable var layer: Layer
     let project: IconProject
