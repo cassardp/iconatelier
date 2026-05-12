@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreText
 
 struct IconCanvasView: View {
     enum SwipeDirection { case left, right }
@@ -372,11 +373,82 @@ struct LayerContentView: View {
             Text(layer.emoji)
                 .font(.system(size: side * 0.5 * scale))
         case .text:
+            let fontSize = side * 0.3 * scale
+            let metrics = TextOverlayMetrics.measure(
+                text: layer.text,
+                size: fontSize,
+                weight: layer.fontWeight,
+                design: layer.fontDesign
+            )
             Text(layer.text)
-                .font(.system(size: side * 0.3 * scale, weight: layer.fontWeight.swiftUI))
+                .font(.system(size: fontSize, weight: layer.fontWeight.swiftUI))
                 .fontDesign(layer.fontDesign.swiftUI)
                 .foregroundStyle(layer.tintColor)
                 .fixedSize()
+                .offset(y: metrics.centerOffsetY)
+                .frame(width: metrics.glyphWidth, height: metrics.glyphHeight)
+        }
+    }
+}
+
+private enum TextOverlayMetrics {
+    struct Result {
+        var glyphWidth: CGFloat
+        var glyphHeight: CGFloat
+        var centerOffsetY: CGFloat
+    }
+
+    static func measure(
+        text: String,
+        size: CGFloat,
+        weight: LayerFontWeight,
+        design: LayerFontDesign
+    ) -> Result {
+        let font = uiFont(size: size, weight: weight, design: design)
+        guard !text.isEmpty else {
+            return Result(glyphWidth: 0, glyphHeight: 0, centerOffsetY: 0)
+        }
+        let attr = NSAttributedString(string: text, attributes: [.font: font])
+        let line = CTLineCreateWithAttributedString(attr)
+        let glyph = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        let glyphCenterAboveBaseline = glyph.minY + glyph.height / 2
+        let glyphCenterFromTop = font.ascender - glyphCenterAboveBaseline
+        let frameCenterFromTop = font.lineHeight / 2
+        return Result(
+            glyphWidth: max(glyph.width, 1),
+            glyphHeight: max(glyph.height, 1),
+            centerOffsetY: frameCenterFromTop - glyphCenterFromTop
+        )
+    }
+
+    private static func uiFont(
+        size: CGFloat,
+        weight: LayerFontWeight,
+        design: LayerFontDesign
+    ) -> UIFont {
+        let base = UIFont.systemFont(ofSize: size, weight: uiWeight(weight))
+        if let descriptor = base.fontDescriptor.withDesign(uiDesign(design)) {
+            return UIFont(descriptor: descriptor, size: size)
+        }
+        return base
+    }
+
+    private static func uiWeight(_ w: LayerFontWeight) -> UIFont.Weight {
+        switch w {
+        case .regular:  return .regular
+        case .medium:   return .medium
+        case .semibold: return .semibold
+        case .bold:     return .bold
+        case .heavy:    return .heavy
+        }
+    }
+
+    private static func uiDesign(_ d: LayerFontDesign) -> UIFontDescriptor.SystemDesign {
+        switch d {
+        case .default:    return .default
+        case .serif:      return .serif
+        case .rounded:    return .rounded
+        case .monospaced: return .monospaced
         }
     }
 }
