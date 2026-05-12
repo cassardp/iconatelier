@@ -12,6 +12,9 @@ struct GalleryView: View {
     @State private var renameTarget: IconProject?
     @State private var draftTitle: String = ""
     @State private var showSettings: Bool = false
+    @State private var isSelecting: Bool = false
+    @State private var selectedUUIDs: Set<UUID> = []
+    @State private var showBulkDeletion: Bool = false
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 200), spacing: 16)
@@ -21,40 +24,21 @@ struct GalleryView: View {
         NavigationStack(path: $path) {
             Group {
                 if projects.isEmpty {
-                    ContentUnavailableView {
-                        Label("No icons yet", systemImage: "square.dashed")
-                    } description: {
-                        Text("Tap + to start designing your first icon.")
-                    }
+                    Text("Tap + to start designing")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 20) {
                             ForEach(projects) { project in
-                                NavigationLink(value: project) {
-                                    GalleryCell(project: project)
-                                }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    Button {
-                                        draftTitle = project.title
-                                        renameTarget = project
-                                    } label: {
-                                        Label("Rename", systemImage: "pencil")
-                                    }
-                                    Button {
-                                        duplicate(project)
-                                    } label: {
-                                        Label("Duplicate", systemImage: "plus.square.on.square")
-                                    }
-                                    Button(role: .destructive) {
-                                        deletionTarget = project
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
+                                cell(for: project)
                             }
                         }
                         .padding(20)
+                        .padding(.bottom, 80)
                     }
                 }
             }
@@ -62,17 +46,45 @@ struct GalleryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                    if isSelecting {
+                        Button("Done") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSelecting = false
+                                selectedUUIDs.removeAll()
+                            }
+                        }
+                    } else {
+                        Menu {
+                            if !projects.isEmpty {
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        isSelecting = true
+                                    }
+                                } label: {
+                                    Label("Select", systemImage: "checkmark.circle")
+                                }
+                            }
+                            Button {
+                                showSettings = true
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .accessibilityLabel("More")
                     }
-                    .accessibilityLabel("Settings")
                 }
             }
             .overlay(alignment: .bottom) {
-                newProjectButton
-                    .padding(.bottom, 16)
+                Group {
+                    if isSelecting {
+                        deleteSelectedButton
+                    } else {
+                        newProjectButton
+                    }
+                }
+                .padding(.bottom, 16)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsSheet()
@@ -113,6 +125,65 @@ struct GalleryView: View {
                 }
                 Button("Cancel", role: .cancel) { renameTarget = nil }
             }
+            .confirmationDialog(
+                selectedUUIDs.count <= 1
+                    ? "Delete this icon?"
+                    : "Delete \(selectedUUIDs.count) icons?",
+                isPresented: $showBulkDeletion,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    deleteSelected()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This cannot be undone.")
+            }
+            .onChange(of: projects.count) { _, _ in
+                if projects.isEmpty && isSelecting {
+                    isSelecting = false
+                    selectedUUIDs.removeAll()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cell(for project: IconProject) -> some View {
+        if isSelecting {
+            Button {
+                toggleSelection(project)
+            } label: {
+                GalleryCell(
+                    project: project,
+                    isSelecting: true,
+                    isSelected: selectedUUIDs.contains(project.uuid)
+                )
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: project) {
+                GalleryCell(project: project, isSelecting: false, isSelected: false)
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    draftTitle = project.title
+                    renameTarget = project
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Button {
+                    duplicate(project)
+                } label: {
+                    Label("Duplicate", systemImage: "plus.square.on.square")
+                }
+                Button(role: .destructive) {
+                    deletionTarget = project
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
         }
     }
 
@@ -130,10 +201,54 @@ struct GalleryView: View {
         .accessibilityLabel("New icon")
     }
 
+    private var deleteSelectedButton: some View {
+        Button {
+            if !selectedUUIDs.isEmpty {
+                showBulkDeletion = true
+            }
+        } label: {
+            Image(systemName: "trash")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 60, height: 60)
+                .background(selectedUUIDs.isEmpty ? Color.gray.opacity(0.5) : Color.red, in: .circle)
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+        }
+        .disabled(selectedUUIDs.isEmpty)
+        .animation(.easeInOut(duration: 0.2), value: selectedUUIDs.isEmpty)
+        .accessibilityLabel(selectedUUIDs.count <= 1 ? "Delete selected icon" : "Delete \(selectedUUIDs.count) selected icons")
+    }
+
+    private func toggleSelection(_ project: IconProject) {
+        if selectedUUIDs.contains(project.uuid) {
+            selectedUUIDs.remove(project.uuid)
+        } else {
+            selectedUUIDs.insert(project.uuid)
+        }
+    }
+
+    private func deleteSelected() {
+        let targets = projects.filter { selectedUUIDs.contains($0.uuid) }
+        for project in targets {
+            modelContext.delete(project)
+        }
+        try? modelContext.save()
+        selectedUUIDs.removeAll()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isSelecting = false
+        }
+    }
+
     private func createNewProject() {
         let project = IconProject(title: "Untitled")
-        project.background = Background()
+        let preset = BackgroundPresets.mesh.randomElement() ?? BackgroundPresets.mesh[0]
+        project.background = Background(
+            kind: .meshGradient,
+            meshColors: preset.meshColors
+        )
         modelContext.insert(project)
+        project.addTextOverlay()
+        project.clearHistory()
         try? modelContext.save()
         path.append(project)
     }
@@ -153,6 +268,8 @@ struct GalleryView: View {
 
 private struct GalleryCell: View {
     let project: IconProject
+    var isSelecting: Bool = false
+    var isSelected: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -161,8 +278,15 @@ private struct GalleryCell: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(.separator.opacity(0.4), lineWidth: 1)
+                        .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
                 }
+                .overlay(alignment: .topTrailing) {
+                    if isSelecting {
+                        selectionBadge
+                            .padding(10)
+                    }
+                }
+                .opacity(isSelecting && !isSelected ? 0.85 : 1)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.title)
@@ -175,6 +299,17 @@ private struct GalleryCell: View {
             }
             .padding(.horizontal, 4)
         }
+    }
+
+    private var selectionBadge: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(
+                isSelected ? Color.white : Color.white.opacity(0.95),
+                isSelected ? Color.red : Color.black.opacity(0.25)
+            )
+            .font(.system(size: 26, weight: .semibold))
+            .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
     }
 
     @ViewBuilder

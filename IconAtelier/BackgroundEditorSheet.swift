@@ -71,15 +71,17 @@ struct BackgroundEditorContent: View {
         case .linearGradient:
             linearPresetsSection(for: background)
             SectionDivider()
-            gradientStopsSection(for: background)
-            SectionDivider()
             linearDirectionSection(for: background)
+            SectionDivider()
+            gradientStopsSection(for: background)
         case .radialGradient:
             radialPresetsSection(for: background)
             SectionDivider()
             gradientStopsSection(for: background)
         case .meshGradient:
             meshPresetsSection(for: background)
+            SectionDivider()
+            meshDirectionSection(for: background)
             SectionDivider()
             meshCornersSection(for: background)
         case .ai:
@@ -169,19 +171,57 @@ struct BackgroundEditorContent: View {
     @ViewBuilder
     private func linearDirectionSection(for background: Background) -> some View {
         PanelSection(title: "Direction") {
-            HStack(spacing: 8) {
-                ForEach(LinearDirection.allCases) { direction in
-                    DirectionButton(
-                        direction: direction,
-                        isSelected: direction.matches(start: background.linearStart, end: background.linearEnd),
-                        action: {
-                            project.recordUndo()
-                            background.linearStart = direction.start
-                            background.linearEnd = direction.end
-                        }
-                    )
-                }
-            }
+            DialSliderRow(
+                label: "Angle",
+                value: Binding(
+                    get: { Self.angle(from: background.linearStart, to: background.linearEnd) },
+                    set: { newAngle in
+                        let (s, e) = Self.unitPoints(forAngle: newAngle)
+                        background.linearStart = s
+                        background.linearEnd = e
+                    }
+                ),
+                range: 0 ... 360,
+                valueText: { String(format: "%.0f°", $0) },
+                defaultValue: 90,
+                onBeginEditing: { project.recordUndo() }
+            )
+        }
+    }
+
+    fileprivate static func angle(from start: UnitPoint, to end: UnitPoint) -> Double {
+        let dx = Double(end.x - start.x)
+        let dy = Double(end.y - start.y)
+        guard dx != 0 || dy != 0 else { return 90 }
+        var degrees = atan2(dy, dx) * 180 / .pi
+        if degrees < 0 { degrees += 360 }
+        return degrees
+    }
+
+    fileprivate static func unitPoints(forAngle degrees: Double) -> (UnitPoint, UnitPoint) {
+        let radians = degrees * .pi / 180
+        let dx = CGFloat(cos(radians)) * 0.5
+        let dy = CGFloat(sin(radians)) * 0.5
+        return (
+            UnitPoint(x: 0.5 - dx, y: 0.5 - dy),
+            UnitPoint(x: 0.5 + dx, y: 0.5 + dy)
+        )
+    }
+
+    @ViewBuilder
+    private func meshDirectionSection(for background: Background) -> some View {
+        PanelSection(title: "Direction") {
+            DialSliderRow(
+                label: "Angle",
+                value: Binding(
+                    get: { background.meshRotationDegrees },
+                    set: { background.meshRotationDegrees = $0 }
+                ),
+                range: 0 ... 360,
+                valueText: { String(format: "%.0f°", $0) },
+                defaultValue: 0,
+                onBeginEditing: { project.recordUndo() }
+            )
         }
     }
 
@@ -268,69 +308,6 @@ private extension BackgroundKind {
         case .meshGradient:   return "Mesh"
         case .ai:             return "AI"
         }
-    }
-}
-
-// MARK: - Linear direction
-
-private enum LinearDirection: String, CaseIterable, Identifiable {
-    case topToBottom, leftToRight, topLeftToBottomRight, topRightToBottomLeft
-
-    var id: String { rawValue }
-
-    var start: UnitPoint {
-        switch self {
-        case .topToBottom:           return .top
-        case .leftToRight:           return .leading
-        case .topLeftToBottomRight:  return .topLeading
-        case .topRightToBottomLeft:  return .topTrailing
-        }
-    }
-
-    var end: UnitPoint {
-        switch self {
-        case .topToBottom:           return .bottom
-        case .leftToRight:           return .trailing
-        case .topLeftToBottomRight:  return .bottomTrailing
-        case .topRightToBottomLeft:  return .bottomLeading
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .topToBottom:          return "arrow.down"
-        case .leftToRight:          return "arrow.right"
-        case .topLeftToBottomRight: return "arrow.down.right"
-        case .topRightToBottomLeft: return "arrow.down.left"
-        }
-    }
-
-    func matches(start: UnitPoint, end: UnitPoint) -> Bool {
-        approximatelyEqual(start, self.start) && approximatelyEqual(end, self.end)
-    }
-
-    private func approximatelyEqual(_ a: UnitPoint, _ b: UnitPoint) -> Bool {
-        abs(a.x - b.x) < 0.01 && abs(a.y - b.y) < 0.01
-    }
-}
-
-private struct DirectionButton: View {
-    let direction: LinearDirection
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: direction.systemImage)
-                .font(.title3)
-                .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(
-                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                        .fill(isSelected ? PanelStyle.rowFillSelected : PanelStyle.rowFill)
-                )
-        }
-        .buttonStyle(.plain)
     }
 }
 

@@ -14,14 +14,15 @@ enum BackgroundKind: String, CaseIterable, Identifiable {
 
 @Model
 final class Background {
-    var kindRaw: String = BackgroundKind.meshGradient.rawValue
+    var kindRaw: String = BackgroundKind.solid.rawValue
 
-    var storedSolidColor: StoredColor = StoredColor(r: 0.0, g: 0.478, b: 1.0, a: 1.0)
+    var storedSolidColor: StoredColor = StoredColor(r: 0.92, g: 0.92, b: 0.94, a: 1.0)
     var storedGradientColors: [StoredColor] = []
     var storedLinearStart: StoredPoint = StoredPoint(x: 0, y: 0)
     var storedLinearEnd: StoredPoint = StoredPoint(x: 1, y: 1)
     var storedGradientCenter: StoredPoint = StoredPoint(x: 0.5, y: 0.5)
     var storedMeshColors: [StoredColor] = []
+    var meshRotationDegrees: Double = 0
 
     @Attribute(.externalStorage) var aiImagePNG: Data?
     var aiPrompt: String?
@@ -31,8 +32,8 @@ final class Background {
     var project: IconProject?
 
     init(
-        kind: BackgroundKind = .meshGradient,
-        solidColor: Color = .iaBlue,
+        kind: BackgroundKind = .solid,
+        solidColor: Color = .iaDefaultBackground,
         gradientColors: [Color] = [.iaBlue, .iaPurple],
         linearStart: UnitPoint = .topLeading,
         linearEnd: UnitPoint = .bottomTrailing,
@@ -122,6 +123,7 @@ struct BackgroundSnapshot {
     let linearEnd: StoredPoint
     let gradientCenter: StoredPoint
     let meshColors: [StoredColor]
+    let meshRotationDegrees: Double
     let aiImagePNG: Data?
     let aiPrompt: String?
     let isHidden: Bool
@@ -137,6 +139,7 @@ extension Background {
             linearEnd: storedLinearEnd,
             gradientCenter: storedGradientCenter,
             meshColors: storedMeshColors,
+            meshRotationDegrees: meshRotationDegrees,
             aiImagePNG: aiImagePNG,
             aiPrompt: aiPrompt,
             isHidden: isHidden
@@ -151,6 +154,7 @@ extension Background {
         storedLinearEnd = s.linearEnd
         storedGradientCenter = s.gradientCenter
         storedMeshColors = s.meshColors
+        meshRotationDegrees = s.meshRotationDegrees
         aiImagePNG = s.aiImagePNG
         aiPrompt = s.aiPrompt
         isHidden = s.isHidden
@@ -160,6 +164,7 @@ extension Background {
 // MARK: - Color tokens
 
 extension Color {
+    nonisolated static let iaDefaultBackground = Color(red: 0.92, green: 0.92, blue: 0.94)  // light neutral gray
     nonisolated static let iaBlue = Color(red: 0.0, green: 0.478, blue: 1.0)        // #007AFF
     nonisolated static let iaPurple = Color(red: 0.345, green: 0.337, blue: 0.839)  // #5856D6
     nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)      // #FF2D55

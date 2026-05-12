@@ -110,18 +110,6 @@ struct ContentView: View {
                 }
             }
 
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    withAnimation(.smooth(duration: 0.35)) {
-                        isFocusMode.toggle()
-                    }
-                } label: {
-                    Image(systemName: isFocusMode ? "xmark" : "eye")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .accessibilityLabel(isFocusMode ? "Exit focus mode" : "Focus mode")
-            }
-
             if project.hasContent, let exportedImage {
                 ToolbarItem(placement: .topBarTrailing) {
                     ShareLink(

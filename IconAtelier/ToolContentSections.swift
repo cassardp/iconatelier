@@ -1,4 +1,5 @@
 import SwiftUI
+import SFSymbols
 
 // MARK: - Per-kind content sections
 
@@ -6,19 +7,61 @@ struct SymbolContentSection: View {
     @Bindable var layer: Layer
     let project: IconProject
 
-    @FocusState private var nameFocused: Bool
+    @State private var showSymbolPicker = false
+
+    private var selectionBinding: Binding<String?> {
+        Binding(
+            get: { layer.symbolName.isEmpty ? nil : layer.symbolName },
+            set: { newValue in
+                guard let newValue, newValue != layer.symbolName else { return }
+                project.recordUndo()
+                layer.symbolName = newValue
+                showSymbolPicker = false
+            }
+        )
+    }
 
     var body: some View {
         PanelSection(title: "Symbol") {
-            ContentField(
-                placeholder: "Symbol name (e.g. star.fill)",
-                text: $layer.symbolName,
-                focused: $nameFocused,
-                project: project
-            )
+            SymbolPickerRow(symbol: $layer.symbolName, isPresented: $showSymbolPicker)
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
             FontWeightRow(weight: $layer.fontWeight, project: project)
         }
+        .sfSymbolPicker(isPresented: $showSymbolPicker, selection: selectionBinding)
+    }
+}
+
+private struct SymbolPickerRow: View {
+    @Binding var symbol: String
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: symbol.isEmpty ? "questionmark.square.dashed" : symbol)
+                    .font(.title3)
+                    .foregroundStyle(.primary)
+                    .frame(width: 28, alignment: .center)
+                Text(symbol.isEmpty ? "Pick a symbol" : symbol)
+                    .foregroundStyle(.primary.opacity(0.72))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                    .fill(PanelStyle.rowFill)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

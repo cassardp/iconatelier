@@ -276,6 +276,9 @@ struct BackgroundView: View {
     @ViewBuilder
     private var meshView: some View {
         if #available(iOS 18.0, *) {
+            let angle = background.meshRotationDegrees
+            let rad = angle * .pi / 180
+            let scale = abs(cos(rad)) + abs(sin(rad))
             MeshGradient(
                 width: 3,
                 height: 3,
@@ -286,6 +289,8 @@ struct BackgroundView: View {
                 ],
                 colors: background.meshColors
             )
+            .scaleEffect(scale)
+            .rotationEffect(.degrees(angle))
         } else {
             // Pre-iOS 18 fallback: approximate with a linear gradient.
             LinearGradient(

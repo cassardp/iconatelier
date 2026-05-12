@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		698766FE0E0931AEE3BE7F59 /* SFSymbols in Frameworks */ = {isa = PBXBuildFile; productRef = 965BC76707D8D17AFD5BA754 /* SFSymbols */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		4EF49A342FAF815D00669CC5 /* IconAtelier.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IconAtelier.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -13,6 +17,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		4EF49A362FAF815D00669CC5 /* IconAtelier */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = IconAtelier;
 			sourceTree = "<group>";
 		};
@@ -23,6 +29,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				698766FE0E0931AEE3BE7F59 /* SFSymbols in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,7 @@
 			);
 			name = IconAtelier;
 			packageProductDependencies = (
+				965BC76707D8D17AFD5BA754 /* SFSymbols */,
 			);
 			productName = IconAtelier;
 			productReference = 4EF49A342FAF815D00669CC5 /* IconAtelier.app */;
@@ -94,6 +102,9 @@
 			);
 			mainGroup = 4EF49A2B2FAF815D00669CC5;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				DCED620A6E130F7D75DBE29E /* XCRemoteSwiftPackageReference "SFSymbols" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4EF49A352FAF815D00669CC5 /* Products */;
 			projectDirPath = "";
@@ -338,6 +349,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		DCED620A6E130F7D75DBE29E /* XCRemoteSwiftPackageReference "SFSymbols" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/simonbs/SFSymbols";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		965BC76707D8D17AFD5BA754 /* SFSymbols */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DCED620A6E130F7D75DBE29E /* XCRemoteSwiftPackageReference "SFSymbols" */;
+			productName = SFSymbols;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4EF49A2C2FAF815D00669CC5 /* Project object */;
 }

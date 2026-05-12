@@ -17,7 +17,7 @@ struct AIPromptBar: View {
 
     private var circleFill: Color {
         if isGenerating || canSubmit { return .primary }
-        return PanelStyle.rowFill
+        return PanelStyle.rowFillActive
     }
 
     private var canAttachMore: Bool {
