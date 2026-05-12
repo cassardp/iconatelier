@@ -16,6 +16,9 @@ struct GalleryView: View {
     @State private var selectedUUIDs: Set<UUID> = []
     @State private var showBulkDeletion: Bool = false
     @AppStorage("galleryColumnCount") private var columnCount: Int = 2
+    @Namespace private var galleryNamespace
+    @State private var tileSide: CGFloat = 0
+    @State private var pinchTriggered: Bool = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
@@ -25,7 +28,20 @@ struct GalleryView: View {
         columnCount >= 4 ? "plus.magnifyingglass" : "minus.magnifyingglass"
     }
 
-    private var showsTitle: Bool { columnCount <= 3 }
+    private var pinchGesture: some Gesture {
+        MagnifyGesture(minimumScaleDelta: 0.05)
+            .onChanged { value in
+                guard !pinchTriggered, !isSelecting else { return }
+                if value.magnification > 1.25, columnCount > 2 {
+                    pinchTriggered = true
+                    withAnimation(.smooth(duration: 0.35)) { columnCount -= 1 }
+                } else if value.magnification < 0.8, columnCount < 4 {
+                    pinchTriggered = true
+                    withAnimation(.smooth(duration: 0.35)) { columnCount += 1 }
+                }
+            }
+            .onEnded { _ in pinchTriggered = false }
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -48,12 +64,15 @@ struct GalleryView: View {
                         LazyVGrid(columns: columns, spacing: 20) {
                             ForEach(projects) { project in
                                 cell(for: project)
+                                    .transition(.scale(scale: 0.6).combined(with: .opacity))
                             }
                         }
                         .padding(20)
                         .padding(.bottom, 80)
                         .animation(.smooth(duration: 0.35), value: columnCount)
+                        .animation(.smooth(duration: 0.35), value: projects.count)
                     }
+                    .simultaneousGesture(pinchGesture)
                 }
             }
             .toolbar {
@@ -69,7 +88,7 @@ struct GalleryView: View {
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(isSelecting ? "Done" : "Select") {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(.smooth(duration: 0.35)) {
                                 isSelecting.toggle()
                                 if !isSelecting { selectedUUIDs.removeAll() }
                             }
@@ -107,6 +126,7 @@ struct GalleryView: View {
             }
             .navigationDestination(for: IconProject.self) { project in
                 ContentView(project: project)
+                    .navigationTransition(.zoom(sourceID: project.uuid, in: galleryNamespace))
             }
             .confirmationDialog(
                 "Delete this icon?",
@@ -166,29 +186,35 @@ struct GalleryView: View {
 
     @ViewBuilder
     private func cell(for project: IconProject) -> some View {
-        if isSelecting {
-            Button {
+        Button {
+            if isSelecting {
                 toggleSelection(project)
-            } label: {
-                GalleryCell(
-                    project: project,
-                    isSelecting: true,
-                    isSelected: selectedUUIDs.contains(project.uuid),
-                    showsTitle: showsTitle
-                )
+            } else {
+                path.append(project)
             }
-            .buttonStyle(.plain)
-        } else {
-            NavigationLink(value: project) {
-                GalleryCell(
-                    project: project,
-                    isSelecting: false,
-                    isSelected: false,
-                    showsTitle: showsTitle
-                )
+        } label: {
+            GalleryCell(
+                project: project,
+                isSelecting: isSelecting,
+                isSelected: selectedUUIDs.contains(project.uuid)
+            )
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { newSide in
+                if abs(newSide - tileSide) > 0.5 { tileSide = newSide }
             }
-            .buttonStyle(.plain)
-            .contextMenu {
+        }
+        .buttonStyle(.plain)
+        .matchedTransitionSource(id: project.uuid, in: galleryNamespace) { config in
+            config.clipShape(
+                RoundedRectangle(
+                    cornerRadius: max(tileSide, 1) * 0.2237,
+                    style: .continuous
+                )
+            )
+        }
+        .contextMenu {
+            if !isSelecting {
                 Button {
                     draftTitle = project.title
                     renameTarget = project
@@ -251,14 +277,14 @@ struct GalleryView: View {
 
     private func deleteSelected() {
         let targets = projects.filter { selectedUUIDs.contains($0.uuid) }
-        for project in targets {
-            modelContext.delete(project)
+        withAnimation(.smooth(duration: 0.35)) {
+            for project in targets {
+                modelContext.delete(project)
+            }
+            isSelecting = false
         }
         try? modelContext.save()
         selectedUUIDs.removeAll()
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isSelecting = false
-        }
     }
 
     private func createNewProject() {
@@ -268,11 +294,13 @@ struct GalleryView: View {
             kind: .meshGradient,
             meshColors: preset.meshColors
         )
-        modelContext.insert(project)
         project.addTextOverlay()
         project.clearHistory()
+        IconRenderer.updateThumbnail(project)
+        withAnimation(.smooth(duration: 0.35)) {
+            modelContext.insert(project)
+        }
         try? modelContext.save()
-        path.append(project)
     }
 
     private func duplicate(_ project: IconProject) {
@@ -282,7 +310,9 @@ struct GalleryView: View {
     }
 
     private func delete(_ project: IconProject) {
-        modelContext.delete(project)
+        withAnimation(.smooth(duration: 0.35)) {
+            modelContext.delete(project)
+        }
         try? modelContext.save()
         deletionTarget = nil
     }
@@ -299,39 +329,22 @@ private struct GalleryCell: View {
     let project: IconProject
     var isSelecting: Bool = false
     var isSelected: Bool = false
-    var showsTitle: Bool = true
 
     var body: some View {
-        VStack(spacing: 8) {
-            thumbnail
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(AppIconSquircle())
-                .overlay {
-                    AppIconSquircle()
-                        .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
-                }
-                .overlay(alignment: .topTrailing) {
-                    if isSelecting {
-                        selectionBadge
-                            .padding(10)
-                    }
-                }
-                .opacity(isSelecting && !isSelected ? 0.85 : 1)
-
-            if showsTitle {
-                VStack(spacing: 2) {
-                    Text(project.title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text(project.updatedAt, format: .relative(presentation: .named))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 4)
+        thumbnail
+            .aspectRatio(1, contentMode: .fit)
+            .clipShape(AppIconSquircle())
+            .overlay {
+                AppIconSquircle()
+                    .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
             }
-        }
+            .overlay(alignment: .topTrailing) {
+                if isSelecting {
+                    selectionBadge
+                        .padding(10)
+                }
+            }
+            .opacity(isSelecting && !isSelected ? 0.85 : 1)
     }
 
     private var selectionBadge: some View {
