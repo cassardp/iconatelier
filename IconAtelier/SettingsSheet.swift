@@ -6,17 +6,35 @@ struct SettingsSheet: View {
     @State private var apiKey: String = ""
     @State private var didLoad: Bool = false
     @State private var isSaving: Bool = false
+    @State private var isRevealed: Bool = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("sk-...", text: $apiKey)
+                    HStack {
+                        Group {
+                            if isRevealed {
+                                TextField("sk-...", text: $apiKey)
+                            } else {
+                                SecureField("sk-...", text: $apiKey)
+                            }
+                        }
                         .textContentType(.password)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .submitLabel(.done)
                         .onSubmit(save)
+
+                        Button {
+                            isRevealed.toggle()
+                        } label: {
+                            Image(systemName: isRevealed ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isRevealed ? "Hide API key" : "Show API key")
+                    }
                 } header: {
                     Text("OpenAI API Key")
                 } footer: {
