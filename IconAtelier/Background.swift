@@ -164,7 +164,7 @@ extension Background {
 // MARK: - Color tokens
 
 extension Color {
-    nonisolated static let iaDefaultBackground = Color(red: 0.92, green: 0.92, blue: 0.94)  // light neutral gray
+    nonisolated static let iaDefaultBackground = Color(red: 0.0, green: 140.0/255.0, blue: 180.0/255.0)  // #008CB4
     nonisolated static let iaBlue = Color(red: 0.0, green: 0.478, blue: 1.0)        // #007AFF
     nonisolated static let iaPurple = Color(red: 0.345, green: 0.337, blue: 0.839)  // #5856D6
     nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)      // #FF2D55

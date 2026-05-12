@@ -91,6 +91,7 @@ struct GalleryView: View {
                     .sensoryFeedback(.selection, trigger: columnCount)
                 }
             }
+            .background(Color.appPageBackground.ignoresSafeArea())
             .toolbar {
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
