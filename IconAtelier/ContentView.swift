@@ -11,8 +11,8 @@ struct ContentView: View {
     private let service = OpenAIImageService()
 
     @State private var session = ProjectSession()
-    @State private var exportedImage: UIImage?
     @State private var showEditSheet = false
+    @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
     @State private var isFocusMode = false
     @State private var dismissAfterSheetClose = false
@@ -110,15 +110,14 @@ struct ContentView: View {
                 }
             }
 
-            if project.hasContent, let exportedImage {
+            if project.hasContent {
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(
-                        item: Image(uiImage: exportedImage),
-                        preview: SharePreview("Icon", image: Image(uiImage: exportedImage))
-                    ) {
+                    Button {
+                        showExportSheet = true
+                    } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
-                    .id(exportSignature)
+                    .accessibilityLabel("Export icon")
                 }
             }
         }
@@ -138,6 +137,9 @@ struct ContentView: View {
                 .presentationContentInteraction(.scrolls)
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showExportSheet) {
+            ExportSheet(project: project)
+        }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
             if isOpen && !wasOpen {
                 aiPromptFocused = false
@@ -145,7 +147,6 @@ struct ContentView: View {
             }
         }
         .onChange(of: exportSignature) { _, _ in
-            exportedImage = IconRenderer.render(project, side: 1024)
             IconRenderer.updateThumbnail(project)
         }
         .onChange(of: scenePhase) { _, phase in
@@ -161,7 +162,6 @@ struct ContentView: View {
                let topLayer = project.layers.last {
                 session.selectLayer(topLayer.uuid)
             }
-            exportedImage = IconRenderer.render(project, side: 1024)
         }
         .onDisappear {
             IconRenderer.updateThumbnail(project)

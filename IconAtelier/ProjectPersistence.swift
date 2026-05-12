@@ -1,11 +1,17 @@
 import SwiftUI
 import UIKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 enum IconRenderer {
     @MainActor
-    static func render(_ project: IconProject, side: CGFloat) -> UIImage? {
+    static func render(
+        _ project: IconProject,
+        side: CGFloat,
+        includeBackground: Bool = true
+    ) -> UIImage? {
         let view = ZStack {
-            if let bg = project.background, !bg.isHidden {
+            if includeBackground, let bg = project.background, !bg.isHidden {
                 BackgroundView(background: bg, side: side)
             }
             ForEach(project.layers) { layer in
@@ -34,6 +40,26 @@ enum IconRenderer {
         renderer.scale = 1.0
         renderer.proposedSize = .init(width: side, height: side)
         return renderer.uiImage
+    }
+
+    /// Grayscale luminance map on a solid black background — format expected
+    /// by the iOS 18 `tinted` app icon slot.
+    @MainActor
+    static func renderTinted(_ project: IconProject, side: CGFloat) -> UIImage? {
+        guard let foreground = render(project, side: side, includeBackground: false),
+              let ciForeground = CIImage(image: foreground) else { return nil }
+
+        let desaturate = CIFilter.colorControls()
+        desaturate.inputImage = ciForeground
+        desaturate.saturation = 0
+        guard let mono = desaturate.outputImage else { return nil }
+
+        let black = CIImage(color: CIColor.black).cropped(to: ciForeground.extent)
+        let composed = mono.composited(over: black)
+
+        let context = CIContext(options: [.workingColorSpace: CGColorSpaceCreateDeviceRGB()])
+        guard let cg = context.createCGImage(composed, from: composed.extent) else { return nil }
+        return UIImage(cgImage: cg, scale: 1.0, orientation: .up)
     }
 
     @MainActor
