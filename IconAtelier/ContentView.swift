@@ -14,7 +14,6 @@ struct ContentView: View {
     @State private var showEditSheet = false
     @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
-    @State private var isFocusMode = false
     @State private var dismissAfterSheetClose = false
 
     @State private var aiPromptText: String = ""
@@ -25,62 +24,45 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let layersBarHeight: CGFloat = isFocusMode ? 0 : 56 + 16
+            let layersBarHeight: CGFloat = 56 + 16
             let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
             let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
             let blockHeight = max(0, visibleHeight - verticalMargin * 2)
             let iconHeight = max(0, blockHeight - layersBarHeight)
             let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-            ZStack(alignment: .top) {
-                if isFocusMode {
-                    HomeScreenPreview(project: project)
-                        .transition(.opacity)
-                } else {
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        IconCanvasView(project: project, session: session)
-                            .frame(width: iconSide, height: iconSide)
-                        LayersBar(
-                            project: project,
-                            session: session,
-                            isSheetOpen: $showEditSheet
-                        )
-                        .transition(.opacity)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(width: geo.size.width, height: visibleHeight)
-                    .transition(.opacity)
-                }
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                IconCanvasView(project: project, session: session)
+                    .frame(width: iconSide, height: iconSide)
+                LayersBar(
+                    project: project,
+                    session: session,
+                    isSheetOpen: $showEditSheet
+                )
+                Spacer(minLength: 0)
             }
+            .frame(width: geo.size.width, height: visibleHeight)
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             .contentShape(Rectangle())
-            .onTapGesture {
-                if isFocusMode {
-                    withAnimation(.smooth(duration: 0.35)) { isFocusMode = false }
-                }
-            }
             .simultaneousGesture(
                 TapGesture().onEnded {
                     if aiPromptFocused { aiPromptFocused = false }
                 }
             )
             .animation(.smooth(duration: 0.35), value: visibleHeight)
-            .animation(.smooth(duration: 0.35), value: isFocusMode)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !isFocusMode {
-                AIPromptBar(
-                    text: $aiPromptText,
-                    attachments: $aiPromptImages,
-                    placeholder: promptPlaceholder,
-                    isGenerating: isGeneratingAI,
-                    canSubmit: canSubmitPrompt,
-                    focused: $aiPromptFocused,
-                    onGenerate: generate
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            AIPromptBar(
+                text: $aiPromptText,
+                attachments: $aiPromptImages,
+                placeholder: promptPlaceholder,
+                isGenerating: isGeneratingAI,
+                canSubmit: canSubmitPrompt,
+                focused: $aiPromptFocused,
+                onGenerate: generate
+            )
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -121,7 +103,6 @@ struct ContentView: View {
                 }
             }
         }
-        .toolbar(isFocusMode ? .hidden : .visible, for: .navigationBar)
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)

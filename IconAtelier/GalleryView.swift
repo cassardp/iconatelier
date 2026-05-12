@@ -15,10 +15,21 @@ struct GalleryView: View {
     @State private var isSelecting: Bool = false
     @State private var selectedUUIDs: Set<UUID> = []
     @State private var showBulkDeletion: Bool = false
+    @AppStorage("galleryColumnCount") private var columnCount: Int = 2
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 140, maximum: 200), spacing: 16)
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
+    }
+
+    private var columnsIconName: String {
+        switch columnCount {
+        case 2: "square.grid.2x2"
+        case 3: "square.grid.3x3"
+        default: "square.grid.4x3.fill"
+        }
+    }
+
+    private var showsTitle: Bool { columnCount <= 3 }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -59,6 +70,21 @@ struct GalleryView: View {
                     .disabled(isSelecting)
                 }
                 if !projects.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                columnCount = columnCount >= 4 ? 2 : columnCount + 1
+                            }
+                        } label: {
+                            Image(systemName: columnsIconName)
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                        .accessibilityLabel("Change column count")
+                        .disabled(isSelecting)
+                    }
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(isSelecting ? "Done" : "Select") {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -150,13 +176,19 @@ struct GalleryView: View {
                 GalleryCell(
                     project: project,
                     isSelecting: true,
-                    isSelected: selectedUUIDs.contains(project.uuid)
+                    isSelected: selectedUUIDs.contains(project.uuid),
+                    showsTitle: showsTitle
                 )
             }
             .buttonStyle(.plain)
         } else {
             NavigationLink(value: project) {
-                GalleryCell(project: project, isSelecting: false, isSelected: false)
+                GalleryCell(
+                    project: project,
+                    isSelecting: false,
+                    isSelected: false,
+                    showsTitle: showsTitle
+                )
             }
             .buttonStyle(.plain)
             .contextMenu {
@@ -259,18 +291,26 @@ struct GalleryView: View {
     }
 }
 
+private struct AppIconSquircle: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius = min(rect.width, rect.height) * 0.2237
+        return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
+    }
+}
+
 private struct GalleryCell: View {
     let project: IconProject
     var isSelecting: Bool = false
     var isSelected: Bool = false
+    var showsTitle: Bool = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 8) {
             thumbnail
                 .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .clipShape(AppIconSquircle())
                 .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    AppIconSquircle()
                         .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
                 }
                 .overlay(alignment: .topTrailing) {
@@ -281,16 +321,19 @@ private struct GalleryCell: View {
                 }
                 .opacity(isSelecting && !isSelected ? 0.85 : 1)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(project.title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(project.updatedAt, format: .relative(presentation: .named))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if showsTitle {
+                VStack(spacing: 2) {
+                    Text(project.title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(project.updatedAt, format: .relative(presentation: .named))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
         }
     }
 
