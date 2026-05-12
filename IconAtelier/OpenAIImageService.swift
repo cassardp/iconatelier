@@ -9,10 +9,10 @@ enum OpenAIImageError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey: "Clé API OpenAI manquante (Secrets.swift)."
-        case .http(let status, let body): "Erreur HTTP \(status): \(body)"
-        case .decoding: "Réponse OpenAI invalide."
-        case .noData: "Aucune image renvoyée."
+        case .missingAPIKey: "OpenAI API key missing. Add it in Settings."
+        case .http(let status, let body): "HTTP \(status): \(body)"
+        case .decoding: "Invalid OpenAI response."
+        case .noData: "No image returned."
         }
     }
 }
@@ -67,7 +67,7 @@ struct OpenAIImageService {
     }
 
     private func generate(model: String, prompt: String, background: String?) async throws -> UIImage {
-        guard !Secrets.openAIKey.isEmpty, Secrets.openAIKey != "sk-REPLACE_ME" else {
+        guard let apiKey = await APIKeyStore.shared.load(), !apiKey.isEmpty else {
             throw OpenAIImageError.missingAPIKey
         }
 
@@ -84,7 +84,7 @@ struct OpenAIImageService {
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(Secrets.openAIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = 120

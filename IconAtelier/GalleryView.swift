@@ -11,6 +11,7 @@ struct GalleryView: View {
     @State private var deletionTarget: IconProject?
     @State private var renameTarget: IconProject?
     @State private var draftTitle: String = ""
+    @State private var showSettings: Bool = false
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 200), spacing: 16)
@@ -40,6 +41,11 @@ struct GalleryView: View {
                                     } label: {
                                         Label("Rename", systemImage: "pencil")
                                     }
+                                    Button {
+                                        duplicate(project)
+                                    } label: {
+                                        Label("Duplicate", systemImage: "plus.square.on.square")
+                                    }
                                     Button(role: .destructive) {
                                         deletionTarget = project
                                     } label: {
@@ -57,12 +63,19 @@ struct GalleryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        createNewProject()
+                        showSettings = true
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "gearshape")
                     }
-                    .accessibilityLabel("New icon")
+                    .accessibilityLabel("Settings")
                 }
+            }
+            .overlay(alignment: .bottom) {
+                newProjectButton
+                    .padding(.bottom, 16)
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsSheet()
             }
             .navigationDestination(for: IconProject.self) { project in
                 ContentView(project: project)
@@ -103,12 +116,32 @@ struct GalleryView: View {
         }
     }
 
+    private var newProjectButton: some View {
+        Button {
+            createNewProject()
+        } label: {
+            Image(systemName: "plus")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .frame(width: 60, height: 60)
+                .background(Color.primary, in: .circle)
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+        }
+        .accessibilityLabel("New icon")
+    }
+
     private func createNewProject() {
         let project = IconProject(title: "Untitled")
         project.background = Background()
         modelContext.insert(project)
         try? modelContext.save()
         path.append(project)
+    }
+
+    private func duplicate(_ project: IconProject) {
+        let copy = project.duplicated()
+        modelContext.insert(copy)
+        try? modelContext.save()
     }
 
     private func delete(_ project: IconProject) {

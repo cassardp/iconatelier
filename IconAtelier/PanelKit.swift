@@ -137,14 +137,15 @@ struct ActionRow: View {
         case .standard, .destructive:
             return PanelStyle.rowFill
         case .prominent:
-            return Color.accentColor.opacity(0.25)
+            return .primary
         }
     }
 
     private var textColor: Color {
         switch role {
         case .destructive: return .red
-        case .standard, .prominent: return .primary
+        case .standard:    return .primary
+        case .prominent:   return Color(uiColor: .systemBackground)
         }
     }
 }

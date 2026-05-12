@@ -255,6 +255,34 @@ final class IconProject {
         }
     }
 
+    func duplicated() -> IconProject {
+        let copy = IconProject(title: title + " copy")
+        copy.uuid = UUID()
+        copy.thumbnailPNG = thumbnailPNG
+        copy.appName = appName
+        copy.appStoreURL = appStoreURL
+        copy.appBundleID = appBundleID
+        copy.notes = notes
+        copy.tags = tags
+        copy.authorName = authorName
+
+        let bg = Background()
+        bg.apply((background ?? Background()).snapshot())
+        copy.background = bg
+
+        var copiedLayers: [Layer] = []
+        for (i, layer) in layers.enumerated() {
+            let snap = layer.snapshot()
+            let newLayer = Layer(kind: snap.kind, name: snap.name)
+            newLayer.apply(snap)
+            newLayer.uuid = UUID()
+            newLayer.orderIndex = i
+            copiedLayers.append(newLayer)
+        }
+        copy.rawLayers = copiedLayers
+        return copy
+    }
+
     @discardableResult
     func duplicate(_ layer: Layer) -> Layer {
         recordUndo()
