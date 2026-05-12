@@ -74,7 +74,10 @@ struct GalleryView: View {
                         LazyVGrid(columns: columns, spacing: 20) {
                             ForEach(projects) { project in
                                 cell(for: project)
-                                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.6).combined(with: .opacity),
+                                        removal: .opacity.animation(.easeOut(duration: 0.12))
+                                    ))
                             }
                         }
                         .padding(20)
@@ -89,15 +92,6 @@ struct GalleryView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
-                    .disabled(isSelecting)
-                }
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(isSelecting ? "Done" : "Select") {
@@ -107,6 +101,18 @@ struct GalleryView: View {
                             }
                         }
                     }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                    .disabled(isSelecting)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -263,7 +269,7 @@ struct GalleryView: View {
             kind: .meshGradient,
             meshColors: preset.meshColors
         )
-        project.addTextOverlay()
+        project.addTextOverlay(text: "New")
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         withAnimation(.smooth(duration: 0.35)) {
