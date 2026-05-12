@@ -53,8 +53,10 @@ struct LayersBar: View {
 
     private var addButton: some View {
         Button {
-            let layer = project.addTextOverlay()
-            withSpring { session.selectLayer(layer.uuid) }
+            withSpring {
+                let layer = project.addTextOverlay()
+                session.selectLayer(layer.uuid)
+            }
             isSheetOpen = true
         } label: {
             let inset: CGFloat = 4
