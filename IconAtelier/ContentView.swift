@@ -118,6 +118,7 @@ struct ContentView: View {
                     ) {
                         Image(systemName: "square.and.arrow.up")
                     }
+                    .id(exportSignature)
                 }
             }
         }
