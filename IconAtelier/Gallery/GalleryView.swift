@@ -330,11 +330,7 @@ struct GalleryView: View {
 
     private func makeProject(seedingFor intent: CreationIntent) -> IconProject {
         let project = IconProject(title: "Untitled")
-        let preset = BackgroundPresets.mesh.randomElement() ?? BackgroundPresets.mesh[0]
-        project.background = Background(
-            kind: .meshGradient,
-            meshColors: preset.meshColors
-        )
+        project.background = Background(kind: .solid)
         // Only seed a default text layer for the Text intent so the project has
         // visible content immediately. The other intents add their own layer
         // (or a generation) inside the editor.
