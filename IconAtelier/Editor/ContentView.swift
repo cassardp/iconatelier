@@ -71,7 +71,7 @@ struct ContentView: View {
             }
 
             ToolbarItem(placement: .principal) {
-                HStack {
+                HStack(spacing: 20) {
                     Button {
                         project.undo()
                     } label: {

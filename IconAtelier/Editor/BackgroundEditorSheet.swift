@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct BackgroundEditorContent: View {
     @Bindable var project: IconProject

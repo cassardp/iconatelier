@@ -2,11 +2,10 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import ImageIO
-import UIKit
 
 struct GalleryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \IconProject.updatedAt, order: .reverse)
+    @Query(sort: \IconProject.createdAt, order: .reverse)
     private var projects: [IconProject]
 
     @State private var path = NavigationPath()
@@ -24,6 +23,7 @@ struct GalleryView: View {
     @State private var showPhotosPicker: Bool = false
     @State private var photoPickerItems: [PhotosPickerItem] = []
     @State private var showVoiceSheet: Bool = false
+    @State private var isCreateMenuOpen: Bool = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
@@ -60,41 +60,57 @@ struct GalleryView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
-                if projects.isEmpty {
-                    VStack(spacing: 16) {
-                        Text("Tap the + button")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Image(systemName: "arrow.down")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 100)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 20) {
-                            ForEach(projects) { project in
-                                cell(for: project)
-                                    .transition(.asymmetric(
-                                        insertion: .scale(scale: 0.6).combined(with: .opacity),
-                                        removal: .opacity.animation(.easeOut(duration: 0.12))
-                                    ))
-                            }
+            ZStack(alignment: .bottom) {
+                Group {
+                    if projects.isEmpty {
+                        VStack(spacing: 16) {
+                            Text("Tap the + button")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Image(systemName: "arrow.down")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
                         }
-                        .padding(20)
-                        .padding(.bottom, 80)
-                        .scaleEffect(pinchScale, anchor: .center)
-                        .animation(.smooth(duration: 0.35), value: columnCount)
-                        .animation(.smooth(duration: 0.35), value: projects.count)
-                        .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: pinchScale)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 100)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 20) {
+                                ForEach(projects) { project in
+                                    cell(for: project)
+                                        .transition(.asymmetric(
+                                            insertion: .scale(scale: 0.6).combined(with: .opacity),
+                                            removal: .opacity.animation(.easeOut(duration: 0.12))
+                                        ))
+                                }
+                            }
+                            .padding(20)
+                            .padding(.bottom, 80)
+                            .scaleEffect(pinchScale, anchor: .center)
+                            .animation(.smooth(duration: 0.35), value: columnCount)
+                            .animation(.smooth(duration: 0.35), value: projects.count)
+                            .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: pinchScale)
+                        }
+                        .simultaneousGesture(pinchGesture)
+                        .sensoryFeedback(.selection, trigger: columnCount)
                     }
-                    .simultaneousGesture(pinchGesture)
-                    .sensoryFeedback(.selection, trigger: columnCount)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                BottomProgressiveBlur(expanded: isCreateMenuOpen && !isSelecting)
+                    .ignoresSafeArea(edges: .bottom)
+                    .allowsHitTesting(false)
+
+                Group {
+                    if isSelecting {
+                        deleteSelectedButton
+                    } else {
+                        newProjectButton
+                    }
+                }
+                .padding(.bottom, 16)
             }
             .background(Color.appPageBackground.ignoresSafeArea())
             .toolbar {
@@ -120,16 +136,6 @@ struct GalleryView: View {
                     .accessibilityLabel("Settings")
                     .disabled(isSelecting)
                 }
-            }
-            .overlay(alignment: .bottom) {
-                Group {
-                    if isSelecting {
-                        deleteSelectedButton
-                    } else {
-                        newProjectButton
-                    }
-                }
-                .padding(.bottom, 16)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsSheet()
@@ -242,7 +248,7 @@ struct GalleryView: View {
     }
 
     private var newProjectButton: some View {
-        CreateRadialMenu(items: createItems)
+        CreateRadialMenu(items: createItems, isOpen: $isCreateMenuOpen)
     }
 
     private var createItems: [CreateActionItem] {
@@ -357,6 +363,31 @@ struct GalleryView: View {
             modelContext.delete(project)
         }
         try? modelContext.save()
+    }
+}
+
+private struct BottomProgressiveBlur: View {
+    var expanded: Bool
+
+    private var height: CGFloat { expanded ? 260 : 140 }
+
+    var body: some View {
+        Rectangle()
+            .fill(.ultraThickMaterial)
+            .mask(alignment: .bottom) {
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .black.opacity(0.35), location: 0.45),
+                        .init(color: .black, location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: height)
+                .frame(maxWidth: .infinity)
+            }
+            .animation(.smooth(duration: 0.32), value: expanded)
     }
 }
 

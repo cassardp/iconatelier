@@ -15,8 +15,7 @@ struct CreateActionItem: Identifiable, Equatable {
 
 struct CreateRadialMenu: View {
     let items: [CreateActionItem]
-
-    @State private var isOpen: Bool = false
+    @Binding var isOpen: Bool
 
     private let centerSize: CGFloat = 60
     private let miniSize: CGFloat = 60

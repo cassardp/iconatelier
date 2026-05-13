@@ -40,6 +40,7 @@ struct AIPhotoFlowBar: View {
     @State private var selectedAngle: AIFlowOption?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
+    @State private var isCreateMenuOpen: Bool = false
 
     static let styles: [AIFlowOption] = [
         .init(
@@ -185,7 +186,7 @@ struct AIPhotoFlowBar: View {
     var body: some View {
         Group {
             if step == .seed {
-                CreateRadialMenu(items: createItems)
+                CreateRadialMenu(items: createItems, isOpen: $isCreateMenuOpen)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.bottom, 16)
                     .transition(.opacity.combined(with: .scale(scale: 0.85)))
