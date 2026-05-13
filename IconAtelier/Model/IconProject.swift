@@ -52,7 +52,9 @@ final class IconProject {
 
     @Transient private var undoStack: [IconProjectSnapshot] = []
     @Transient private var redoStack: [IconProjectSnapshot] = []
+    @Transient private var lastRecordedAt: Date?
     private static let maxUndoSteps = 50
+    private static let coalesceWindow: TimeInterval = 0.5
 
     init(title: String = "Untitled") {
         self.title = title
@@ -139,6 +141,14 @@ final class IconProject {
     }
 
     func recordUndo() {
+        // Coalesce rapid-fire calls (e.g. SwiftUI ColorPicker drags) so a single
+        // edit session does not push dozens of snapshots. The "before" state is
+        // already captured by the first call in the window.
+        let now = Date()
+        if let last = lastRecordedAt, now.timeIntervalSince(last) < Self.coalesceWindow {
+            return
+        }
+        lastRecordedAt = now
         undoStack.append(currentSnapshot())
         if undoStack.count > Self.maxUndoSteps {
             undoStack.removeFirst(undoStack.count - Self.maxUndoSteps)
@@ -149,18 +159,21 @@ final class IconProject {
     func clearHistory() {
         undoStack.removeAll()
         redoStack.removeAll()
+        lastRecordedAt = nil
     }
 
     func undo() {
         guard let previous = undoStack.popLast() else { return }
         redoStack.append(currentSnapshot())
         apply(previous)
+        lastRecordedAt = nil
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
         undoStack.append(currentSnapshot())
         apply(next)
+        lastRecordedAt = nil
     }
 
     // MARK: - Layer add helpers

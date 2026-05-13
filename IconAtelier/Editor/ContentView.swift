@@ -143,6 +143,7 @@ struct ContentView: View {
         }
         .onDisappear {
             persistSnapshotInBackground()
+            project.clearHistory()
         }
         .alert(
             "Generation failed",
