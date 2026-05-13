@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 import ImageIO
+import UIKit
 
 struct GalleryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -19,6 +21,8 @@ struct GalleryView: View {
     @State private var pinchTriggered: Bool = false
     @State private var isPinching: Bool = false
     @GestureState private var pinchScale: CGFloat = 1.0
+    @State private var showPhotosPicker: Bool = false
+    @State private var photoPickerItems: [PhotosPickerItem] = []
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
@@ -129,8 +133,20 @@ struct GalleryView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsSheet()
             }
-            .navigationDestination(for: IconProject.self) { project in
-                ContentView(project: project)
+            .photosPicker(
+                isPresented: $showPhotosPicker,
+                selection: $photoPickerItems,
+                maxSelectionCount: 1,
+                matching: .images
+            )
+            .onChange(of: photoPickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                Task { await handlePickedPhoto(items) }
+            }
+            .navigationDestination(for: ProjectRoute.self) { route in
+                if let project = projects.first(where: { $0.uuid == route.projectUUID }) {
+                    ContentView(project: project, initialIntent: route.intent)
+                }
             }
             .alert(
                 "Rename icon",
@@ -165,7 +181,7 @@ struct GalleryView: View {
             if isSelecting {
                 toggleSelection(project)
             } else {
-                path.append(project)
+                path.append(ProjectRoute(projectUUID: project.uuid, intent: nil))
             }
         } label: {
             GalleryCell(
@@ -211,17 +227,47 @@ struct GalleryView: View {
     }
 
     private var newProjectButton: some View {
-        Button {
-            createNewProject()
-        } label: {
-            Image(systemName: "plus")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(width: 60, height: 60)
-                .background(Color.primary, in: .circle)
-                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-        }
-        .accessibilityLabel("New icon")
+        CreateRadialMenu(items: createItems)
+    }
+
+    private var createItems: [CreateActionItem] {
+        [
+            CreateActionItem(
+                id: "photo",
+                label: "Photo",
+                systemImage: "camera.fill",
+                color: .primary,
+                action: { showPhotosPicker = true }
+            ),
+            CreateActionItem(
+                id: "prompt",
+                label: "Prompt",
+                systemImage: "wand.and.stars",
+                color: .primary,
+                action: { createProjectAndOpen(intent: .prompt) }
+            ),
+            CreateActionItem(
+                id: "voice",
+                label: "Voice",
+                systemImage: "mic.fill",
+                color: .primary,
+                action: {}
+            ),
+            CreateActionItem(
+                id: "symbol",
+                label: "Symbol",
+                systemImage: "star.fill",
+                color: .primary,
+                action: { createProjectAndOpen(intent: .symbol) }
+            ),
+            CreateActionItem(
+                id: "text",
+                label: "Text",
+                systemImage: "textformat",
+                color: .primary,
+                action: { createProjectAndOpen(intent: .text) }
+            )
+        ]
     }
 
     private var deleteSelectedButton: some View {
@@ -262,20 +308,42 @@ struct GalleryView: View {
         selectedUUIDs.removeAll()
     }
 
-    private func createNewProject() {
+    private func createProjectAndOpen(intent: CreationIntent) {
+        let project = makeProject(seedingFor: intent)
+        path.append(ProjectRoute(projectUUID: project.uuid, intent: intent))
+    }
+
+    private func makeProject(seedingFor intent: CreationIntent) -> IconProject {
         let project = IconProject(title: "Untitled")
         let preset = BackgroundPresets.mesh.randomElement() ?? BackgroundPresets.mesh[0]
         project.background = Background(
             kind: .meshGradient,
             meshColors: preset.meshColors
         )
-        project.addTextOverlay(text: "New")
+        // Only seed a default text layer for the Text intent so the project has
+        // visible content immediately. The other intents add their own layer
+        // (or a generation) inside the editor.
+        if case .text = intent {
+            project.addTextOverlay(text: "New")
+        }
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         withAnimation(.smooth(duration: 0.35)) {
             modelContext.insert(project)
         }
         try? modelContext.save()
+        return project
+    }
+
+    private func handlePickedPhoto(_ items: [PhotosPickerItem]) async {
+        guard let first = items.first else { return }
+        let data = try? await first.loadTransferable(type: Data.self)
+        await MainActor.run {
+            photoPickerItems = []
+            guard let data, UIImage(data: data) != nil else { return }
+            let project = makeProject(seedingFor: .photo(data))
+            path.append(ProjectRoute(projectUUID: project.uuid, intent: .photo(data)))
+        }
     }
 
     private func duplicate(_ project: IconProject) {

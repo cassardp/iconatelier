@@ -8,6 +8,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @Bindable var project: IconProject
+    var initialIntent: CreationIntent? = nil
     private let service = OpenAIImageService()
 
     @State private var session = ProjectSession()
@@ -15,11 +16,10 @@ struct ContentView: View {
     @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
-    @State private var aiPromptText: String = ""
-    @State private var aiPromptImages: [UIImage] = []
     @State private var isGeneratingAI: Bool = false
     @State private var aiError: String?
-    @FocusState private var aiPromptFocused: Bool
+    @State private var initialPhoto: UIImage?
+    @State private var didConsumeInitialIntent: Bool = false
 
     var body: some View {
         GeometryReader { geo in
@@ -43,23 +43,17 @@ struct ContentView: View {
             .frame(width: geo.size.width, height: visibleHeight)
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             .contentShape(Rectangle())
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    if aiPromptFocused { aiPromptFocused = false }
-                }
-            )
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            AIPromptBar(
-                text: $aiPromptText,
-                attachments: $aiPromptImages,
-                placeholder: promptPlaceholder,
+            AIPhotoFlowBar(
                 isGenerating: isGeneratingAI,
-                canSubmit: canSubmitPrompt,
-                focused: $aiPromptFocused,
-                onGenerate: generate
+                initialPhoto: initialPhoto,
+                onGenerate: generateFromFlow,
+                onAddSymbol: addSymbolLayer,
+                onAddText: addTextLayer,
+                onAddPrompt: addPromptLayer
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -117,7 +111,6 @@ struct ContentView: View {
         }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
             if isOpen && !wasOpen {
-                aiPromptFocused = false
                 sheetDetent = .fraction(0.5)
             }
         }
@@ -137,6 +130,7 @@ struct ContentView: View {
                let topLayer = project.layers.last {
                 session.selectLayer(topLayer.uuid)
             }
+            consumeInitialIntent()
         }
         .onDisappear {
             persistSnapshotInBackground()
@@ -155,72 +149,60 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - AI prompt
+    // MARK: - AI generation
 
-    private enum PromptTarget {
-        case background
-        case overlay(layerID: UUID)
-    }
-
-    private var currentTarget: PromptTarget? {
-        if session.isBackgroundSelected { return .background }
-        if let id = session.selectedLayerUUID { return .overlay(layerID: id) }
-        return nil
-    }
-
-    private var promptPlaceholder: String {
-        switch currentTarget {
-        case .background: return "Describe a background…"
-        case .overlay:    return "Describe an image…"
-        case .none:       return "Select a layer or background…"
-        }
-    }
-
-    private var canSubmitPrompt: Bool {
-        !isGeneratingAI
-            && currentTarget != nil
-            && !aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func generate() {
-        guard let target = currentTarget else { return }
-        let trimmed = aiPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isGeneratingAI else { return }
-        let references = aiPromptImages
+    private func generateFromFlow(
+        photo: UIImage,
+        style: AIFlowOption,
+        angle: AIFlowOption
+    ) {
+        guard !isGeneratingAI else { return }
+        let prompt = "the main subject from the reference image, isolated on transparent background, rendered in \(style.label) style, viewed from \(angle.label)"
         isGeneratingAI = true
         aiError = nil
-        aiPromptFocused = false
         Task {
             do {
-                switch target {
-                case .background:
-                    let img = try await service.generateBackground(
-                        prompt: trimmed,
-                        references: references
-                    )
-                    project.setBackgroundAI(image: img, prompt: trimmed)
-                case .overlay(let layerID):
-                    let img = try await service.generateOverlay(
-                        prompt: trimmed,
-                        references: references
-                    )
-                    if let layer = project.layer(withID: layerID) {
-                        project.recordUndo()
-                        layer.kind = .aiOverlay
-                        layer.image = img
-                        layer.sourcePrompt = trimmed
-                        session.selectLayer(layer.uuid)
-                    } else {
-                        let layer = project.addAIOverlay(image: img, prompt: trimmed)
-                        session.selectLayer(layer.uuid)
-                    }
-                }
-                aiPromptText = ""
-                aiPromptImages = []
+                let img = try await service.generateOverlay(
+                    prompt: prompt,
+                    references: [photo]
+                )
+                let layer = project.addAIOverlay(image: img, prompt: prompt)
+                session.selectLayer(layer.uuid)
             } catch {
                 aiError = error.localizedDescription
             }
             isGeneratingAI = false
+        }
+    }
+
+    private func addSymbolLayer() {
+        let layer = project.addSymbolOverlay()
+        session.selectLayer(layer.uuid)
+    }
+
+    private func addTextLayer() {
+        let layer = project.addTextOverlay()
+        session.selectLayer(layer.uuid)
+    }
+
+    private func addPromptLayer() {
+        let layer = project.addEmptyAIOverlay()
+        session.selectLayer(layer.uuid)
+    }
+
+    private func consumeInitialIntent() {
+        guard !didConsumeInitialIntent, let intent = initialIntent else { return }
+        didConsumeInitialIntent = true
+        switch intent {
+        case .text:
+            // Gallery already seeded a text overlay; just select it.
+            if let last = project.layers.last { session.selectLayer(last.uuid) }
+        case .symbol:
+            addSymbolLayer()
+        case .prompt:
+            addPromptLayer()
+        case .photo(let data):
+            initialPhoto = UIImage(data: data)
         }
     }
 

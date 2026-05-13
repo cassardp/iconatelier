@@ -46,7 +46,9 @@ struct OpenAIImageService {
         A single centered subject rendered in the visual style of a premium iOS app icon glyph or illustration (simplified confident shapes, clean lines, dense saturated palette, soft polished lighting, App Store quality): \(userPrompt).
 
         STRICT REQUIREMENTS (must be respected):
-        - Fully transparent background. No background color, no gradient, no scene, no environment, no sky, no floor, no ground, no surface, no table, no wall, no stage.
+        - Fully transparent background. The output must be a PNG with a true alpha channel where every pixel that is not part of the subject is fully transparent (alpha = 0).
+        - No background color, no gradient, no scene, no environment, no sky, no floor, no ground, no surface, no table, no wall, no stage, no studio backdrop, no plain color fill.
+        - If a reference image is provided, use it ONLY as a guide for the subject's identity, shape, pose and proportions. Do NOT reproduce or carry over the reference image's background, sky, environment, ground, lighting, shadows, props, or any contextual element. The reference image's background must be completely discarded.
         - The subject is fully isolated, floating on transparency.
         - No shadow of any kind: no drop shadow, no cast shadow, no contact shadow, no ambient shadow under the object, no reflection, no glow halo on the ground.
         - Only ONE clearly defined object, with clean and crisp edges (alpha-cut style).

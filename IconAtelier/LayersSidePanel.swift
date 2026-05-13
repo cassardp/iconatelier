@@ -24,7 +24,6 @@ struct LayersBar: View {
         GeometryReader { geo in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.spacing) {
-                    addButton
                     ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
@@ -49,36 +48,6 @@ struct LayersBar: View {
             session.selectBackground()
             isSheetOpen = true
         }
-    }
-
-    private var addButton: some View {
-        Button {
-            withSpring {
-                let layer = project.addTextOverlay()
-                session.selectLayer(layer.uuid)
-            }
-            isSheetOpen = true
-        } label: {
-            let inset: CGFloat = 4
-            let innerSize = Self.thumbnailSize - inset * 2
-            RoundedRectangle(
-                cornerRadius: innerSize * 0.2237,
-                style: .continuous
-            )
-            .strokeBorder(
-                LayersBar.idleBorderColor,
-                style: StrokeStyle(lineWidth: LayersBar.borderWidth, dash: [4])
-            )
-            .overlay {
-                Image(systemName: "plus")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: innerSize, height: innerSize)
-            .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Add layer")
     }
 
     private func withSpring(_ action: () -> Void) {

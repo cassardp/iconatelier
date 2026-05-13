@@ -25,12 +25,6 @@ struct MeshPreset: Identifiable {
     let bottomRight: Color
 }
 
-struct AIPromptPreset: Identifiable {
-    let id = UUID()
-    let name: String
-    let prompt: String
-}
-
 // MARK: - Hex helper
 
 private extension Color {
@@ -215,83 +209,6 @@ enum BackgroundPresets {
               bottomRight: Color(hex: 0xE50000)),
     ]
 
-    static let aiPrompts: [AIPromptPreset] = [
-        .init(name: "Aurora",
-              prompt: "Smooth multi-color mesh gradient in the style of a modern iOS app icon background, soft aurora ribbons of teal, indigo and magenta blending seamlessly across the square"),
-        .init(name: "Holographic",
-              prompt: "Iridescent holographic foil surface in the style of a premium iOS app icon background, smooth chromatic shimmer of pink, cyan and violet, glossy finish"),
-        .init(name: "Glass Orb",
-              prompt: "Glassmorphism style iOS app icon background, soft translucent glass surface with gentle highlights, blurred pastel light behind frosted glass, depth and subtle reflections"),
-        .init(name: "Chrome",
-              prompt: "3D liquid chrome iOS app icon background, glossy metallic surface with smooth flowing highlights and soft color tints, premium luxurious finish"),
-        .init(name: "Sunset Sky",
-              prompt: "Illustrated dusk sky in the style of an iOS weather app icon background, smooth gradient from coral pink to warm orange to deep indigo, soft stylized cloud bands"),
-        .init(name: "Nebula",
-              prompt: "Stylized cosmic nebula iOS app icon background, deep indigo space with swirling blue and magenta gas clouds, scattered tiny stars, premium illustrated finish"),
-        .init(name: "Tropical",
-              prompt: "Illustrated tropical foliage iOS app icon background, lush stylized emerald palm leaves over turquoise gradient, soft directional light, vector-style polish"),
-        .init(name: "Marble",
-              prompt: "Realistic white marble iOS app icon background, polished stone surface with delicate gold veins, soft studio lighting, luxurious material texture"),
-        .init(name: "Synthwave",
-              prompt: "Synthwave neon iOS app icon background, glowing magenta-to-cyan gradient sky over a thin neon horizon grid, retro 80s premium illustration"),
-        .init(name: "Watercolor",
-              prompt: "Painterly watercolor iOS app icon background, soft blended washes of pastel pink and lavender on textured paper, organic pigment edges, hand-painted feel"),
-        .init(name: "Crystal",
-              prompt: "Faceted crystal iOS app icon background, low-poly translucent gemstone facets in pale pink and violet refracting soft light, geometric 3D render"),
-        .init(name: "Wave",
-              prompt: "Stylized ocean wave iOS app icon background, smooth turquoise water curves with soft white foam highlights, simplified illustration, polished finish"),
-        .init(name: "Forest",
-              prompt: "Atmospheric forest iOS app icon background, layered stylized pine silhouettes fading into soft teal mist, dreamy painterly depth"),
-        .init(name: "Blobs",
-              prompt: "Flat design iOS app icon background, soft overlapping pastel blobs in coral, mint and lavender on a cream backdrop, modern minimalist composition"),
-        .init(name: "Kraft Paper",
-              prompt: "Realistic kraft paper iOS app icon background, warm beige fibrous paper texture with subtle grain and soft directional light, tactile material finish"),
-        .init(name: "Galaxy",
-              prompt: "Stylized spiral galaxy iOS app icon background, soft pink and indigo gas spiral with dense star dust, painterly cosmic illustration, premium finish"),
-        .init(name: "Risograph",
-              prompt: "Risograph print iOS app icon background, overlapping warm pink and cool blue ink layers with visible grain and slight misregistration, retro screen print style"),
-        .init(name: "Velvet",
-              prompt: "Premium velvet iOS app icon background, rich deep fabric with soft sweeping folds catching warm light, burgundy blending into emerald, luxurious material"),
-    ]
-
-    static let overlayPrompts: [AIPromptPreset] = [
-        .init(name: "Coffee",
-              prompt: "Steaming cup of latte art coffee seen from above, simplified iOS app icon glyph style, warm cream and brown tones"),
-        .init(name: "Camera",
-              prompt: "Vintage rangefinder camera front view, simplified iOS app icon glyph style, deep navy body with brushed silver lens ring"),
-        .init(name: "Calendar",
-              prompt: "Single calendar page with a bold number, simplified iOS app icon glyph style, crisp white card with red top band"),
-        .init(name: "Compass",
-              prompt: "Classic navigation compass top view, simplified iOS app icon glyph style, brass rim with red and white needle"),
-        .init(name: "Bolt",
-              prompt: "Lightning bolt symbol, simplified iOS app icon glyph style, vivid yellow with soft inner highlight"),
-        .init(name: "Heart",
-              prompt: "Plump glossy heart shape, simplified iOS app icon glyph style, vivid coral red with soft top highlight"),
-        .init(name: "Music",
-              prompt: "Single beamed eighth music note, simplified iOS app icon glyph style, glossy black with soft highlight"),
-        .init(name: "Lock",
-              prompt: "Padlock front view, simplified iOS app icon glyph style, polished gold body with brushed shackle"),
-        .init(name: "Rocket",
-              prompt: "Cartoon rocket pointing up, simplified iOS app icon glyph style, white body with red fins and round porthole"),
-        .init(name: "Book",
-              prompt: "Closed hardcover book seen at a slight angle, simplified iOS app icon glyph style, rich emerald cover with gold trim"),
-        .init(name: "Cloud",
-              prompt: "Plump rounded cloud shape, simplified iOS app icon glyph style, soft white with subtle pastel blue shading"),
-        .init(name: "Pencil",
-              prompt: "Sharpened classic pencil at a slight diagonal, simplified iOS app icon glyph style, warm yellow body with black tip and pink eraser"),
-        .init(name: "Crown",
-              prompt: "Five-point royal crown, simplified iOS app icon glyph style, polished gold with small jewel accents"),
-        .init(name: "Diamond",
-              prompt: "Brilliant-cut diamond facing the viewer, simplified iOS app icon glyph style, pale cyan facets with sharp prismatic highlights"),
-        .init(name: "Flame",
-              prompt: "Stylized flame shape, simplified iOS app icon glyph style, gradient from deep red base to bright yellow tip"),
-        .init(name: "Globe",
-              prompt: "Stylized earth globe seen from the front, simplified iOS app icon glyph style, vivid blue oceans with green continents"),
-        .init(name: "Headphones",
-              prompt: "Over-ear studio headphones front view, simplified iOS app icon glyph style, matte black with chrome accents"),
-        .init(name: "Star",
-              prompt: "Plump five-point star, simplified iOS app icon glyph style, glossy bright yellow with soft inner highlight"),
-    ]
 }
 
 // MARK: - Mesh helper
