@@ -55,32 +55,28 @@ struct SettingsSheet: View {
 
                 Section {
                     Button(action: exportLibrary) {
-                        HStack {
-                            Label("Export library", systemImage: "arrow.up.doc")
-                            Spacer()
-                            if isExporting {
-                                ProgressView()
-                            }
-                        }
+                        backupRow(
+                            title: "Export Library",
+                            systemImage: "square.and.arrow.up",
+                            busy: isExporting
+                        )
                     }
                     .disabled(isExporting || isImporting)
 
                     Button {
                         isPickingImport = true
                     } label: {
-                        HStack {
-                            Label("Import library", systemImage: "arrow.down.doc")
-                            Spacer()
-                            if isImporting {
-                                ProgressView()
-                            }
-                        }
+                        backupRow(
+                            title: "Import Library",
+                            systemImage: "square.and.arrow.down",
+                            busy: isImporting
+                        )
                     }
                     .disabled(isExporting || isImporting)
                 } header: {
                     Text("Backup")
                 } footer: {
-                    Text("Save all your projects to a zip file (Files, AirDrop, email), or restore one. Import skips projects that already exist.")
+                    Text("Back up your projects to a zip file you can share via Files, AirDrop, or email. Importing skips projects already in your library.")
                 }
             }
             .navigationTitle("Settings")
@@ -102,6 +98,12 @@ struct SettingsSheet: View {
             .sheet(item: $exportFile) { file in
                 ExportShareView(file: file)
                     .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(item: $importResult) { result in
+                ImportSuccessView(result: result)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
             }
             .fileImporter(
                 isPresented: $isPickingImport,
@@ -139,17 +141,21 @@ struct SettingsSheet: View {
             } message: { error in
                 Text(error)
             }
-            .alert(
-                "Import complete",
-                isPresented: Binding(
-                    get: { importResult != nil },
-                    set: { if !$0 { importResult = nil } }
-                ),
-                presenting: importResult
-            ) { _ in
-                Button("OK", role: .cancel) { importResult = nil }
-            } message: { result in
-                Text(result.message)
+        }
+    }
+
+    @ViewBuilder
+    private func backupRow(title: String, systemImage: String, busy: Bool) -> some View {
+        HStack {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage)
+                    .symbolRenderingMode(.hierarchical)
+            }
+            Spacer()
+            if busy {
+                ProgressView().controlSize(.small)
             }
         }
     }
@@ -228,45 +234,60 @@ private struct ImportResult: Identifiable {
     let importedCount: Int
     let skippedCount: Int
     let id = UUID()
-
-    var message: String {
-        let importedLabel = "\(importedCount) project\(importedCount == 1 ? "" : "s") imported"
-        if skippedCount > 0 {
-            let skipLabel = "\(skippedCount) skipped (already in your library)"
-            return "\(importedLabel) · \(skipLabel)."
-        }
-        return importedLabel + "."
-    }
 }
 
 private struct ExportShareView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var bounce: Int = 0
     let file: ExportFile
 
     private var sizeText: String {
         ByteCountFormatStyle(style: .file).format(Int64(file.byteSize))
     }
 
+    private var projectsText: String {
+        "\(file.projectCount) project\(file.projectCount == 1 ? "" : "s") · \(sizeText)"
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Spacer()
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 56))
+            VStack(spacing: 24) {
+                Spacer(minLength: 8)
+
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 64))
+                    .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: bounce)
+
                 VStack(spacing: 6) {
                     Text("Library exported")
                         .font(.title3.weight(.semibold))
-                    Text("\(file.projectCount) project\(file.projectCount == 1 ? "" : "s") · \(sizeText)")
+                    Text(projectsText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
+                Text(file.url.lastPathComponent)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 8))
+                    .padding(.horizontal)
+
+                Spacer()
+
                 ShareLink(
                     item: file.url,
-                    preview: SharePreview("IconAtelier Library", image: Image(systemName: "doc.text"))
+                    preview: SharePreview(
+                        "IconAtelier Library",
+                        image: Image(systemName: "archivebox.fill")
+                    )
                 ) {
-                    Label("Save or share file", systemImage: "square.and.arrow.up")
+                    Label("Save or Share", systemImage: "square.and.arrow.up")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -274,9 +295,8 @@ private struct ExportShareView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .padding(.horizontal)
-                Spacer()
             }
-            .padding()
+            .padding(.vertical)
             .navigationTitle("Backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -284,6 +304,83 @@ private struct ExportShareView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .onAppear { bounce += 1 }
+        }
+    }
+}
+
+private struct ImportSuccessView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var bounce: Int = 0
+    let result: ImportResult
+
+    private var title: String {
+        if result.importedCount == 0 {
+            return "Nothing new to import"
+        }
+        return result.importedCount == 1 ? "1 project imported" : "\(result.importedCount) projects imported"
+    }
+
+    private var subtitle: String? {
+        guard result.skippedCount > 0 else { return nil }
+        return "\(result.skippedCount) skipped — already in your library"
+    }
+
+    private var symbolName: String {
+        result.importedCount == 0 ? "checkmark.circle.fill" : "checkmark.seal.fill"
+    }
+
+    private var symbolTint: Color {
+        result.importedCount == 0 ? .secondary : .green
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                Spacer(minLength: 8)
+
+                Image(systemName: symbolName)
+                    .font(.system(size: 64))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(symbolTint)
+                    .symbolEffect(.bounce, value: bounce)
+
+                VStack(spacing: 6) {
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .padding(.horizontal)
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal)
+            }
+            .padding(.vertical)
+            .navigationTitle("Backup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .onAppear { bounce += 1 }
         }
     }
 }
