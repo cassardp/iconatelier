@@ -131,7 +131,6 @@ struct GalleryView: View {
             }
             .navigationDestination(for: IconProject.self) { project in
                 ContentView(project: project)
-                    .navigationTransition(.zoom(sourceID: project.uuid, in: galleryNamespace))
             }
             .alert(
                 "Rename icon",

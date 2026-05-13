@@ -3,11 +3,8 @@ import UIKit
 import CoreText
 
 struct IconCanvasView: View {
-    enum SwipeDirection { case left, right }
-
     @Bindable var project: IconProject
     let session: ProjectSession
-    var onSwipe: (SwipeDirection) -> Void = { _ in }
 
     @GestureState private var dragSnap: DragSnapState = DragSnapState()
     @GestureState private var gestureScale: CGFloat = 1.0
@@ -72,13 +69,11 @@ struct IconCanvasView: View {
             let canvasSide = min(geo.size.width, geo.size.height)
             ZStack {
                 squircleIcon(side: canvasSide)
-                    .contentShape(Rectangle())
-                    .highPriorityGesture(canvasGesture(side: canvasSide))
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .geometryGroup()
             .contentShape(Rectangle())
-            .gesture(swipeGesture)
+            .highPriorityGesture(canvasGesture(side: canvasSide))
             .onTapGesture {
                 UIApplication.shared.sendAction(
                     #selector(UIResponder.resignFirstResponder),
@@ -86,16 +81,6 @@ struct IconCanvasView: View {
                 )
             }
         }
-    }
-
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { value in
-                let h = value.translation.width
-                let v = value.translation.height
-                guard abs(h) > abs(v), abs(h) > 60 else { return }
-                onSwipe(h > 0 ? .right : .left)
-            }
     }
 
     private var selectedOverlay: Layer? {
