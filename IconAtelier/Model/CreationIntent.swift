@@ -1,7 +1,9 @@
 import Foundation
+import SwiftUI
+import PhotosUI
 
 enum CreationIntent: Hashable {
-    case photo(Data)
+    case photo(PhotosPickerItem)
     case prompt
     case voice(String)
     case symbol

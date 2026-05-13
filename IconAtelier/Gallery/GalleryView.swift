@@ -141,8 +141,15 @@ struct GalleryView: View {
                 matching: .images
             )
             .onChange(of: photoPickerItems) { _, items in
-                guard !items.isEmpty else { return }
-                Task { await handlePickedPhoto(items) }
+                guard let first = items.first else { return }
+                photoPickerItems = []
+                // Push the editor synchronously so the route is on the stack
+                // before the PhotosPicker finishes dismissing — otherwise the
+                // gallery briefly reappears between picker dismissal and the
+                // async data load completing. The editor will await the
+                // PhotosPickerItem's data itself.
+                let project = makeProject(seedingFor: .photo(first))
+                path.append(ProjectRoute(projectUUID: project.uuid, intent: .photo(first)))
             }
             .sheet(isPresented: $showVoiceSheet) {
                 VoiceCaptureSheet { transcript in
@@ -341,17 +348,6 @@ struct GalleryView: View {
         }
         try? modelContext.save()
         return project
-    }
-
-    private func handlePickedPhoto(_ items: [PhotosPickerItem]) async {
-        guard let first = items.first else { return }
-        let data = try? await first.loadTransferable(type: Data.self)
-        await MainActor.run {
-            photoPickerItems = []
-            guard let data, UIImage(data: data) != nil else { return }
-            let project = makeProject(seedingFor: .photo(data))
-            path.append(ProjectRoute(projectUUID: project.uuid, intent: .photo(data)))
-        }
     }
 
     private func duplicate(_ project: IconProject) {

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 import UIKit
 
 struct ContentView: View {
@@ -221,8 +222,17 @@ struct ContentView: View {
             addPromptLayer()
         case .voice(let transcript):
             aiSeed = .prompt(transcript)
-        case .photo(let data):
-            if let image = UIImage(data: data) { aiSeed = .photo(image) }
+        case .photo(let item):
+            // Data load happens here (not in the gallery) so the editor can
+            // push immediately when the picker dismisses, avoiding a flash
+            // of the gallery between dismissal and navigation.
+            Task {
+                guard
+                    let data = try? await item.loadTransferable(type: Data.self),
+                    let image = UIImage(data: data)
+                else { return }
+                aiSeed = .photo(image)
+            }
         }
     }
 
