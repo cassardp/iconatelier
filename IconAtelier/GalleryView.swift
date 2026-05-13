@@ -23,6 +23,7 @@ struct GalleryView: View {
     @GestureState private var pinchScale: CGFloat = 1.0
     @State private var showPhotosPicker: Bool = false
     @State private var photoPickerItems: [PhotosPickerItem] = []
+    @State private var showVoiceSheet: Bool = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
@@ -143,6 +144,13 @@ struct GalleryView: View {
                 guard !items.isEmpty else { return }
                 Task { await handlePickedPhoto(items) }
             }
+            .sheet(isPresented: $showVoiceSheet) {
+                VoiceCaptureSheet { transcript in
+                    let project = makeProject(seedingFor: .voice(transcript))
+                    path.append(ProjectRoute(projectUUID: project.uuid, intent: .voice(transcript)))
+                }
+                .presentationDetents([.medium, .large])
+            }
             .navigationDestination(for: ProjectRoute.self) { route in
                 if let project = projects.first(where: { $0.uuid == route.projectUUID }) {
                     ContentView(project: project, initialIntent: route.intent)
@@ -251,7 +259,7 @@ struct GalleryView: View {
                 label: "Voice",
                 systemImage: "mic.fill",
                 color: .primary,
-                action: {}
+                action: { showVoiceSheet = true }
             ),
             CreateActionItem(
                 id: "symbol",

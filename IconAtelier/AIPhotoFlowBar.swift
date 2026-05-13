@@ -10,22 +10,28 @@ struct AIFlowOption: Identifiable, Hashable {
     let color: Color
 }
 
+// MARK: - Seed
+
+enum AIFlowSeed: Equatable {
+    case photo(UIImage)
+    case prompt(String)
+}
+
 // MARK: - Bar
 
 struct AIPhotoFlowBar: View {
     let isGenerating: Bool
-    var initialPhoto: UIImage? = nil
-    let onGenerate: (UIImage, AIFlowOption, AIFlowOption) -> Void
+    @Binding var seed: AIFlowSeed?
+    let onGenerate: (AIFlowSeed, AIFlowOption, AIFlowOption) -> Void
     let onAddSymbol: () -> Void
     let onAddText: () -> Void
     let onAddPrompt: () -> Void
+    let onAddVoice: () -> Void
 
-    @State private var photo: UIImage?
     @State private var selectedStyle: AIFlowOption?
     @State private var selectedAngle: AIFlowOption?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
-    @State private var didSeedFromInitial: Bool = false
 
     static let styles: [AIFlowOption] = [
         .init(id: "pixar",      label: "Pixar",      color: Color(red: 1.00, green: 0.55, blue: 0.00)),
@@ -47,10 +53,10 @@ struct AIPhotoFlowBar: View {
         .init(id: "isometric",     label: "Isometric", color: Color(red: 0.30, green: 0.45, blue: 0.85))
     ]
 
-    private enum Step: Hashable { case photo, style, angle, ready }
+    private enum Step: Hashable { case seed, style, angle, ready }
 
     private var step: Step {
-        if photo == nil { return .photo }
+        if seed == nil { return .seed }
         if selectedStyle == nil { return .style }
         if selectedAngle == nil { return .angle }
         return .ready
@@ -79,7 +85,7 @@ struct AIPhotoFlowBar: View {
                 label: "Voice",
                 systemImage: "mic.fill",
                 color: .primary,
-                action: {}
+                action: onAddVoice
             ),
             CreateActionItem(
                 id: "symbol",
@@ -100,7 +106,7 @@ struct AIPhotoFlowBar: View {
 
     var body: some View {
         Group {
-            if step == .photo {
+            if step == .seed {
                 CreateRadialMenu(items: createItems)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.bottom, 16)
@@ -121,14 +127,6 @@ struct AIPhotoFlowBar: View {
             guard !items.isEmpty else { return }
             Task { await loadPhoto(items) }
         }
-        .onAppear { seedFromInitialIfNeeded() }
-        .onChange(of: initialPhoto) { _, _ in seedFromInitialIfNeeded() }
-    }
-
-    private func seedFromInitialIfNeeded() {
-        guard !didSeedFromInitial, let initialPhoto else { return }
-        photo = initialPhoto
-        didSeedFromInitial = true
     }
 
     // MARK: - Full bar (summary + carousel/send)
@@ -139,7 +137,7 @@ struct AIPhotoFlowBar: View {
 
             Group {
                 switch step {
-                case .photo:
+                case .seed:
                     EmptyView()
                 case .style:
                     carousel(title: "Pick a style", options: Self.styles) { selectedStyle = $0 }
@@ -164,17 +162,7 @@ struct AIPhotoFlowBar: View {
 
     private var summary: some View {
         HStack(spacing: 8) {
-            if let photo {
-                Image(uiImage: photo)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-            }
+            seedView
 
             if let style = selectedStyle {
                 chip(label: style.label, color: style.color) {
@@ -199,9 +187,49 @@ struct AIPhotoFlowBar: View {
             .buttonStyle(.plain)
             .disabled(isGenerating)
             .opacity(isGenerating ? 0.4 : 1)
-            .accessibilityLabel("Reset photo flow")
+            .accessibilityLabel("Reset flow")
         }
         .padding(.horizontal, 2)
+    }
+
+    @ViewBuilder
+    private var seedView: some View {
+        switch seed {
+        case .photo(let image):
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        case .prompt(let text):
+            HStack(spacing: 6) {
+                Image(systemName: "text.quote")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(text)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 200, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        case .none:
+            EmptyView()
+        }
     }
 
     private func chip(label: String, color: Color, onRemove: @escaping () -> Void) -> some View {
@@ -302,12 +330,12 @@ struct AIPhotoFlowBar: View {
     // MARK: - Actions
 
     private func submit() {
-        guard let photo, let style = selectedStyle, let angle = selectedAngle else { return }
-        onGenerate(photo, style, angle)
+        guard let seed, let style = selectedStyle, let angle = selectedAngle else { return }
+        onGenerate(seed, style, angle)
     }
 
     private func reset() {
-        photo = nil
+        seed = nil
         selectedStyle = nil
         selectedAngle = nil
         pickerItems = []
@@ -318,7 +346,7 @@ struct AIPhotoFlowBar: View {
         let data = try? await first.loadTransferable(type: Data.self)
         await MainActor.run {
             if let data, let image = UIImage(data: data) {
-                photo = image
+                seed = .photo(image)
             }
             pickerItems = []
         }

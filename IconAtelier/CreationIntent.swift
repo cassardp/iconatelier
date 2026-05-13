@@ -3,6 +3,7 @@ import Foundation
 enum CreationIntent: Hashable {
     case photo(Data)
     case prompt
+    case voice(String)
     case symbol
     case text
 }

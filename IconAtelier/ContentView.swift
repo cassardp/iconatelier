@@ -18,8 +18,9 @@ struct ContentView: View {
 
     @State private var isGeneratingAI: Bool = false
     @State private var aiError: String?
-    @State private var initialPhoto: UIImage?
+    @State private var aiSeed: AIFlowSeed?
     @State private var didConsumeInitialIntent: Bool = false
+    @State private var showVoiceSheet: Bool = false
 
     var body: some View {
         GeometryReader { geo in
@@ -49,11 +50,12 @@ struct ContentView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             AIPhotoFlowBar(
                 isGenerating: isGeneratingAI,
-                initialPhoto: initialPhoto,
+                seed: $aiSeed,
                 onGenerate: generateFromFlow,
                 onAddSymbol: addSymbolLayer,
                 onAddText: addTextLayer,
-                onAddPrompt: addPromptLayer
+                onAddPrompt: addPromptLayer,
+                onAddVoice: { showVoiceSheet = true }
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -109,6 +111,12 @@ struct ContentView: View {
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
         }
+        .sheet(isPresented: $showVoiceSheet) {
+            VoiceCaptureSheet { transcript in
+                aiSeed = .prompt(transcript)
+            }
+            .presentationDetents([.medium, .large])
+        }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
             if isOpen && !wasOpen {
                 sheetDetent = .fraction(0.5)
@@ -152,19 +160,29 @@ struct ContentView: View {
     // MARK: - AI generation
 
     private func generateFromFlow(
-        photo: UIImage,
+        seed: AIFlowSeed,
         style: AIFlowOption,
         angle: AIFlowOption
     ) {
         guard !isGeneratingAI else { return }
-        let prompt = "the main subject from the reference image, isolated on transparent background, rendered in \(style.label) style, viewed from \(angle.label)"
+        let prompt: String
+        let references: [UIImage]
+        switch seed {
+        case .photo(let image):
+            prompt = "the main subject from the reference image, isolated on transparent background, rendered in \(style.label) style, viewed from \(angle.label)"
+            references = [image]
+        case .prompt(let text):
+            let subject = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            prompt = "\(subject), isolated on transparent background, rendered in \(style.label) style, viewed from \(angle.label)"
+            references = []
+        }
         isGeneratingAI = true
         aiError = nil
         Task {
             do {
                 let img = try await service.generateOverlay(
                     prompt: prompt,
-                    references: [photo]
+                    references: references
                 )
                 let layer = project.addAIOverlay(image: img, prompt: prompt)
                 session.selectLayer(layer.uuid)
@@ -201,8 +219,10 @@ struct ContentView: View {
             addSymbolLayer()
         case .prompt:
             addPromptLayer()
+        case .voice(let transcript):
+            aiSeed = .prompt(transcript)
         case .photo(let data):
-            initialPhoto = UIImage(data: data)
+            if let image = UIImage(data: data) { aiSeed = .photo(image) }
         }
     }
 
