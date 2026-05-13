@@ -21,6 +21,7 @@ final class Background {
     var storedLinearStart: StoredPoint = StoredPoint(x: 0, y: 0)
     var storedLinearEnd: StoredPoint = StoredPoint(x: 1, y: 1)
     var storedGradientCenter: StoredPoint = StoredPoint(x: 0.5, y: 0.5)
+    var radialSpread: Double = 0.75
     var storedMeshColors: [StoredColor] = []
     var meshRotationDegrees: Double = 0
 
@@ -122,6 +123,7 @@ struct BackgroundSnapshot {
     let linearStart: StoredPoint
     let linearEnd: StoredPoint
     let gradientCenter: StoredPoint
+    let radialSpread: Double
     let meshColors: [StoredColor]
     let meshRotationDegrees: Double
     let aiImagePNG: Data?
@@ -138,6 +140,7 @@ extension Background {
             linearStart: storedLinearStart,
             linearEnd: storedLinearEnd,
             gradientCenter: storedGradientCenter,
+            radialSpread: radialSpread,
             meshColors: storedMeshColors,
             meshRotationDegrees: meshRotationDegrees,
             aiImagePNG: aiImagePNG,
@@ -153,6 +156,7 @@ extension Background {
         storedLinearStart = s.linearStart
         storedLinearEnd = s.linearEnd
         storedGradientCenter = s.gradientCenter
+        radialSpread = s.radialSpread
         storedMeshColors = s.meshColors
         meshRotationDegrees = s.meshRotationDegrees
         aiImagePNG = s.aiImagePNG

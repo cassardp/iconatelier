@@ -76,6 +76,8 @@ struct BackgroundEditorContent: View {
         case .radialGradient:
             radialPresetsSection(for: background)
             SectionDivider()
+            radialSpreadSection(for: background)
+            SectionDivider()
             gradientStopsSection(for: background)
         case .meshGradient:
             meshPresetsSection(for: background)
@@ -103,6 +105,23 @@ struct BackgroundEditorContent: View {
                     background.linearStart = preset.start
                     background.linearEnd = preset.end
                 }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func radialSpreadSection(for background: Background) -> some View {
+        PanelSection(title: "Spread") {
+            DialSliderRow(
+                label: "Size",
+                value: Binding(
+                    get: { background.radialSpread },
+                    set: { background.radialSpread = $0 }
+                ),
+                range: 0.2 ... 1.5,
+                valueText: { String(format: "%.0f%%", $0 * 100) },
+                defaultValue: 0.75,
+                onBeginEditing: { project.recordUndo() }
             )
         }
     }

@@ -261,7 +261,7 @@ struct BackgroundView: View {
                     colors: background.gradientColors,
                     center: background.gradientCenter,
                     startRadius: 0,
-                    endRadius: side * 0.75
+                    endRadius: side * CGFloat(background.radialSpread)
                 )
             case .meshGradient:
                 meshView
