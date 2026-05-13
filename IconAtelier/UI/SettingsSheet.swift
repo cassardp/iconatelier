@@ -261,11 +261,15 @@ private struct ExportShareView: View {
                     .symbolEffect(.bounce, value: bounce)
 
                 VStack(spacing: 6) {
-                    Text("Library exported")
+                    Text("Backup ready")
                         .font(.title3.weight(.semibold))
                     Text(projectsText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    Text("Choose where to save it below")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
                 }
 
                 Text(file.url.lastPathComponent)
