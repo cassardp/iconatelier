@@ -93,6 +93,7 @@ struct GalleryView: View {
                             .animation(.smooth(duration: 0.35), value: projects.count)
                             .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: pinchScale)
                         }
+                        .scrollIndicators(.hidden)
                         .simultaneousGesture(pinchGesture)
                         .sensoryFeedback(.selection, trigger: columnCount)
                     }
