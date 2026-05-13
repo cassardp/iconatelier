@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "Photo enregistrée.png",
+      "filename" : "Icon-Atelier-light.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "icon-dark-1024.png",
+      "filename" : "Icon-Atelier-dark.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "icon-tinted-1024.png",
+      "filename" : "Icon-Atelier-tinted.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
