@@ -7,7 +7,15 @@ import UIKit
 struct AIFlowOption: Identifiable, Hashable {
     let id: String
     let label: String
+    let promptFragment: String
     let color: Color
+
+    init(id: String, label: String, promptFragment: String? = nil, color: Color) {
+        self.id = id
+        self.label = label
+        self.promptFragment = promptFragment ?? label
+        self.color = color
+    }
 }
 
 // MARK: - Seed
@@ -34,14 +42,84 @@ struct AIPhotoFlowBar: View {
     @State private var showPhotosPicker: Bool = false
 
     static let styles: [AIFlowOption] = [
-        .init(id: "pixar",      label: "Pixar",      color: Color(red: 1.00, green: 0.55, blue: 0.00)),
-        .init(id: "clay",       label: "Claymation", color: Color(red: 0.82, green: 0.42, blue: 0.30)),
-        .init(id: "neon",       label: "Neon",       color: Color(red: 0.95, green: 0.15, blue: 0.55)),
-        .init(id: "watercolor", label: "Watercolor", color: Color(red: 0.30, green: 0.60, blue: 0.85)),
-        .init(id: "comic",      label: "Comic",      color: Color(red: 0.98, green: 0.78, blue: 0.10)),
-        .init(id: "cyberpunk",  label: "Cyberpunk",  color: Color(red: 0.45, green: 0.20, blue: 0.75)),
-        .init(id: "lowpoly",    label: "Low Poly",   color: Color(red: 0.20, green: 0.65, blue: 0.55)),
-        .init(id: "sticker",    label: "Sticker",    color: Color(red: 1.00, green: 0.35, blue: 0.40))
+        .init(
+            id: "flat-vector",
+            label: "Flat Vector",
+            promptFragment: "flat vector illustration, clean shapes, smooth gradients, sharp crisp edges",
+            color: Color(red: 0.20, green: 0.50, blue: 0.95)
+        ),
+        .init(
+            id: "flat-mono",
+            label: "Flat Mono",
+            promptFragment: "flat monochrome vector silhouette filled with pure solid white (#FFFFFF) only, no shading, no gradients, no outline, no border, fully transparent background, designed to be tintable",
+            color: Color(red: 0.30, green: 0.30, blue: 0.35)
+        ),
+        .init(
+            id: "sketch-to-logo",
+            label: "Sketch to Logo",
+            promptFragment: "transformed into a clean geometric vector logo, refined balanced shapes, professional brand mark",
+            color: Color(red: 0.55, green: 0.40, blue: 0.80)
+        ),
+        .init(
+            id: "line-art",
+            label: "Line Art",
+            promptFragment: "clean line art, thin even strokes, outline only, no fill, minimal elegant",
+            color: Color(red: 0.15, green: 0.55, blue: 0.65)
+        ),
+        .init(
+            id: "glyph",
+            label: "Glyph",
+            promptFragment: "solid silhouette glyph pictogram, single color, system icon style",
+            color: Color(red: 0.40, green: 0.45, blue: 0.55)
+        ),
+        .init(
+            id: "3d-render",
+            label: "3D Render",
+            promptFragment: "3D rendered icon, soft studio lighting, smooth glossy surfaces, modern app icon",
+            color: Color(red: 1.00, green: 0.55, blue: 0.00)
+        ),
+        .init(
+            id: "pixar",
+            label: "Pixar",
+            promptFragment: "expressive 3D cartoon character, soft warm cinematic lighting, Pixar-like animated film look",
+            color: Color(red: 1.00, green: 0.75, blue: 0.20)
+        ),
+        .init(
+            id: "clay",
+            label: "Claymation",
+            promptFragment: "claymation style, soft modeling clay, tactile sculpted texture",
+            color: Color(red: 0.82, green: 0.42, blue: 0.30)
+        ),
+        .init(
+            id: "isometric",
+            label: "Isometric",
+            promptFragment: "isometric illustration, 3D axonometric perspective, clean vector",
+            color: Color(red: 0.30, green: 0.45, blue: 0.85)
+        ),
+        .init(
+            id: "sticker",
+            label: "Sticker",
+            promptFragment: "sticker with thick white outline and soft drop shadow",
+            color: Color(red: 1.00, green: 0.35, blue: 0.40)
+        ),
+        .init(
+            id: "pixel-art",
+            label: "Pixel Art",
+            promptFragment: "16-bit pixel art, crisp pixels, retro game icon",
+            color: Color(red: 0.20, green: 0.65, blue: 0.55)
+        ),
+        .init(
+            id: "paper-cut",
+            label: "Paper Cut",
+            promptFragment: "layered paper cut illustration, stacked colored paper, soft shadows between layers",
+            color: Color(red: 0.95, green: 0.65, blue: 0.40)
+        ),
+        .init(
+            id: "gradient-mesh",
+            label: "Gradient Mesh",
+            promptFragment: "smooth gradient mesh, vibrant glossy colors, modern app icon",
+            color: Color(red: 0.95, green: 0.30, blue: 0.65)
+        )
     ]
 
     static let angles: [AIFlowOption] = [

@@ -176,15 +176,15 @@ struct OpenAIImageService {
         }
 
         for (index, image) in references.enumerated() {
-            guard let pngData = Self.preparePNGSquare(image) else {
+            guard let jpegData = Self.prepareJPEGSquare(image) else {
                 throw OpenAIImageError.imageEncoding
             }
             body.append("--\(boundary)\r\n")
             body.append(
-                "Content-Disposition: form-data; name=\"image[]\"; filename=\"ref_\(index).png\"\r\n"
+                "Content-Disposition: form-data; name=\"image[]\"; filename=\"ref_\(index).jpg\"\r\n"
             )
-            body.append("Content-Type: image/png\r\n\r\n")
-            body.append(pngData)
+            body.append("Content-Type: image/jpeg\r\n\r\n")
+            body.append(jpegData)
             body.append("\r\n")
         }
 
@@ -209,19 +209,43 @@ struct OpenAIImageService {
         format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: target, format: format)
         return renderer.pngData { _ in
-            let sourceSize = image.size
-            guard sourceSize.width > 0, sourceSize.height > 0 else { return }
-            let scale = max(side / sourceSize.width, side / sourceSize.height)
-            let drawSize = CGSize(
-                width: sourceSize.width * scale,
-                height: sourceSize.height * scale
-            )
-            let origin = CGPoint(
-                x: (side - drawSize.width) / 2,
-                y: (side - drawSize.height) / 2
-            )
-            image.draw(in: CGRect(origin: origin, size: drawSize))
+            drawAspectFill(image, into: target)
         }
+    }
+
+    // Photo references have no alpha — JPEG is ~5–10× smaller than PNG at
+    // visually equivalent quality, which dramatically reduces upload time
+    // to OpenAI. The /images/edits endpoint accepts JPG, PNG, and WEBP.
+    static func prepareJPEGSquare(
+        _ image: UIImage,
+        side: CGFloat = 1024,
+        quality: CGFloat = 0.85
+    ) -> Data? {
+        let target = CGSize(width: side, height: side)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: target, format: format)
+        return renderer.jpegData(withCompressionQuality: quality) { _ in
+            UIColor.black.setFill()
+            UIRectFill(CGRect(origin: .zero, size: target))
+            drawAspectFill(image, into: target)
+        }
+    }
+
+    private static func drawAspectFill(_ image: UIImage, into target: CGSize) {
+        let sourceSize = image.size
+        guard sourceSize.width > 0, sourceSize.height > 0 else { return }
+        let scale = max(target.width / sourceSize.width, target.height / sourceSize.height)
+        let drawSize = CGSize(
+            width: sourceSize.width * scale,
+            height: sourceSize.height * scale
+        )
+        let origin = CGPoint(
+            x: (target.width - drawSize.width) / 2,
+            y: (target.height - drawSize.height) / 2
+        )
+        image.draw(in: CGRect(origin: origin, size: drawSize))
     }
 }
 

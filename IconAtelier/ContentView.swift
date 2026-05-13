@@ -90,7 +90,7 @@ struct ContentView: View {
             if project.hasContent {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showExportSheet = true
+                        presentExportSheet()
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
@@ -169,11 +169,11 @@ struct ContentView: View {
         let references: [UIImage]
         switch seed {
         case .photo(let image):
-            prompt = "the main subject from the reference image, isolated on transparent background, rendered in \(style.label) style, viewed from \(angle.label)"
+            prompt = "the main subject from the reference image, isolated on transparent background, rendered as \(style.promptFragment), viewed from \(angle.promptFragment)"
             references = [image]
         case .prompt(let text):
             let subject = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            prompt = "\(subject), isolated on transparent background, rendered in \(style.label) style, viewed from \(angle.label)"
+            prompt = "\(subject), isolated on transparent background, rendered as \(style.promptFragment), viewed from \(angle.promptFragment)"
             references = []
         }
         isGeneratingAI = true
@@ -223,6 +223,21 @@ struct ContentView: View {
             aiSeed = .prompt(transcript)
         case .photo(let data):
             if let image = UIImage(data: data) { aiSeed = .photo(image) }
+        }
+    }
+
+    private func presentExportSheet() {
+        // SwiftUI cannot present two sheets from the same anchor view at once.
+        // If the edit sheet is open, dismiss it first so the export sheet can
+        // be presented from the parent anchor after the dismiss animation.
+        if showEditSheet {
+            showEditSheet = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                showExportSheet = true
+            }
+        } else {
+            showExportSheet = true
         }
     }
 
