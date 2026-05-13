@@ -30,6 +30,15 @@ struct IconCanvasView: View {
     private static let snapThreshold: CGFloat = 8
     private static let rotationSnapThreshold: Double = 5
 
+    static func normalized(_ angle: Angle) -> Angle {
+        let d = angle.degrees
+        guard d.isFinite else { return .zero }
+        let r = d.truncatingRemainder(dividingBy: 360)
+        if r > 180 { return .degrees(r - 360) }
+        if r <= -180 { return .degrees(r + 360) }
+        return .degrees(r)
+    }
+
     private static func snappedRotation(
         layerRotation: Angle,
         rawDelta: Angle
@@ -156,6 +165,10 @@ struct IconCanvasView: View {
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
+                guard side > 0,
+                      value.translation.width.isFinite,
+                      value.translation.height.isFinite
+                else { return }
                 project.recordUndo()
                 let (effective, _) = Self.snapped(
                     translation: value.translation,
@@ -164,6 +177,7 @@ struct IconCanvasView: View {
                 )
                 let nextWidth = layer.offset.width + effective.width / side
                 let nextHeight = layer.offset.height + effective.height / side
+                guard nextWidth.isFinite, nextHeight.isFinite else { return }
                 layer.offset = CGSize(
                     width: min(max(nextWidth, -0.5), 0.5),
                     height: min(max(nextHeight, -0.5), 0.5)
@@ -172,17 +186,20 @@ struct IconCanvasView: View {
 
         let magnify = MagnifyGesture(minimumScaleDelta: 0.01)
             .updating($gestureScale) { value, state, _ in
+                guard value.magnification.isFinite, value.magnification > 0 else { return }
                 state = value.magnification
             }
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
+                guard value.magnification.isFinite, value.magnification > 0 else { return }
                 project.recordUndo()
                 layer.scale = max(0.1, layer.scale * value.magnification)
             }
 
         let rotate = RotateGesture(minimumAngleDelta: .degrees(1))
             .updating($rotationSnap) { value, state, _ in
+                guard value.rotation.degrees.isFinite else { return }
                 guard let layer = selectedOverlay else {
                     state.delta = value.rotation
                     state.isSnapped = false
@@ -192,6 +209,7 @@ struct IconCanvasView: View {
                     layerRotation: layer.rotation,
                     rawDelta: value.rotation
                 )
+                guard delta.degrees.isFinite else { return }
                 if isSnapped && !state.isSnapped {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
@@ -201,12 +219,14 @@ struct IconCanvasView: View {
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
                 guard let layer = selectedOverlay else { return }
+                guard value.rotation.degrees.isFinite else { return }
                 project.recordUndo()
                 let (delta, _) = Self.snappedRotation(
                     layerRotation: layer.rotation,
                     rawDelta: value.rotation
                 )
-                layer.rotation += delta
+                guard delta.degrees.isFinite else { return }
+                layer.rotation = Self.normalized(layer.rotation + delta)
             }
 
         return drag.simultaneously(with: magnify).simultaneously(with: rotate)

@@ -170,17 +170,21 @@ struct DialSliderRow: View {
     var defaultValue: Double? = nil
     let onBeginEditing: () -> Void
 
+    private var safeValue: Double {
+        value.isFinite ? value : (defaultValue ?? range.lowerBound)
+    }
+
     private var fraction: Double {
         let span = range.upperBound - range.lowerBound
         guard span > 0 else { return 0 }
-        return min(max((value - range.lowerBound) / span, 0), 1)
+        return min(max((safeValue - range.lowerBound) / span, 0), 1)
     }
 
     private var canReset: Bool {
         guard let d = defaultValue else { return false }
         let span = range.upperBound - range.lowerBound
         let epsilon = max(span * 0.001, 1e-6)
-        return abs(value - d) > epsilon
+        return abs(safeValue - d) > epsilon
     }
 
     private func update(at x: CGFloat, width: CGFloat) {
@@ -231,7 +235,7 @@ struct DialSliderRow: View {
                         .accessibilityLabel("Reset \(label)")
                     }
                     Spacer()
-                    Text(valueText(value))
+                    Text(valueText(safeValue))
                         .font(.subheadline)
                         .foregroundStyle(.primary.opacity(0.72))
                         .monospacedDigit()

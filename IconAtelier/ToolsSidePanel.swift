@@ -192,8 +192,11 @@ struct EditTabContent: View {
             DialSliderRow(
                 label: "Rotation",
                 value: Binding(
-                    get: { layer.rotation.degrees },
-                    set: { layer.rotation = .degrees($0) }
+                    get: {
+                        let d = layer.rotation.degrees
+                        return d.isFinite ? IconCanvasView.normalized(.degrees(d)).degrees : 0
+                    },
+                    set: { layer.rotation = IconCanvasView.normalized(.degrees($0)) }
                 ),
                 range: -180 ... 180,
                 valueText: { String(format: "%.0f°", $0) },
