@@ -21,7 +21,8 @@ struct ContentView: View {
     @State private var aiError: String?
     @State private var aiSeed: AIFlowSeed?
     @State private var didConsumeInitialIntent: Bool = false
-    @State private var showVoiceSheet: Bool = false
+    @State private var showPromptSheet: Bool = false
+    @State private var showDrawingSheet: Bool = false
 
     var body: some View {
         GeometryReader { geo in
@@ -54,9 +55,8 @@ struct ContentView: View {
                 seed: $aiSeed,
                 onGenerate: generateFromFlow,
                 onAddSymbol: addSymbolLayer,
-                onAddText: addTextLayer,
-                onAddPrompt: addPromptLayer,
-                onAddVoice: { showVoiceSheet = true }
+                onAddPrompt: { showPromptSheet = true },
+                onAddDrawing: { showDrawingSheet = true }
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -112,11 +112,16 @@ struct ContentView: View {
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
         }
-        .sheet(isPresented: $showVoiceSheet) {
-            VoiceCaptureSheet { transcript in
-                aiSeed = .prompt(transcript)
+        .sheet(isPresented: $showPromptSheet) {
+            AIPromptSheet { text in
+                aiSeed = .prompt(text)
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showDrawingSheet) {
+            AIDrawingSheet { image in
+                aiSeed = .drawing(image)
+            }
         }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
             if isOpen && !wasOpen {
@@ -164,19 +169,23 @@ struct ContentView: View {
     private func generateFromFlow(
         seed: AIFlowSeed,
         style: AIFlowOption,
-        angle: AIFlowOption
+        material: AIFlowOption?
     ) {
         guard !isGeneratingAI else { return }
+        let materialClause = material.map { ", \($0.promptFragment)" } ?? ""
         let prompt: String
         let references: [UIImage]
         switch seed {
         case .photo(let image):
-            prompt = "the main subject from the reference image, isolated on transparent background, rendered as \(style.promptFragment), viewed from \(angle.promptFragment)"
+            prompt = "the main subject from the reference image, isolated on transparent background, rendered as \(style.promptFragment)\(materialClause)"
             references = [image]
         case .prompt(let text):
             let subject = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            prompt = "\(subject), isolated on transparent background, rendered as \(style.promptFragment), viewed from \(angle.promptFragment)"
+            prompt = "\(subject), isolated on transparent background, rendered as \(style.promptFragment)\(materialClause)"
             references = []
+        case .drawing(let image):
+            prompt = "the reference image is a rough hand-drawn sketch made on a touchscreen with a finger. Use it only as a loose shape and composition reference: identify the intended subject, refine its proportions, smooth out shaky lines, fix wobbly geometry, clean up imperfections and produce a polished version of that subject. Do not preserve sketchy linework, do not copy stroke imperfections. The final image must be the cleaned-up, well-drawn subject, isolated on transparent background, rendered as \(style.promptFragment)\(materialClause)"
+            references = [image]
         }
         isGeneratingAI = true
         aiError = nil
@@ -200,11 +209,6 @@ struct ContentView: View {
         session.selectLayer(layer.uuid)
     }
 
-    private func addTextLayer() {
-        let layer = project.addTextOverlay()
-        session.selectLayer(layer.uuid)
-    }
-
     private func addPromptLayer() {
         let layer = project.addEmptyAIOverlay()
         session.selectLayer(layer.uuid)
@@ -214,15 +218,15 @@ struct ContentView: View {
         guard !didConsumeInitialIntent, let intent = initialIntent else { return }
         didConsumeInitialIntent = true
         switch intent {
-        case .text:
-            // Gallery already seeded a text overlay; just select it.
-            if let last = project.layers.last { session.selectLayer(last.uuid) }
         case .symbol:
             addSymbolLayer()
-        case .prompt:
-            addPromptLayer()
-        case .voice(let transcript):
-            aiSeed = .prompt(transcript)
+        case .prompt(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                showPromptSheet = true
+            } else {
+                aiSeed = .prompt(trimmed)
+            }
         case .photo(let item):
             // Data load happens here (not in the gallery) so the editor can
             // push immediately when the picker dismisses, avoiding a flash

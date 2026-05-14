@@ -23,6 +23,7 @@ struct AIFlowOption: Identifiable, Hashable {
 enum AIFlowSeed: Equatable {
     case photo(UIImage)
     case prompt(String)
+    case drawing(UIImage)
 }
 
 // MARK: - Bar
@@ -30,114 +31,115 @@ enum AIFlowSeed: Equatable {
 struct AIPhotoFlowBar: View {
     let isGenerating: Bool
     @Binding var seed: AIFlowSeed?
-    let onGenerate: (AIFlowSeed, AIFlowOption, AIFlowOption) -> Void
+    let onGenerate: (AIFlowSeed, AIFlowOption, AIFlowOption?) -> Void
     let onAddSymbol: () -> Void
-    let onAddText: () -> Void
     let onAddPrompt: () -> Void
-    let onAddVoice: () -> Void
+    let onAddDrawing: () -> Void
 
     @State private var selectedStyle: AIFlowOption?
-    @State private var selectedAngle: AIFlowOption?
+    @State private var selectedMaterial: AIFlowOption?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
     @State private var isCreateMenuOpen: Bool = false
 
     static let styles: [AIFlowOption] = [
         .init(
-            id: "flat-vector",
-            label: "Flat Vector",
-            promptFragment: "flat vector illustration, clean shapes, smooth gradients, sharp crisp edges",
+            id: "illustration",
+            label: "Illustration",
+            promptFragment: "soft matte gradient illustration, simplified rounded forms, vivid saturated palette, smooth color-to-color transitions modeling gentle volume, diffused ambient lighting, no outlines, no grain, no specular highlights; matte finish with subtle tonal shifts for soft three-dimensionality; harmonious palette of three to five hues maximum; plump rounded silhouettes, organic curves favored over hard edges; moderate detail with a few selective accents; no text or lettering. Single centered subject, isolated on a neutral background, generous negative space around it, no duplicates, no extra elements, no frame, no background shape behind the subject, no cast shadows under the subject.",
             color: Color(red: 0.20, green: 0.50, blue: 0.95)
         ),
         .init(
-            id: "flat-mono",
-            label: "Flat Mono",
-            promptFragment: "flat monochrome vector silhouette filled with pure solid white (#FFFFFF) only, no shading, no gradients, no outline, no border, fully transparent background, designed to be tintable",
-            color: Color(red: 0.30, green: 0.30, blue: 0.35)
-        ),
-        .init(
-            id: "sketch-to-logo",
-            label: "Sketch to Logo",
-            promptFragment: "transformed into a clean geometric vector logo, refined balanced shapes, professional brand mark",
-            color: Color(red: 0.55, green: 0.40, blue: 0.80)
-        ),
-        .init(
-            id: "line-art",
-            label: "Line Art",
-            promptFragment: "clean line art, thin even strokes, outline only, no fill, minimal elegant",
-            color: Color(red: 0.15, green: 0.55, blue: 0.65)
-        ),
-        .init(
-            id: "glyph",
-            label: "Glyph",
-            promptFragment: "solid silhouette glyph pictogram, single color, system icon style",
-            color: Color(red: 0.40, green: 0.45, blue: 0.55)
-        ),
-        .init(
-            id: "3d-render",
-            label: "3D Render",
-            promptFragment: "3D rendered icon, soft studio lighting, smooth glossy surfaces, modern app icon",
+            id: "3d",
+            label: "3D",
+            promptFragment: "3D isometric collectible icon, front-facing three-quarter view, refined contours and rounded edges, matte-to-satin surfaces with subtle micro-reflections, deep ambient occlusion in crevices, soft diffused studio lighting, ultra-soft feathered contact shadow on a clean neutral surface; semi-realistic stylized proportions, balanced and appealing; natural realistic palette, restrained and harmonious; mix of straight and curved surfaces, generous fillets, no sharp corners; moderate detail with subtle surface texture; no text or lettering. Single centered subject, isolated on a neutral background, no duplicates, no extra elements, no frame, no background props.",
             color: Color(red: 1.00, green: 0.55, blue: 0.00)
         ),
         .init(
             id: "pixar",
             label: "Pixar",
-            promptFragment: "expressive 3D cartoon character, soft warm cinematic lighting, Pixar-like animated film look",
-            color: Color(red: 1.00, green: 0.75, blue: 0.20)
+            promptFragment: "stylized 3D Pixar-style character render, soft rounded subdivision surfaces, slightly exaggerated cute proportions with oversized expressive eyes, three-quarter front-facing framing; warm cinematic key light with gentle rim light and rich global illumination, subtle ambient occlusion in crevices; subtle subsurface scattering on organic surfaces, smooth matte-to-satin materials with delicate controlled specular highlights, polished animation-film finish; vibrant warm storybook palette, appealing and inviting; high but readable detail, no busy texture noise; no text or lettering. Single centered subject, isolated on a soft neutral background, soft contact shadow under the subject acceptable, no duplicates, no extra elements, no frame, no other characters or props.",
+            color: Color(red: 0.15, green: 0.65, blue: 0.85)
         ),
         .init(
-            id: "clay",
-            label: "Claymation",
-            promptFragment: "claymation style, soft modeling clay, tactile sculpted texture",
-            color: Color(red: 0.82, green: 0.42, blue: 0.30)
+            id: "logo",
+            label: "Logo",
+            promptFragment: "flat vector logo mark in the spirit of Paul Rand, bold simplified geometric forms, confident silhouette, no outlines, no textures, no shading, completely flat; pure monochrome black on white; balanced mix of straight and curved geometry; extreme reduction, almost abstract, one strong idea; counter-shapes and negative space inside the mark allowed when the form calls for it; no text or lettering. Single centered subject, isolated on a plain white background, no duplicates, no extra elements, no frame, no cast shadows, no glows.",
+            color: Color(red: 0.20, green: 0.20, blue: 0.25)
         ),
         .init(
-            id: "isometric",
-            label: "Isometric",
-            promptFragment: "isometric illustration, 3D axonometric perspective, clean vector",
-            color: Color(red: 0.30, green: 0.45, blue: 0.85)
+            id: "typography",
+            label: "Typography",
+            promptFragment: "a single typographic glyph, modern geometric sans-serif, semi-bold weight, balanced optical proportions, subtle flat two-tone shading suggesting volume without any 3D rendering, crisp clean edges; two-tone palette, one base color and one slightly darker accent; smooth balanced letterform, gentle curves and even strokes; minimal rendering, no textures; counters and apertures of the letter preserved exactly as the glyph's shape requires; no extra characters, just the single glyph. Single centered glyph, isolated on a neutral background, no duplicates, no extra elements, no frame, no cast shadows, no glows.",
+            color: Color(red: 0.55, green: 0.40, blue: 0.80)
+        ),
+        .init(
+            id: "notion",
+            label: "Notion",
+            promptFragment: "minimalist black-and-white flat vector illustration in the expressive Notion avatar style, thick uniform monoline black outlines, organic confident hand-drawn quality, quirky charming proportions, selective solid black fills used as shape language for dark surfaces — not as shading or gradients, lighter areas remain pure flat white; strictly two values only, pure black and pure white, no gray, no gradients, no color; smooth organic confident lines, natural flowing shapes; extreme simplicity, very few strokes, almost abstract; no text or lettering. Single centered subject, isolated on a pure white background, no duplicates, no extra elements, no frame, no drop shadows. Outlines must be thick and uniform weight throughout, never thin or variable.",
+            color: Color(red: 0.30, green: 0.30, blue: 0.35)
         ),
         .init(
             id: "sticker",
             label: "Sticker",
-            promptFragment: "sticker with thick white outline and soft drop shadow",
+            promptFragment: "flat die-cut sticker, solid opaque color fills, cartoon style, thick uniform off-white border (#FAF9F7, a warm near-white, never pure #FFFFFF) tracing the entire outer silhouette of the sticker uniformly; purely flat, no shading, no gradients, no 3D; limited palette of two to three bold flat colors; bold rounded simplified shapes; minimal interior detail, no textures; no text or lettering. Single centered subject, isolated on a transparent or neutral background, no duplicates, no extra elements, no frame, no drop shadow under the sticker. All shapes solid and fully filled, no holes inside the sticker. Every part of the sticker interior must be fully opaque; only the area outside the die-cut border is transparent.",
             color: Color(red: 1.00, green: 0.35, blue: 0.40)
-        ),
-        .init(
-            id: "pixel-art",
-            label: "Pixel Art",
-            promptFragment: "16-bit pixel art, crisp pixels, retro game icon",
-            color: Color(red: 0.20, green: 0.65, blue: 0.55)
-        ),
-        .init(
-            id: "paper-cut",
-            label: "Paper Cut",
-            promptFragment: "layered paper cut illustration, stacked colored paper, soft shadows between layers",
-            color: Color(red: 0.95, green: 0.65, blue: 0.40)
-        ),
-        .init(
-            id: "gradient-mesh",
-            label: "Gradient Mesh",
-            promptFragment: "smooth gradient mesh, vibrant glossy colors, modern app icon",
-            color: Color(red: 0.95, green: 0.30, blue: 0.65)
         )
     ]
 
-    static let angles: [AIFlowOption] = [
-        .init(id: "front",         label: "Front",     color: Color(red: 0.40, green: 0.45, blue: 0.55)),
-        .init(id: "three-quarter", label: "3/4 view",  color: Color(red: 0.25, green: 0.60, blue: 0.70)),
-        .init(id: "side",          label: "Side",      color: Color(red: 0.40, green: 0.65, blue: 0.35)),
-        .init(id: "top-down",      label: "Top-down",  color: Color(red: 0.95, green: 0.55, blue: 0.20)),
-        .init(id: "low-angle",     label: "Low angle", color: Color(red: 0.85, green: 0.30, blue: 0.35)),
-        .init(id: "isometric",     label: "Isometric", color: Color(red: 0.30, green: 0.45, blue: 0.85))
+    static let materials: [AIFlowOption] = [
+        .init(id: "matte",       label: "Matte",       promptFragment: "matte finish material, no gloss, no reflections, soft diffused surface", color: Color(red: 0.50, green: 0.50, blue: 0.52)),
+        .init(id: "glossy",      label: "Glossy",      promptFragment: "glossy shiny material, polished reflective surface, specular highlights", color: Color(red: 0.20, green: 0.75, blue: 0.95)),
+        .init(id: "glass",       label: "Glass",       promptFragment: "transparent glass material, refractive, subtle reflections, see-through", color: Color(red: 0.70, green: 0.88, blue: 0.95)),
+        .init(id: "metal",       label: "Metal",       promptFragment: "metallic material, brushed metal finish, subtle reflections, industrial feel", color: Color(red: 0.55, green: 0.58, blue: 0.62)),
+        .init(id: "gold",        label: "Gold",        promptFragment: "polished gold material, luxurious warm metallic golden surface, rich reflections", color: Color(red: 1.00, green: 0.78, blue: 0.30)),
+        .init(id: "silver",      label: "Silver",      promptFragment: "polished silver material, cool metallic surface, chrome-like reflections", color: Color(red: 0.78, green: 0.80, blue: 0.85)),
+        .init(id: "copper",      label: "Copper",      promptFragment: "copper material, warm reddish metallic surface, oxidized patina accents", color: Color(red: 0.80, green: 0.45, blue: 0.28)),
+        .init(id: "bronze",      label: "Bronze",      promptFragment: "bronze material, warm dark metallic surface, antique patina feel", color: Color(red: 0.55, green: 0.40, blue: 0.25)),
+        .init(id: "wood",        label: "Wood",        promptFragment: "natural wood material, visible wood grain texture, warm organic feel", color: Color(red: 0.55, green: 0.38, blue: 0.22)),
+        .init(id: "clay",        label: "Clay",        promptFragment: "soft matte clay material, handmade feel, smooth sculpted surface", color: Color(red: 0.82, green: 0.55, blue: 0.42)),
+        .init(id: "plastic",     label: "Plastic",     promptFragment: "smooth plastic material, slightly glossy, clean manufactured feel", color: Color(red: 0.45, green: 0.65, blue: 0.85)),
+        .init(id: "rubber",      label: "Rubber",      promptFragment: "soft rubber material, matte elastic surface, slightly textured grip feel", color: Color(red: 0.28, green: 0.28, blue: 0.30)),
+        .init(id: "marble",      label: "Marble",      promptFragment: "polished marble material, subtle veins and patterns, elegant stone surface", color: Color(red: 0.88, green: 0.86, blue: 0.82)),
+        .init(id: "concrete",    label: "Concrete",    promptFragment: "raw concrete material, rough mineral surface, brutalist industrial texture", color: Color(red: 0.60, green: 0.60, blue: 0.58)),
+        .init(id: "stone",       label: "Stone",       promptFragment: "natural carved stone material, rough hewn mineral surface, sculptural feel", color: Color(red: 0.55, green: 0.52, blue: 0.48)),
+        .init(id: "ceramic",     label: "Ceramic",     promptFragment: "glazed ceramic material, smooth porcelain-like surface, delicate crafted feel", color: Color(red: 0.92, green: 0.86, blue: 0.78)),
+        .init(id: "fabric",      label: "Fabric",      promptFragment: "soft fabric textile material, woven texture, cloth-like surface", color: Color(red: 0.65, green: 0.55, blue: 0.50)),
+        .init(id: "leather",     label: "Leather",     promptFragment: "rich leather material, fine grain texture, visible saddle stitch seams (point sellier), premium handcrafted luxury leather goods feel", color: Color(red: 0.42, green: 0.26, blue: 0.18)),
+        .init(id: "felt",        label: "Felt",        promptFragment: "soft felt material, fuzzy textile surface, handcrafted warm feel", color: Color(red: 0.85, green: 0.70, blue: 0.55)),
+        .init(id: "wool",        label: "Wool",        promptFragment: "knitted wool material, chunky yarn texture, cozy handmade feel", color: Color(red: 0.92, green: 0.86, blue: 0.72)),
+        .init(id: "embroidery",  label: "Embroidery",  promptFragment: "embroidered textile material, visible thread stitches, cross-stitch or satin stitch texture, handcrafted needlework on fabric", color: Color(red: 0.85, green: 0.55, blue: 0.60)),
+        .init(id: "mercury",     label: "Mercury",     promptFragment: "liquid mercury material, highly reflective chrome-like liquid surface, fluid metallic blob, T-1000 style molten metal", color: Color(red: 0.72, green: 0.74, blue: 0.78)),
+        .init(id: "ice",         label: "Ice",         promptFragment: "frozen ice material, translucent crystalline surface, cold blue refractions, frost details", color: Color(red: 0.70, green: 0.86, blue: 0.96)),
+        .init(id: "wax",         label: "Wax",         promptFragment: "warm wax material, slightly translucent, soft melting edges, candle-like surface", color: Color(red: 0.95, green: 0.90, blue: 0.70)),
+        .init(id: "candy",       label: "Candy",       promptFragment: "hard candy material, glossy sugary surface, translucent colorful sweet, lollipop-like shine", color: Color(red: 1.00, green: 0.45, blue: 0.65)),
+        .init(id: "chocolate",   label: "Chocolate",   promptFragment: "smooth chocolate material, rich brown glossy surface, molded confectionery feel", color: Color(red: 0.40, green: 0.25, blue: 0.15)),
+        .init(id: "leaf",        label: "Leaf",        promptFragment: "natural leaf material, organic green leaf texture with visible veins, shaped from a real tree leaf, botanical natural feel", color: Color(red: 0.40, green: 0.65, blue: 0.30)),
+        .init(id: "coral",       label: "Coral",       promptFragment: "organic coral material, porous natural marine texture, underwater reef aesthetic", color: Color(red: 1.00, green: 0.50, blue: 0.45)),
+        .init(id: "popcorn",     label: "Popcorn",     promptFragment: "popcorn material, the entire shape is made of clustered popcorn kernels, puffy irregular white and yellow pieces, movie snack texture", color: Color(red: 0.95, green: 0.88, blue: 0.65)),
+        .init(id: "balloon",     label: "Balloon",     promptFragment: "inflated latex balloon material, smooth stretched rubber surface, shiny highlights, balloon sculpture twist aesthetic", color: Color(red: 0.95, green: 0.30, blue: 0.40)),
+        .init(id: "crystal",     label: "Crystal",     promptFragment: "transparent crystal gemstone material, faceted cuts, prismatic light refractions, precious stone clarity", color: Color(red: 0.75, green: 0.70, blue: 0.95)),
+        .init(id: "rust",        label: "Rust",        promptFragment: "oxidized rusted metal material, orange-brown corroded iron surface, rough flaking patina, aged industrial decay", color: Color(red: 0.75, green: 0.40, blue: 0.20)),
+        .init(id: "velvet",      label: "Velvet",      promptFragment: "soft velvet material, rich plush textile with light-catching nap, luxurious deep fabric texture", color: Color(red: 0.45, green: 0.20, blue: 0.55)),
+        .init(id: "denim",       label: "Denim",       promptFragment: "denim fabric material, visible twill weave pattern, indigo blue cotton textile, jeans texture", color: Color(red: 0.25, green: 0.35, blue: 0.55)),
+        .init(id: "fur",         label: "Fur",         promptFragment: "soft animal fur material, dense fluffy hair covering the surface, plush furry texture", color: Color(red: 0.55, green: 0.40, blue: 0.30)),
+        .init(id: "feather",     label: "Feather",     promptFragment: "feather material, the shape is covered in layered bird feathers, soft downy texture with fine barbs", color: Color(red: 0.78, green: 0.82, blue: 0.85)),
+        .init(id: "bubblegum",   label: "Bubblegum",   promptFragment: "stretched bubblegum material, soft pink glossy elastic surface, slightly translucent, chewy candy feel", color: Color(red: 1.00, green: 0.55, blue: 0.75)),
+        .init(id: "cookie",      label: "Cookie",      promptFragment: "baked cookie material, golden brown crumbly dough texture, shortbread or sugar cookie feel with subtle cracks", color: Color(red: 0.80, green: 0.60, blue: 0.40)),
+        .init(id: "cheese",      label: "Cheese",      promptFragment: "cheese material, smooth yellow-orange surface with characteristic round holes, Swiss cheese aesthetic", color: Color(red: 0.95, green: 0.80, blue: 0.30)),
+        .init(id: "cotton",      label: "Cotton",      promptFragment: "fluffy cotton material, soft white cloud-like cotton balls or cotton candy texture, airy and light", color: Color(red: 0.95, green: 0.95, blue: 0.95)),
+        .init(id: "holographic", label: "Holographic", promptFragment: "holographic iridescent material, rainbow shifting reflections, prismatic surface, futuristic feel", color: Color(red: 0.70, green: 0.50, blue: 0.95)),
+        .init(id: "cardboard",   label: "Cardboard",   promptFragment: "corrugated cardboard material, raw brown recycled texture, handmade craft feel", color: Color(red: 0.70, green: 0.55, blue: 0.40)),
+        .init(id: "terracotta",  label: "Terracotta",  promptFragment: "terracotta clay material, warm reddish-orange unglazed ceramic, Mediterranean pottery feel", color: Color(red: 0.78, green: 0.42, blue: 0.30)),
+        .init(id: "obsidian",    label: "Obsidian",    promptFragment: "volcanic obsidian glass material, deep black mirror-like surface, sharp beveled edges, subtle iridescent reflections, premium gemstone feel", color: Color(red: 0.10, green: 0.10, blue: 0.13)),
+        .init(id: "cloud",       label: "Cloud",       promptFragment: "soft puffy cloud material, billowy rounded cumulus shapes, white airy volumetric surface, dreamy sky-like softness", color: Color(red: 0.88, green: 0.92, blue: 0.97))
     ]
 
-    private enum Step: Hashable { case seed, style, angle, ready }
+    private enum Step: Hashable { case seed, style, ready }
 
     private var step: Step {
         if seed == nil { return .seed }
         if selectedStyle == nil { return .style }
-        if selectedAngle == nil { return .angle }
         return .ready
     }
 
@@ -155,16 +157,16 @@ struct AIPhotoFlowBar: View {
             CreateActionItem(
                 id: "prompt",
                 label: "Prompt",
-                systemImage: "wand.and.stars",
+                systemImage: "textformat",
                 color: .primary,
                 action: onAddPrompt
             ),
             CreateActionItem(
-                id: "voice",
-                label: "Voice",
-                systemImage: "mic.fill",
+                id: "drawing",
+                label: "Drawing",
+                systemImage: "paintbrush.pointed.fill",
                 color: .primary,
-                action: onAddVoice
+                action: onAddDrawing
             ),
             CreateActionItem(
                 id: "symbol",
@@ -172,13 +174,6 @@ struct AIPhotoFlowBar: View {
                 systemImage: "star.fill",
                 color: .primary,
                 action: onAddSymbol
-            ),
-            CreateActionItem(
-                id: "text",
-                label: "Text",
-                systemImage: "textformat",
-                color: .primary,
-                action: onAddText
             )
         ]
     }
@@ -220,10 +215,14 @@ struct AIPhotoFlowBar: View {
                     EmptyView()
                 case .style:
                     carousel(title: "Pick a style", options: Self.styles) { selectedStyle = $0 }
-                case .angle:
-                    carousel(title: "Pick an angle", options: Self.angles) { selectedAngle = $0 }
                 case .ready:
-                    sendButton
+                    VStack(spacing: 10) {
+                        carousel(
+                            title: selectedMaterial == nil ? "Pick a material (optional)" : "Material",
+                            options: Self.materials
+                        ) { selectedMaterial = $0 }
+                        sendButton
+                    }
                 }
             }
             .id(step)
@@ -246,13 +245,13 @@ struct AIPhotoFlowBar: View {
             if let style = selectedStyle {
                 chip(label: style.label, color: style.color) {
                     selectedStyle = nil
-                    selectedAngle = nil
+                    selectedMaterial = nil
                 }
             }
 
-            if let angle = selectedAngle {
-                chip(label: angle.label, color: angle.color) {
-                    selectedAngle = nil
+            if let material = selectedMaterial {
+                chip(label: material.label, color: material.color) {
+                    selectedMaterial = nil
                 }
             }
 
@@ -274,7 +273,7 @@ struct AIPhotoFlowBar: View {
     @ViewBuilder
     private var seedView: some View {
         switch seed {
-        case .photo(let image):
+        case .photo(let image), .drawing(let image):
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
@@ -409,14 +408,14 @@ struct AIPhotoFlowBar: View {
     // MARK: - Actions
 
     private func submit() {
-        guard let seed, let style = selectedStyle, let angle = selectedAngle else { return }
-        onGenerate(seed, style, angle)
+        guard let seed, let style = selectedStyle else { return }
+        onGenerate(seed, style, selectedMaterial)
     }
 
     private func reset() {
         seed = nil
         selectedStyle = nil
-        selectedAngle = nil
+        selectedMaterial = nil
         pickerItems = []
     }
 

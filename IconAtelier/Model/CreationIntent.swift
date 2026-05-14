@@ -4,10 +4,8 @@ import PhotosUI
 
 enum CreationIntent: Hashable {
     case photo(PhotosPickerItem)
-    case prompt
-    case voice(String)
+    case prompt(String)
     case symbol
-    case text
 }
 
 struct ProjectRoute: Hashable {

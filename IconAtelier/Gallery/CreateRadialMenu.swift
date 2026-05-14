@@ -19,7 +19,7 @@ struct CreateRadialMenu: View {
 
     private let centerSize: CGFloat = 60
     private let miniSize: CGFloat = 60
-    private let radius: CGFloat = 132
+    private let radius: CGFloat = 130
 
     var body: some View {
         ZStack {
@@ -117,9 +117,9 @@ struct CreateRadialMenu: View {
 
     private func position(for index: Int) -> CGSize {
         guard !items.isEmpty else { return .zero }
-        // Fan upward: from 150° (top-left) to 30° (top-right).
-        let startDeg = 150.0
-        let endDeg = 30.0
+        // Tight fan around the vertical, biased upward.
+        let startDeg = 145.0
+        let endDeg = 35.0
         let span = startDeg - endDeg
         let step = items.count > 1 ? span / Double(items.count - 1) : 0
         let deg = startDeg - step * Double(index)
