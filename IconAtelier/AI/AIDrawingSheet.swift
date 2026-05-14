@@ -8,6 +8,7 @@ struct AIDrawingSheet: View {
 
     @State private var drawing = PKDrawing()
     @State private var canvasSize: CGSize = .zero
+    @State private var canvasView: PKCanvasView?
 
     private var isEmpty: Bool { drawing.strokes.isEmpty }
 
@@ -18,9 +19,11 @@ struct AIDrawingSheet: View {
                     .ignoresSafeArea()
 
                 GeometryReader { geo in
-                    DrawingCanvas(drawing: $drawing)
-                        .onAppear { canvasSize = geo.size }
-                        .onChange(of: geo.size) { _, new in canvasSize = new }
+                    DrawingCanvas(drawing: $drawing) { canvas in
+                        canvasView = canvas
+                    }
+                    .onAppear { canvasSize = geo.size }
+                    .onChange(of: geo.size) { _, new in canvasSize = new }
                 }
 
                 if isEmpty {
@@ -35,7 +38,12 @@ struct AIDrawingSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button {
+                        canvasView?.undoManager?.undo()
+                    } label: {
+                        Label("Undo", systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(isEmpty)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Use") { submit() }
@@ -95,6 +103,7 @@ struct AIDrawingSheet: View {
 
 private struct DrawingCanvas: UIViewRepresentable {
     @Binding var drawing: PKDrawing
+    var onReady: ((PKCanvasView) -> Void)? = nil
 
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
@@ -110,6 +119,7 @@ private struct DrawingCanvas: UIViewRepresentable {
             picker.setVisible(true, forFirstResponder: canvas)
             picker.addObserver(canvas)
             canvas.becomeFirstResponder()
+            onReady?(canvas)
         }
         return canvas
     }
