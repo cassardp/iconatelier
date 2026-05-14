@@ -31,13 +31,13 @@ enum AIFlowSeed: Equatable {
 struct AIPhotoFlowBar: View {
     let isGenerating: Bool
     @Binding var seed: AIFlowSeed?
-    let onGenerate: (AIFlowSeed, AIFlowOption, AIFlowOption?) -> Void
+    @Binding var selectedStyle: AIFlowOption?
+    @Binding var selectedMaterial: AIFlowOption?
+    let onGenerate: () -> Void
     let onAddSymbol: () -> Void
     let onAddPrompt: () -> Void
     let onAddDrawing: () -> Void
 
-    @State private var selectedStyle: AIFlowOption?
-    @State private var selectedMaterial: AIFlowOption?
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
     @State private var isCreateMenuOpen: Bool = false
@@ -135,15 +135,17 @@ struct AIPhotoFlowBar: View {
         .init(id: "cloud",       label: "Cloud",       promptFragment: "soft puffy cloud material, billowy rounded cumulus shapes, white airy volumetric surface, dreamy sky-like softness", color: Color(red: 0.88, green: 0.92, blue: 0.97))
     ]
 
-    private enum Step: Hashable { case seed, style, ready }
+    private enum Step: Hashable { case seed, style, material }
 
     private var step: Step {
         if seed == nil { return .seed }
         if selectedStyle == nil { return .style }
-        return .ready
+        return .material
     }
 
-    private var canSubmit: Bool { step == .ready && !isGenerating }
+    private var canGenerate: Bool {
+        seed != nil && selectedStyle != nil && !isGenerating
+    }
 
     private var createItems: [CreateActionItem] {
         [
@@ -186,7 +188,7 @@ struct AIPhotoFlowBar: View {
                     .padding(.bottom, 16)
                     .transition(.opacity.combined(with: .scale(scale: 0.85)))
             } else {
-                fullBar
+                stripsBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -203,61 +205,127 @@ struct AIPhotoFlowBar: View {
         }
     }
 
-    // MARK: - Full bar (summary + carousel/send)
+    // MARK: - Strips bar
 
-    private var fullBar: some View {
-        VStack(spacing: 10) {
-            summary
+    @ViewBuilder
+    private var stripsBar: some View {
+        VStack(spacing: 6) {
+            header
 
-            Group {
-                switch step {
-                case .seed:
-                    EmptyView()
-                case .style:
-                    carousel(title: "Pick a style", options: Self.styles) { selectedStyle = $0 }
-                case .ready:
-                    VStack(spacing: 10) {
-                        carousel(
-                            title: selectedMaterial == nil ? "Pick a material (optional)" : "Material",
-                            options: Self.materials
-                        ) { selectedMaterial = $0 }
-                        sendButton
+            ZStack {
+                if step == .style {
+                    optionsScroll(
+                        options: Self.styles,
+                        selection: selectedStyle
+                    ) { option in
+                        selectedStyle = (selectedStyle == option) ? nil : option
+                        if selectedStyle == nil { selectedMaterial = nil }
                     }
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .leading)),
+                        removal: .opacity.combined(with: .move(edge: .leading))
+                    ))
+                } else {
+                    optionsScroll(
+                        options: Self.materials,
+                        selection: selectedMaterial
+                    ) { option in
+                        selectedMaterial = (selectedMaterial == option) ? nil : option
+                    }
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                        removal: .opacity.combined(with: .move(edge: .trailing))
+                    ))
                 }
             }
-            .id(step)
-            .transition(.asymmetric(
-                insertion: .opacity.combined(with: .move(edge: .trailing)),
-                removal: .opacity.combined(with: .move(edge: .leading))
-            ))
+            .frame(height: 72)
+            .animation(.smooth(duration: 0.28), value: step)
         }
         .padding(.horizontal, 12)
-        .padding(.top, 8)
+        .padding(.top, 6)
         .padding(.bottom, 10)
     }
 
-    // MARK: - Summary strip
+    // MARK: - Header (label + selected chip + generate button)
 
-    private var summary: some View {
+    private var header: some View {
         HStack(spacing: 8) {
-            seedView
+            Text(step == .style ? "Style" : "Material")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .contentTransition(.opacity)
+                .animation(.smooth(duration: 0.2), value: step)
 
-            if let style = selectedStyle {
-                chip(label: style.label, color: style.color) {
+            if step == .material, let style = selectedStyle {
+                selectionChip(label: style.label) {
                     selectedStyle = nil
                     selectedMaterial = nil
                 }
+                .transition(.scale.combined(with: .opacity))
             }
 
-            if let material = selectedMaterial {
-                chip(label: material.label, color: material.color) {
-                    selectedMaterial = nil
-                }
+            if step == .material && selectedMaterial == nil {
+                Text("optional")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .transition(.opacity)
             }
 
             Spacer(minLength: 0)
 
-            Button { reset() } label: {
+            generateButton
+                .transition(.scale.combined(with: .opacity))
+        }
+        .padding(.horizontal, 4)
+        .animation(.smooth(duration: 0.22), value: selectedStyle)
+        .animation(.smooth(duration: 0.22), value: selectedMaterial)
+    }
+
+    private func selectionChip(label: String, onRemove: @escaping () -> Void) -> some View {
+        Button(action: onRemove) {
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.primary)
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule(style: .continuous).fill(Color(uiColor: .tertiarySystemBackground)))
+        }
+        .buttonStyle(.plain)
+        .disabled(isGenerating)
+    }
+
+    @ViewBuilder
+    private var generateButton: some View {
+        if step == .material {
+            Button(action: onGenerate) {
+                HStack(spacing: 6) {
+                    if isGenerating {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color(uiColor: .systemBackground))
+                    } else {
+                        Image(systemName: "sparkles")
+                            .font(.footnote.weight(.bold))
+                    }
+                    Text(isGenerating ? "Generating" : "Generate")
+                        .font(.footnote.weight(.semibold))
+                }
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Capsule(style: .continuous).fill(.primary))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGenerate)
+            .opacity(canGenerate ? 1 : 0.5)
+            .accessibilityLabel(isGenerating ? "Generating" : "Generate")
+        } else {
+            Button(action: reset) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -265,152 +333,55 @@ struct AIPhotoFlowBar: View {
             .buttonStyle(.plain)
             .disabled(isGenerating)
             .opacity(isGenerating ? 0.4 : 1)
-            .accessibilityLabel("Reset flow")
-        }
-        .padding(.horizontal, 2)
-    }
-
-    @ViewBuilder
-    private var seedView: some View {
-        switch seed {
-        case .photo(let image), .drawing(let image):
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-        case .prompt(let text):
-            HStack(spacing: 6) {
-                Image(systemName: "text.quote")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(text)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
-            .frame(maxWidth: 200, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-        case .none:
-            EmptyView()
+            .accessibilityLabel("Reset")
         }
     }
 
-    private func chip(label: String, color: Color, onRemove: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 12, height: 12)
-            Text(label)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 2)
-            }
-            .buttonStyle(.plain)
-            .disabled(isGenerating)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Color(uiColor: .systemBackground)))
-        .overlay(Capsule().stroke(Color.primary.opacity(0.10), lineWidth: 1))
-        .transition(.scale.combined(with: .opacity))
-    }
+    // MARK: - Strip scroll
 
-    // MARK: - Carousels
-
-    private func carousel(
-        title: String,
+    private func optionsScroll(
         options: [AIFlowOption],
+        selection: AIFlowOption?,
         select: @escaping (AIFlowOption) -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(options) { option in
-                        Button { select(option) } label: {
-                            optionCard(option)
-                        }
-                        .buttonStyle(.plain)
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                ForEach(options) { option in
+                    Button { select(option) } label: {
+                        tile(option, isSelected: option == selection)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(isGenerating)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
             }
-            .frame(height: 104)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
         }
     }
 
-    private func optionCard(_ option: AIFlowOption) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(option.color)
-                .shadow(color: option.color.opacity(0.35), radius: 6, x: 0, y: 3)
+    private func tile(_ option: AIFlowOption, isSelected: Bool) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(uiColor: .tertiarySystemBackground))
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.primary, lineWidth: 2)
+                }
+            }
+            .frame(width: 44, height: 44)
 
             Text(option.label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .padding(8)
+                .font(.caption2.weight(isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .lineLimit(1)
+                .frame(maxWidth: 64)
         }
-        .frame(width: 96, height: 96)
-    }
-
-    // MARK: - Send button (loader morphs inside)
-
-    private var sendButton: some View {
-        Button(action: submit) {
-            HStack(spacing: 10) {
-                if isGenerating {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(Color(uiColor: .systemBackground))
-                    Text("Generating…")
-                } else {
-                    Image(systemName: "sparkles")
-                        .font(.body.weight(.semibold))
-                    Text("Generate")
-                }
-            }
-            .font(.body.weight(.semibold))
-            .foregroundStyle(Color(uiColor: .systemBackground))
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(Capsule(style: .continuous).fill(.primary))
-            .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-            .animation(.smooth(duration: 0.25), value: isGenerating)
-        }
-        .buttonStyle(.plain)
-        .disabled(!canSubmit)
-        .accessibilityLabel(isGenerating ? "Generating" : "Generate")
+        .contentShape(Rectangle())
+        .animation(.smooth(duration: 0.18), value: isSelected)
     }
 
     // MARK: - Actions
-
-    private func submit() {
-        guard let seed, let style = selectedStyle else { return }
-        onGenerate(seed, style, selectedMaterial)
-    }
 
     private func reset() {
         seed = nil

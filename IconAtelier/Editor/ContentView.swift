@@ -20,6 +20,8 @@ struct ContentView: View {
     @State private var isGeneratingAI: Bool = false
     @State private var aiError: String?
     @State private var aiSeed: AIFlowSeed?
+    @State private var aiSelectedStyle: AIFlowOption?
+    @State private var aiSelectedMaterial: AIFlowOption?
     @State private var didConsumeInitialIntent: Bool = false
     @State private var showPromptSheet: Bool = false
     @State private var showDrawingSheet: Bool = false
@@ -36,6 +38,21 @@ struct ContentView: View {
                 Spacer(minLength: 0)
                 IconCanvasView(project: project, session: session)
                     .frame(width: iconSide, height: iconSide)
+                    .overlay {
+                        if let seed = aiSeed {
+                            SeedPreview(
+                                seed: seed,
+                                isGenerating: isGeneratingAI,
+                                isReady: aiSelectedStyle != nil,
+                                cornerRadius: iconSide * 0.2237,
+                                onTap: triggerGenerate
+                            )
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        }
+                    }
+                    .animation(.smooth(duration: 0.25), value: aiSeed)
+                    .animation(.smooth(duration: 0.25), value: isGeneratingAI)
+                    .animation(.smooth(duration: 0.25), value: aiSelectedStyle)
                 LayersBar(
                     project: project,
                     session: session,
@@ -53,7 +70,9 @@ struct ContentView: View {
             AIPhotoFlowBar(
                 isGenerating: isGeneratingAI,
                 seed: $aiSeed,
-                onGenerate: generateFromFlow,
+                selectedStyle: $aiSelectedStyle,
+                selectedMaterial: $aiSelectedMaterial,
+                onGenerate: triggerGenerate,
                 onAddSymbol: addSymbolLayer,
                 onAddPrompt: { showPromptSheet = true },
                 onAddDrawing: { showDrawingSheet = true }
@@ -166,6 +185,16 @@ struct ContentView: View {
 
     // MARK: - AI generation
 
+    private func triggerGenerate() {
+        guard
+            let seed = aiSeed,
+            let style = aiSelectedStyle,
+            !isGeneratingAI
+        else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        generateFromFlow(seed: seed, style: style, material: aiSelectedMaterial)
+    }
+
     private func generateFromFlow(
         seed: AIFlowSeed,
         style: AIFlowOption,
@@ -197,6 +226,9 @@ struct ContentView: View {
                 )
                 let layer = project.addAIOverlay(image: img, prompt: prompt)
                 session.selectLayer(layer.uuid)
+                aiSeed = nil
+                aiSelectedStyle = nil
+                aiSelectedMaterial = nil
             } catch {
                 aiError = error.localizedDescription
             }
