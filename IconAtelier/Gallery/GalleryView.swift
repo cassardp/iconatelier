@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import PhotosUI
 import ImageIO
 
 struct GalleryView: View {
@@ -20,10 +19,6 @@ struct GalleryView: View {
     @State private var pinchTriggered: Bool = false
     @State private var isPinching: Bool = false
     @GestureState private var pinchScale: CGFloat = 1.0
-    @State private var showPhotosPicker: Bool = false
-    @State private var photoPickerItems: [PhotosPickerItem] = []
-    @State private var showVoiceSheet: Bool = false
-    @State private var isCreateMenuOpen: Bool = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
@@ -100,7 +95,7 @@ struct GalleryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                BottomProgressiveBlur(expanded: isCreateMenuOpen && !isSelecting)
+                BottomProgressiveBlur(expanded: false)
                     .ignoresSafeArea(edges: .bottom)
                     .allowsHitTesting(false)
 
@@ -117,7 +112,7 @@ struct GalleryView: View {
             .toolbar {
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(isSelecting ? "Done" : "Select") {
+                        Button(isSelecting ? "Cancel" : "Select") {
                             withAnimation(.smooth(duration: 0.35)) {
                                 isSelecting.toggle()
                                 if !isSelecting { selectedUUIDs.removeAll() }
@@ -140,30 +135,6 @@ struct GalleryView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsSheet()
-            }
-            .photosPicker(
-                isPresented: $showPhotosPicker,
-                selection: $photoPickerItems,
-                maxSelectionCount: 1,
-                matching: .images
-            )
-            .onChange(of: photoPickerItems) { _, items in
-                guard let first = items.first else { return }
-                photoPickerItems = []
-                // Push the editor synchronously so the route is on the stack
-                // before the PhotosPicker finishes dismissing — otherwise the
-                // gallery briefly reappears between picker dismissal and the
-                // async data load completing. The editor will await the
-                // PhotosPickerItem's data itself.
-                let project = makeProject(seedingFor: .photo(first))
-                path.append(ProjectRoute(projectUUID: project.uuid, intent: .photo(first)))
-            }
-            .sheet(isPresented: $showVoiceSheet) {
-                VoiceCaptureSheet { transcript in
-                    let project = makeProject(seedingFor: .voice(transcript))
-                    path.append(ProjectRoute(projectUUID: project.uuid, intent: .voice(transcript)))
-                }
-                .presentationDetents([.medium, .large])
             }
             .navigationDestination(for: ProjectRoute.self) { route in
                 if let project = projects.first(where: { $0.uuid == route.projectUUID }) {
@@ -249,47 +220,19 @@ struct GalleryView: View {
     }
 
     private var newProjectButton: some View {
-        CreateRadialMenu(items: createItems, isOpen: $isCreateMenuOpen)
-    }
-
-    private var createItems: [CreateActionItem] {
-        [
-            CreateActionItem(
-                id: "photo",
-                label: "Photo",
-                systemImage: "camera.fill",
-                color: .primary,
-                action: { showPhotosPicker = true }
-            ),
-            CreateActionItem(
-                id: "prompt",
-                label: "Prompt",
-                systemImage: "wand.and.stars",
-                color: .primary,
-                action: { createProjectAndOpen(intent: .prompt) }
-            ),
-            CreateActionItem(
-                id: "voice",
-                label: "Voice",
-                systemImage: "mic.fill",
-                color: .primary,
-                action: { showVoiceSheet = true }
-            ),
-            CreateActionItem(
-                id: "symbol",
-                label: "Symbol",
-                systemImage: "star.fill",
-                color: .primary,
-                action: { createProjectAndOpen(intent: .symbol) }
-            ),
-            CreateActionItem(
-                id: "text",
-                label: "Text",
-                systemImage: "textformat",
-                color: .primary,
-                action: { createProjectAndOpen(intent: .text) }
-            )
-        ]
+        Button {
+            createNewProject()
+        } label: {
+            Image(systemName: "plus")
+                .font(.title.weight(.regular))
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .frame(width: 60, height: 60)
+                .background(Color.primary, in: .circle)
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.impact(weight: .light), trigger: projects.count)
+        .accessibilityLabel("Create new icon")
     }
 
     private var deleteSelectedButton: some View {
@@ -311,10 +254,12 @@ struct GalleryView: View {
     }
 
     private func toggleSelection(_ project: IconProject) {
-        if selectedUUIDs.contains(project.uuid) {
-            selectedUUIDs.remove(project.uuid)
-        } else {
-            selectedUUIDs.insert(project.uuid)
+        withAnimation(.easeOut(duration: 0.12)) {
+            if selectedUUIDs.contains(project.uuid) {
+                selectedUUIDs.remove(project.uuid)
+            } else {
+                selectedUUIDs.insert(project.uuid)
+            }
         }
     }
 
@@ -330,27 +275,16 @@ struct GalleryView: View {
         selectedUUIDs.removeAll()
     }
 
-    private func createProjectAndOpen(intent: CreationIntent) {
-        let project = makeProject(seedingFor: intent)
-        path.append(ProjectRoute(projectUUID: project.uuid, intent: intent))
-    }
-
-    private func makeProject(seedingFor intent: CreationIntent) -> IconProject {
+    private func createNewProject() {
         let project = IconProject(title: "Untitled")
         project.background = Background(kind: .solid)
-        // Only seed a default text layer for the Text intent so the project has
-        // visible content immediately. The other intents add their own layer
-        // (or a generation) inside the editor.
-        if case .text = intent {
-            project.addTextOverlay(text: "New")
-        }
+        _ = project.addTextOverlay(text: "New")
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         withAnimation(.smooth(duration: 0.35)) {
             modelContext.insert(project)
         }
         try? modelContext.save()
-        return project
     }
 
     private func duplicate(_ project: IconProject) {
@@ -419,6 +353,7 @@ private struct GalleryCell: View {
                 }
             }
             .opacity(isSelecting && !isSelected ? 0.85 : 1)
+            .animation(.easeOut(duration: 0.12), value: isSelected)
     }
 
     private var selectionBadge: some View {
@@ -429,7 +364,11 @@ private struct GalleryCell: View {
                 isSelected ? Color.red : Color.black.opacity(0.25)
             )
             .font(.system(size: 26, weight: .semibold))
+            .contentTransition(.symbolEffect(.replace))
+            .scaleEffect(isSelected ? 1.0 : 0.94)
+            .animation(.easeOut(duration: 0.12), value: isSelected)
             .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
+            .sensoryFeedback(.impact(weight: .light), trigger: isSelected)
     }
 
     @ViewBuilder
