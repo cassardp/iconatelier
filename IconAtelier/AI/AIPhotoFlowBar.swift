@@ -58,7 +58,7 @@ struct AIPhotoFlowBar: View {
         .init(
             id: "pixar",
             label: "Pixar",
-            promptFragment: "stylized 3D Pixar-style character render, soft rounded subdivision surfaces, slightly exaggerated cute proportions with oversized expressive eyes, three-quarter front-facing framing; warm cinematic key light with gentle rim light and rich global illumination, subtle ambient occlusion in crevices; subtle subsurface scattering on organic surfaces, smooth matte-to-satin materials with delicate controlled specular highlights, polished animation-film finish; vibrant warm storybook palette, appealing and inviting; high but readable detail, no busy texture noise; no text or lettering. Single centered subject, isolated on a soft neutral background, soft contact shadow under the subject acceptable, no duplicates, no extra elements, no frame, no other characters or props.",
+            promptFragment: "Pixar style. Stylized 3D Pixar-style character render in the unmistakable look of a Pixar animated feature film, soft rounded subdivision surfaces, slightly exaggerated cute proportions with oversized expressive eyes, three-quarter front-facing framing; warm cinematic key light with gentle rim light and rich global illumination, subtle ambient occlusion in crevices; subtle subsurface scattering on organic surfaces, smooth matte-to-satin materials with delicate controlled specular highlights, polished Pixar animation-film finish; vibrant warm storybook palette, appealing and inviting; high but readable detail, no busy texture noise; no text or lettering. Single centered subject, isolated on a soft neutral background, soft contact shadow under the subject acceptable, no duplicates, no extra elements, no frame, no other characters or props.",
             color: Color(red: 0.15, green: 0.65, blue: 0.85)
         ),
         .init(
@@ -360,23 +360,23 @@ struct AIPhotoFlowBar: View {
     }
 
     private func tile(_ option: AIFlowOption, isSelected: Bool) -> some View {
-        VStack(spacing: 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(uiColor: .tertiarySystemBackground))
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.primary, lineWidth: 2)
-                }
-            }
-            .frame(width: 44, height: 44)
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(uiColor: .tertiarySystemBackground))
 
             Text(option.label)
-                .font(.caption2.weight(isSelected ? .semibold : .medium))
+                .font(.footnote.weight(isSelected ? .semibold : .medium))
                 .foregroundStyle(isSelected ? .primary : .secondary)
                 .lineLimit(1)
-                .frame(maxWidth: 64)
+                .minimumScaleFactor(0.85)
+                .padding(.horizontal, 10)
+
+            if isSelected {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.primary, lineWidth: 2)
+            }
         }
+        .frame(width: 88, height: 56)
         .contentShape(Rectangle())
         .animation(.smooth(duration: 0.18), value: isSelected)
     }

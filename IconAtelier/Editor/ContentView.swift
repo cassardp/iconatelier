@@ -43,9 +43,8 @@ struct ContentView: View {
                             SeedPreview(
                                 seed: seed,
                                 isGenerating: isGeneratingAI,
-                                isReady: aiSelectedStyle != nil,
-                                cornerRadius: iconSide * 0.2237,
-                                onTap: triggerGenerate
+                                side: iconSide,
+                                cornerRadius: iconSide * 0.2237
                             )
                             .transition(.opacity.combined(with: .scale(scale: 0.96)))
                         }
