@@ -38,6 +38,9 @@ struct AIDrawingSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .principal) {
                     Button {
                         canvasView?.undoManager?.undo()
                     } label: {
