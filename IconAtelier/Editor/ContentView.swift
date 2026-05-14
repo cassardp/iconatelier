@@ -140,6 +140,7 @@ struct ContentView: View {
             AIDrawingSheet { image in
                 aiSeed = .drawing(image)
             }
+            .presentationDragIndicator(.visible)
         }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
             if isOpen && !wasOpen {

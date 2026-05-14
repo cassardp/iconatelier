@@ -20,27 +20,26 @@ struct GalleryView: View {
     @State private var isPinching: Bool = false
     @GestureState private var pinchScale: CGFloat = 1.0
 
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount)
-    }
+    private let horizontalSpacing: CGFloat = 16
+    private let verticalSpacing: CGFloat = 20
+    private let minColumns: Int = 2
+    private let maxColumns: Int = 4
 
     private var pinchGesture: some Gesture {
         MagnifyGesture(minimumScaleDelta: 0.05)
             .updating($pinchScale) { value, state, _ in
-                // Very subtle live feedback so the grid hints at the pinch
-                // direction without visibly resizing.
                 let damped = 1 + (value.magnification - 1) * 0.15
                 state = min(max(damped, 0.96), 1.04)
             }
             .onChanged { value in
                 if !isPinching { isPinching = true }
                 guard !pinchTriggered, !isSelecting else { return }
-                if value.magnification > 1.25, columnCount > 2 {
+                if value.magnification > 1.25, columnCount > minColumns {
                     pinchTriggered = true
-                    withAnimation(.smooth(duration: 0.35)) { columnCount -= 1 }
-                } else if value.magnification < 0.8, columnCount < 4 {
+                    withAnimation(.snappy(duration: 0.32)) { columnCount -= 1 }
+                } else if value.magnification < 0.8, columnCount < maxColumns {
                     pinchTriggered = true
-                    withAnimation(.smooth(duration: 0.35)) { columnCount += 1 }
+                    withAnimation(.snappy(duration: 0.32)) { columnCount += 1 }
                 }
             }
             .onEnded { _ in
@@ -72,7 +71,11 @@ struct GalleryView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     } else {
                         ScrollView {
-                            LazyVGrid(columns: columns, spacing: 20) {
+                            UniformIconGridLayout(
+                                columns: columnCount,
+                                horizontalSpacing: horizontalSpacing,
+                                verticalSpacing: verticalSpacing
+                            ) {
                                 ForEach(projects) { project in
                                     cell(for: project)
                                         .transition(.asymmetric(
@@ -84,7 +87,7 @@ struct GalleryView: View {
                             .padding(20)
                             .padding(.bottom, 80)
                             .scaleEffect(pinchScale, anchor: .center)
-                            .animation(.smooth(duration: 0.35), value: columnCount)
+                            .animation(.snappy(duration: 0.32), value: columnCount)
                             .animation(.smooth(duration: 0.35), value: projects.count)
                             .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: pinchScale)
                         }
@@ -278,13 +281,11 @@ struct GalleryView: View {
     private func createNewProject() {
         let project = IconProject(title: "Untitled")
         project.background = Background(kind: .solid)
-        _ = project.addTextOverlay(text: "New")
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
-        withAnimation(.smooth(duration: 0.35)) {
-            modelContext.insert(project)
-        }
+        modelContext.insert(project)
         try? modelContext.save()
+        path.append(ProjectRoute(projectUUID: project.uuid, intent: nil))
     }
 
     private func duplicate(_ project: IconProject) {
@@ -323,6 +324,43 @@ private struct BottomProgressiveBlur: View {
                 .frame(maxWidth: .infinity)
             }
             .animation(.smooth(duration: 0.32), value: expanded)
+    }
+}
+
+// Non-lazy uniform square grid. All cells exist in the view tree at all
+// times, so when the column count changes SwiftUI animates each cell from
+// its old position to the new one instead of materializing/dematerializing
+// cells (which would trigger insertion/removal transitions and feel janky).
+private struct UniformIconGridLayout: Layout {
+    let columns: Int
+    let horizontalSpacing: CGFloat
+    let verticalSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.replacingUnspecifiedDimensions().width
+        let count = subviews.count
+        guard count > 0, columns > 0 else { return CGSize(width: width, height: 0) }
+        let cell = cellSide(for: width)
+        let rows = (count + columns - 1) / columns
+        let height = CGFloat(rows) * cell + CGFloat(max(0, rows - 1)) * verticalSpacing
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let cell = cellSide(for: bounds.width)
+        let cellProposal = ProposedViewSize(width: cell, height: cell)
+        for (index, subview) in subviews.enumerated() {
+            let col = index % columns
+            let row = index / columns
+            let x = bounds.minX + CGFloat(col) * (cell + horizontalSpacing)
+            let y = bounds.minY + CGFloat(row) * (cell + verticalSpacing)
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: cellProposal)
+        }
+    }
+
+    private func cellSide(for width: CGFloat) -> CGFloat {
+        let totalSpacing = horizontalSpacing * CGFloat(max(0, columns - 1))
+        return max(0, (width - totalSpacing) / CGFloat(columns))
     }
 }
 

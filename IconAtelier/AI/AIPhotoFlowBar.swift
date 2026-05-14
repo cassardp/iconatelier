@@ -40,7 +40,6 @@ struct AIPhotoFlowBar: View {
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
-    @State private var isCreateMenuOpen: Bool = false
 
     static let styles: [AIFlowOption] = [
         .init(
@@ -147,46 +146,22 @@ struct AIPhotoFlowBar: View {
         seed != nil && selectedStyle != nil && !isGenerating
     }
 
-    private var createItems: [CreateActionItem] {
+    private var seedActions: [SeedAction] {
         [
-            CreateActionItem(
-                id: "photo",
-                label: "Photo",
-                systemImage: "camera.fill",
-                color: .primary,
-                action: { showPhotosPicker = true }
-            ),
-            CreateActionItem(
-                id: "prompt",
-                label: "Prompt",
-                systemImage: "textformat",
-                color: .primary,
-                action: onAddPrompt
-            ),
-            CreateActionItem(
-                id: "drawing",
-                label: "Drawing",
-                systemImage: "paintbrush.pointed.fill",
-                color: .primary,
-                action: onAddDrawing
-            ),
-            CreateActionItem(
-                id: "symbol",
-                label: "Symbol",
-                systemImage: "star.fill",
-                color: .primary,
-                action: onAddSymbol
-            )
+            SeedAction(id: "photo", label: "Photo", systemImage: "camera.fill") {
+                showPhotosPicker = true
+            },
+            SeedAction(id: "prompt", label: "Prompt", systemImage: "textformat", action: onAddPrompt),
+            SeedAction(id: "drawing", label: "Drawing", systemImage: "scribble.variable", action: onAddDrawing),
+            SeedAction(id: "symbol", label: "Symbol", systemImage: "star.fill", action: onAddSymbol)
         ]
     }
 
     var body: some View {
         Group {
             if step == .seed {
-                CreateRadialMenu(items: createItems, isOpen: $isCreateMenuOpen)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.bottom, 16)
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                seedActionsRow
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
                 stripsBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -203,6 +178,33 @@ struct AIPhotoFlowBar: View {
             guard !items.isEmpty else { return }
             Task { await loadPhoto(items) }
         }
+    }
+
+    // MARK: - Seed actions row
+
+    private var seedActionsRow: some View {
+        HStack(spacing: 0) {
+            ForEach(seedActions) { item in
+                seedActionButton(item)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+    }
+
+    private func seedActionButton(_ item: SeedAction) -> some View {
+        Button(action: item.action) {
+            Image(systemName: item.systemImage)
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .offset(y: -1)
+                .frame(width: 56, height: 56)
+                .background(Color.primary, in: .circle)
+                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(item.label)
     }
 
     // MARK: - Strips bar
@@ -400,4 +402,13 @@ struct AIPhotoFlowBar: View {
             pickerItems = []
         }
     }
+}
+
+// MARK: - Seed action descriptor
+
+private struct SeedAction: Identifiable {
+    let id: String
+    let label: String
+    let systemImage: String
+    let action: () -> Void
 }
