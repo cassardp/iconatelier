@@ -37,6 +37,7 @@ struct AIPhotoFlowBar: View {
     let onAddSymbol: () -> Void
     let onAddPrompt: () -> Void
     let onAddDrawing: () -> Void
+    let onAddText: () -> Void
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
@@ -148,12 +149,13 @@ struct AIPhotoFlowBar: View {
 
     private var seedActions: [SeedAction] {
         [
+            SeedAction(id: "prompt", label: "Prompt", systemImage: "sparkles.2", action: onAddPrompt),
             SeedAction(id: "photo", label: "Photo", systemImage: "camera.fill") {
                 showPhotosPicker = true
             },
-            SeedAction(id: "prompt", label: "Prompt", systemImage: "textformat", action: onAddPrompt),
             SeedAction(id: "drawing", label: "Drawing", systemImage: "scribble.variable", action: onAddDrawing),
-            SeedAction(id: "symbol", label: "Symbol", systemImage: "star.fill", action: onAddSymbol)
+            SeedAction(id: "symbol", label: "Symbol", systemImage: "star.fill", action: onAddSymbol),
+            SeedAction(id: "text", label: "Text", systemImage: "textformat", weight: .medium, action: onAddText)
         ]
     }
 
@@ -196,7 +198,7 @@ struct AIPhotoFlowBar: View {
     private func seedActionButton(_ item: SeedAction) -> some View {
         Button(action: item.action) {
             Image(systemName: item.systemImage)
-                .font(.system(size: 22, weight: .regular))
+                .font(.system(size: 22, weight: item.weight))
                 .foregroundStyle(Color(uiColor: .systemBackground))
                 .offset(y: -1)
                 .frame(width: 56, height: 56)
@@ -410,5 +412,20 @@ private struct SeedAction: Identifiable {
     let id: String
     let label: String
     let systemImage: String
+    let weight: Font.Weight
     let action: () -> Void
+
+    init(
+        id: String,
+        label: String,
+        systemImage: String,
+        weight: Font.Weight = .regular,
+        action: @escaping () -> Void
+    ) {
+        self.id = id
+        self.label = label
+        self.systemImage = systemImage
+        self.weight = weight
+        self.action = action
+    }
 }

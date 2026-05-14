@@ -225,7 +225,7 @@ final class IconProject {
     @discardableResult
     func addTextOverlay(text: String = "Aa") -> Layer {
         recordUndo()
-        return append(Layer(kind: .text, name: text, text: text))
+        return append(Layer(kind: .text, name: text, text: text, tintColor: .black))
     }
 
     @discardableResult

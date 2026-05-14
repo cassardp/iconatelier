@@ -115,6 +115,7 @@ struct IconCanvasView: View {
                         transientAngle: isSelected ? rotationSnap.delta : .zero,
                         onTap: { session.selectLayer(layer.uuid) }
                     )
+                    .transition(.scale(scale: 1.12).combined(with: .opacity))
                 }
             }
             centerGuides(side: side)

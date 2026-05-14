@@ -74,7 +74,8 @@ struct ContentView: View {
                 onGenerate: triggerGenerate,
                 onAddSymbol: addSymbolLayer,
                 onAddPrompt: { showPromptSheet = true },
-                onAddDrawing: { showDrawingSheet = true }
+                onAddDrawing: { showDrawingSheet = true },
+                onAddText: addTextLayer
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -237,8 +238,17 @@ struct ContentView: View {
     }
 
     private func addSymbolLayer() {
-        let layer = project.addSymbolOverlay()
-        session.selectLayer(layer.uuid)
+        withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
+            let layer = project.addSymbolOverlay()
+            session.selectLayer(layer.uuid)
+        }
+    }
+
+    private func addTextLayer() {
+        withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
+            let layer = project.addTextOverlay()
+            session.selectLayer(layer.uuid)
+        }
     }
 
     private func addPromptLayer() {
