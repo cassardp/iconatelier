@@ -38,20 +38,6 @@ struct ContentView: View {
                 Spacer(minLength: 0)
                 IconCanvasView(project: project, session: session)
                     .frame(width: iconSide, height: iconSide)
-                    .overlay {
-                        if let seed = aiSeed {
-                            SeedPreview(
-                                seed: seed,
-                                isGenerating: isGeneratingAI,
-                                side: iconSide,
-                                cornerRadius: iconSide * 0.2237
-                            )
-                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                        }
-                    }
-                    .animation(.smooth(duration: 0.25), value: aiSeed)
-                    .animation(.smooth(duration: 0.25), value: isGeneratingAI)
-                    .animation(.smooth(duration: 0.25), value: aiSelectedStyle)
                 LayersBar(
                     project: project,
                     session: session,

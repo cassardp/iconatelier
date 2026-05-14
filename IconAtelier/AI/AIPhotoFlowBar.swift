@@ -41,6 +41,11 @@ struct AIPhotoFlowBar: View {
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showPhotosPicker: Bool = false
+    @State private var activePicker: ActivePicker? = nil
+    @State private var countdown: Int = 90
+
+    private enum ActivePicker: Hashable { case style, material }
+    private enum ChainSquareKind: Hashable { case seed, style, material }
 
     static let styles: [AIFlowOption] = [
         .init(
@@ -84,6 +89,12 @@ struct AIPhotoFlowBar: View {
             label: "Sticker",
             promptFragment: "flat die-cut sticker, solid opaque color fills, cartoon style, thick uniform off-white border (#FAF9F7, a warm near-white, never pure #FFFFFF) tracing the entire outer silhouette of the sticker uniformly; purely flat, no shading, no gradients, no 3D; limited palette of two to three bold flat colors; bold rounded simplified shapes; minimal interior detail, no textures; no text or lettering. Single centered subject, isolated on a transparent or neutral background, no duplicates, no extra elements, no frame, no drop shadow under the sticker. All shapes solid and fully filled, no holes inside the sticker. Every part of the sticker interior must be fully opaque; only the area outside the die-cut border is transparent.",
             color: Color(red: 1.00, green: 0.35, blue: 0.40)
+        ),
+        .init(
+            id: "doodle",
+            label: "Doodle",
+            promptFragment: "cute cartoon doodle illustration, thick uniform dark outlines of consistent weight throughout the entire shape — the outline color is a deep tone (dark brown, deep maroon, or near-black) slightly tinted to harmonize with the fill, never pure jet black; outlines are confident, slightly imperfect hand-drawn but smooth, never sketchy, never variable in weight; flat solid opaque color fills inside the outlines — strictly aplats, absolutely no gradients, no shading, no highlights, no 3D, no texture; saturated mid-tone palette, warm and earthy (mid brown, terracotta, dusty mint, teal, mustard, brick), never washed-out pastel, never neon; chunky exaggerated chubby silhouette — oversized rounded body shaped like a fat bean or potato, tiny stubby arms and legs hanging off the body, very short proportions, big round head fused with body or sitting directly on it; minimalist face: two small dot eyes spaced close together, a tiny simple smile, no nose, no other features; one or two small playful accents on top allowed (tiny sprouting leaves, a tuft of hair, a single sparkle) drawn with the same line weight; minimal interior detail, no inner linework beyond the silhouette outline and the face dots; no text or lettering. Single centered subject, isolated on a plain neutral or soft uniform background, no duplicates, no extra characters, no frame, no drop shadow under the subject, no environment props. Outlines must be thick, smooth and uniform — never thin, never scratchy, never sketchbook-style hatching.",
+            color: Color(red: 0.55, green: 0.32, blue: 0.22)
         )
     ]
 
@@ -135,14 +146,6 @@ struct AIPhotoFlowBar: View {
         .init(id: "cloud",       label: "Cloud",       promptFragment: "soft puffy cloud material, billowy rounded cumulus shapes, white airy volumetric surface, dreamy sky-like softness", color: Color(red: 0.88, green: 0.92, blue: 0.97))
     ]
 
-    private enum Step: Hashable { case seed, style, material }
-
-    private var step: Step {
-        if seed == nil { return .seed }
-        if selectedStyle == nil { return .style }
-        return .material
-    }
-
     private var canGenerate: Bool {
         seed != nil && selectedStyle != nil && !isGenerating
     }
@@ -159,17 +162,34 @@ struct AIPhotoFlowBar: View {
         ]
     }
 
+    // MARK: - Body
+
     var body: some View {
-        Group {
-            if step == .seed {
-                seedActionsRow
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        VStack(spacing: 10) {
+            if seed == nil {
+                initialActionsRow
+                    .transition(.scale(scale: 0.95).combined(with: .opacity))
             } else {
-                stripsBar
+                if let picker = activePicker {
+                    pickerRow(for: picker)
+                        .frame(height: 92)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                chainRow
+                    .frame(height: 60)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+
+                sendRow
+                    .frame(height: 60)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.smooth(duration: 0.3), value: step)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+        .animation(.smooth(duration: 0.3), value: seed == nil)
+        .animation(.smooth(duration: 0.25), value: activePicker)
+        .animation(.smooth(duration: 0.2), value: canGenerate)
         .photosPicker(
             isPresented: $showPhotosPicker,
             selection: $pickerItems,
@@ -180,11 +200,32 @@ struct AIPhotoFlowBar: View {
             guard !items.isEmpty else { return }
             Task { await loadPhoto(items) }
         }
+        .onChange(of: seed) { _, newValue in
+            if newValue == nil {
+                selectedStyle = nil
+                selectedMaterial = nil
+                activePicker = nil
+            } else if selectedStyle == nil {
+                activePicker = .style
+            }
+        }
+        .onChange(of: selectedStyle) { _, newValue in
+            if newValue == nil {
+                selectedMaterial = nil
+            } else if activePicker == .style {
+                activePicker = nil
+            }
+        }
+        .onChange(of: selectedMaterial) { _, _ in
+            if activePicker == .material {
+                activePicker = nil
+            }
+        }
     }
 
-    // MARK: - Seed actions row
+    // MARK: - Initial actions row (seed == nil)
 
-    private var seedActionsRow: some View {
+    private var initialActionsRow: some View {
         HStack(spacing: 0) {
             ForEach(seedActions) { item in
                 seedActionButton(item)
@@ -193,205 +234,336 @@ struct AIPhotoFlowBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
+        .disabled(isGenerating)
     }
 
     private func seedActionButton(_ item: SeedAction) -> some View {
-        Button(action: item.action) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            item.action()
+        } label: {
             Image(systemName: item.systemImage)
                 .font(.system(size: 22, weight: item.weight))
                 .foregroundStyle(Color(uiColor: .systemBackground))
                 .offset(y: -1)
-                .frame(width: 56, height: 56)
+                .frame(width: 54, height: 54)
                 .background(Color.primary, in: .circle)
                 .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 1)
+                .contentShape(.circle)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.label)
     }
 
-    // MARK: - Strips bar
+    // MARK: - Chain row (3 squares linked)
+
+    private var chainRow: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            chainSquare(.seed)
+            chainLink
+            chainSquare(.style)
+            chainLink
+            chainSquare(.material)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var chainLink: some View {
+        Rectangle()
+            .frame(width: 6, height: 1)
+            .foregroundStyle(.tertiary)
+    }
 
     @ViewBuilder
-    private var stripsBar: some View {
-        VStack(spacing: 6) {
-            header
-
-            ZStack {
-                if step == .style {
-                    optionsScroll(
-                        options: Self.styles,
-                        selection: selectedStyle
-                    ) { option in
-                        selectedStyle = (selectedStyle == option) ? nil : option
-                        if selectedStyle == nil { selectedMaterial = nil }
-                    }
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .leading)),
-                        removal: .opacity.combined(with: .move(edge: .leading))
-                    ))
-                } else {
-                    optionsScroll(
-                        options: Self.materials,
-                        selection: selectedMaterial
-                    ) { option in
-                        selectedMaterial = (selectedMaterial == option) ? nil : option
-                    }
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .trailing)),
-                        removal: .opacity.combined(with: .move(edge: .trailing))
-                    ))
-                }
+    private func chainSquare(_ kind: ChainSquareKind) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            switch kind {
+            case .seed:
+                // Tap on seed pill = reset everything, back to initial 5-button row.
+                seed = nil
+            case .style:
+                togglePicker(.style)
+            case .material:
+                togglePicker(.material)
             }
-            .frame(height: 72)
-            .animation(.smooth(duration: 0.28), value: step)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .padding(.bottom, 10)
-    }
-
-    // MARK: - Header (label + selected chip + generate button)
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text(step == .style ? "Style" : "Material")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .contentTransition(.opacity)
-                .animation(.smooth(duration: 0.2), value: step)
-
-            if step == .material, let style = selectedStyle {
-                selectionChip(label: style.label) {
-                    selectedStyle = nil
-                    selectedMaterial = nil
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
-
-            if step == .material && selectedMaterial == nil {
-                Text("optional")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .transition(.opacity)
-            }
-
-            Spacer(minLength: 0)
-
-            generateButton
-                .transition(.scale.combined(with: .opacity))
-        }
-        .padding(.horizontal, 4)
-        .animation(.smooth(duration: 0.22), value: selectedStyle)
-        .animation(.smooth(duration: 0.22), value: selectedMaterial)
-    }
-
-    private func selectionChip(label: String, onRemove: @escaping () -> Void) -> some View {
-        Button(action: onRemove) {
-            HStack(spacing: 4) {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.primary)
-                Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Capsule(style: .continuous).fill(Color(uiColor: .tertiarySystemBackground)))
+        } label: {
+            squareContent(for: kind)
         }
         .buttonStyle(.plain)
-        .disabled(isGenerating)
+        .disabled(isGenerating || (kind == .material && selectedStyle == nil))
+        .accessibilityLabel(squareAccessibilityLabel(kind))
+        .accessibilityHint(kind == .seed ? "Removes the seed and returns to the initial actions" : "")
     }
 
     @ViewBuilder
-    private var generateButton: some View {
-        if step == .material {
-            Button(action: onGenerate) {
-                HStack(spacing: 6) {
-                    if isGenerating {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(Color(uiColor: .systemBackground))
-                    } else {
-                        Image(systemName: "sparkles")
-                            .font(.footnote.weight(.bold))
-                    }
-                    Text(isGenerating ? "Generating" : "Generate")
-                        .font(.footnote.weight(.semibold))
-                }
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(Capsule(style: .continuous).fill(.primary))
+    private func squareContent(for kind: ChainSquareKind) -> some View {
+        let size: CGFloat = 52
+        let isActive: Bool = {
+            switch kind {
+            case .seed: return false
+            case .style: return activePicker == .style
+            case .material: return activePicker == .material
             }
-            .buttonStyle(.plain)
-            .disabled(!canGenerate)
-            .opacity(canGenerate ? 1 : 0.5)
-            .accessibilityLabel(isGenerating ? "Generating" : "Generate")
-        } else {
-            Button(action: reset) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(isGenerating)
-            .opacity(isGenerating ? 0.4 : 1)
-            .accessibilityLabel("Reset")
-        }
-    }
-
-    // MARK: - Strip scroll
-
-    private func optionsScroll(
-        options: [AIFlowOption],
-        selection: AIFlowOption?,
-        select: @escaping (AIFlowOption) -> Void
-    ) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 8) {
-                ForEach(options) { option in
-                    Button { select(option) } label: {
-                        tile(option, isSelected: option == selection)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isGenerating)
-                }
-            }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
-        }
-    }
-
-    private func tile(_ option: AIFlowOption, isSelected: Bool) -> some View {
+        }()
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(uiColor: .tertiarySystemBackground))
+            switch kind {
+            case .seed:
+                seedSquareInner
+            case .style:
+                if let style = selectedStyle {
+                    optionSquareInner(option: style)
+                } else {
+                    placeholderInner(symbol: "plus")
+                }
+            case .material:
+                if let material = selectedMaterial {
+                    optionSquareInner(option: material)
+                } else {
+                    placeholderInner(symbol: "plus")
+                }
+            }
 
-            Text(option.label)
-                .font(.footnote.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .padding(.horizontal, 10)
-
-            if isSelected {
+            if isActive {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(Color.primary, lineWidth: 2)
             }
         }
-        .frame(width: 88, height: 56)
-        .contentShape(Rectangle())
+        .frame(width: size, height: size)
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .animation(.smooth(duration: 0.18), value: isActive)
+    }
+
+    @ViewBuilder
+    private var seedSquareInner: some View {
+        switch seed {
+        case .photo(let image), .drawing(let image):
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        case .prompt:
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+                Image(systemName: "text.alignleft")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+        case .none:
+            placeholderInner(symbol: "plus")
+        }
+    }
+
+    @ViewBuilder
+    private func optionSquareInner(option: AIFlowOption) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+            Circle()
+                .fill(option.color)
+                .frame(width: 14, height: 14)
+        }
+    }
+
+    @ViewBuilder
+    private func placeholderInner(symbol: String) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(
+                    Color.secondary.opacity(0.5),
+                    style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+                )
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    // MARK: - Send row
+
+    private var sendRow: some View {
+        HStack {
+            Spacer(minLength: 0)
+            sendButton
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var sendButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            onGenerate()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.primary)
+                Group {
+                    if isGenerating {
+                        if countdown > 0 {
+                            Text("\(countdown)")
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(Color(uiColor: .systemBackground))
+                                .contentTransition(.numericText(countsDown: true))
+                        } else {
+                            ProgressView()
+                                .tint(Color(uiColor: .systemBackground))
+                        }
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Color(uiColor: .systemBackground))
+                    }
+                }
+                .animation(.smooth(duration: 0.25), value: countdown)
+            }
+            .frame(width: 52, height: 52)
+        }
+        .buttonStyle(.plain)
+        .disabled(!canGenerate)
+        .task(id: isGenerating) {
+            guard isGenerating else {
+                countdown = 90
+                return
+            }
+            countdown = 90
+            while countdown > 0 && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                countdown -= 1
+            }
+        }
+        .accessibilityLabel(isGenerating ? "Generating" : "Generate")
+    }
+
+    // MARK: - Picker row
+
+    @ViewBuilder
+    private func pickerRow(for picker: ActivePicker) -> some View {
+        Group {
+            switch picker {
+            case .style:
+                optionsPickerRow(
+                    options: Self.styles,
+                    selection: selectedStyle,
+                    allowNone: false
+                ) { option in
+                    selectedStyle = option
+                }
+            case .material:
+                optionsPickerRow(
+                    options: Self.materials,
+                    selection: selectedMaterial,
+                    allowNone: true
+                ) { option in
+                    selectedMaterial = option
+                }
+            }
+        }
+        .id(picker)
+        .transition(.opacity)
+    }
+
+    private func optionsPickerRow(
+        options: [AIFlowOption],
+        selection: AIFlowOption?,
+        allowNone: Bool,
+        select: @escaping (AIFlowOption?) -> Void
+    ) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                if allowNone {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        select(nil)
+                        activePicker = nil
+                    } label: {
+                        noneTile(isSelected: selection == nil)
+                    }
+                    .buttonStyle(.plain)
+                }
+                ForEach(options) { option in
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        select(option)
+                    } label: {
+                        optionTile(option, isSelected: option == selection)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 4)
+        }
+        .disabled(isGenerating)
+    }
+
+    private func optionTile(_ option: AIFlowOption, isSelected: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isSelected ? Color(uiColor: .secondarySystemBackground) : Color(uiColor: .tertiarySystemBackground))
+            VStack(spacing: 4) {
+                Circle()
+                    .fill(option.color)
+                    .frame(width: 14, height: 14)
+                Text(option.label)
+                    .font(.system(size: 9, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .padding(.horizontal, 4)
+            if isSelected {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.primary, lineWidth: 2)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .animation(.smooth(duration: 0.18), value: isSelected)
+        .accessibilityLabel(option.label)
+    }
+
+    private func noneTile(isSelected: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isSelected ? Color(uiColor: .secondarySystemBackground) : Color(uiColor: .tertiarySystemBackground))
+            Text("None")
+                .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+            if isSelected {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.primary, lineWidth: 2)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityLabel("None")
     }
 
     // MARK: - Actions
 
-    private func reset() {
-        seed = nil
-        selectedStyle = nil
-        selectedMaterial = nil
-        pickerItems = []
+    private func togglePicker(_ picker: ActivePicker) {
+        activePicker = (activePicker == picker) ? nil : picker
+    }
+
+    private func squareAccessibilityLabel(_ kind: ChainSquareKind) -> String {
+        switch kind {
+        case .seed:
+            switch seed {
+            case .photo: return "Seed: Photo"
+            case .drawing: return "Seed: Drawing"
+            case .prompt: return "Seed: Prompt"
+            case .none: return "Seed, not set"
+            }
+        case .style:
+            return selectedStyle.map { "Style: \($0.label)" } ?? "Style, not set"
+        case .material:
+            return selectedMaterial.map { "Material: \($0.label)" } ?? "Material, not set, optional"
+        }
     }
 
     private func loadPhoto(_ items: [PhotosPickerItem]) async {
