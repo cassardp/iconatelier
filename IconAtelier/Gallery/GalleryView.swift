@@ -13,6 +13,7 @@ struct GalleryView: View {
     @State private var showSettings: Bool = false
     @State private var isSelecting: Bool = false
     @State private var selectedUUIDs: Set<UUID> = []
+    @State private var isFocusing: Bool = false
     @AppStorage("galleryColumnCount") private var columnCount: Int = 3
     @Namespace private var galleryNamespace
     @State private var tileSide: CGFloat = 0
@@ -118,7 +119,10 @@ struct GalleryView: View {
                         Button(isSelecting ? "Cancel" : "Select") {
                             withAnimation(.smooth(duration: 0.35)) {
                                 isSelecting.toggle()
-                                if !isSelecting { selectedUUIDs.removeAll() }
+                                if !isSelecting {
+                                    selectedUUIDs.removeAll()
+                                    isFocusing = false
+                                }
                             }
                         }
                     }
@@ -127,13 +131,31 @@ struct GalleryView: View {
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                    if isSelecting {
+                        Button {
+                            withAnimation(.smooth(duration: 0.3)) {
+                                isFocusing.toggle()
+                            }
+                        } label: {
+                            Image(systemName: isFocusing ? "eye.slash" : "eye")
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                        .accessibilityLabel(isFocusing ? "Exit focus mode" : "Focus selected icon")
+                        .sensoryFeedback(.impact(weight: .light), trigger: isFocusing)
+                        .disabled(selectedUUIDs.isEmpty)
+                    } else {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Settings")
                     }
-                    .accessibilityLabel("Settings")
-                    .disabled(isSelecting)
+                }
+            }
+            .onChange(of: selectedUUIDs.isEmpty) { _, becameEmpty in
+                if becameEmpty && isFocusing {
+                    withAnimation(.smooth(duration: 0.3)) { isFocusing = false }
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -183,7 +205,9 @@ struct GalleryView: View {
             GalleryCell(
                 project: project,
                 isSelecting: isSelecting,
-                isSelected: selectedUUIDs.contains(project.uuid)
+                isSelected: selectedUUIDs.contains(project.uuid),
+                isDimmed: isFocusing && !selectedUUIDs.contains(project.uuid),
+                isFocusing: isFocusing
             )
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
@@ -375,23 +399,32 @@ private struct GalleryCell: View {
     let project: IconProject
     var isSelecting: Bool = false
     var isSelected: Bool = false
+    var isDimmed: Bool = false
+    var isFocusing: Bool = false
 
     var body: some View {
-        thumbnail
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(AppIconSquircle())
-            .overlay {
-                AppIconSquircle()
-                    .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
+        ZStack {
+            thumbnail
+                .opacity(isDimmed ? 0 : 1)
+            if isDimmed {
+                Color.secondary.opacity(0.18)
             }
-            .overlay(alignment: .topTrailing) {
-                if isSelecting {
-                    selectionBadge
-                        .padding(10)
-                }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(AppIconSquircle())
+        .overlay {
+            AppIconSquircle()
+                .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
+        }
+        .overlay(alignment: .topTrailing) {
+            if isSelecting && !isDimmed && !isFocusing {
+                selectionBadge
+                    .padding(10)
             }
-            .opacity(isSelecting && !isSelected ? 0.85 : 1)
-            .animation(.easeOut(duration: 0.12), value: isSelected)
+        }
+        .opacity(isSelecting && !isSelected && !isDimmed ? 0.85 : 1)
+        .animation(.easeOut(duration: 0.2), value: isDimmed)
+        .animation(.easeOut(duration: 0.12), value: isSelected)
     }
 
     private var selectionBadge: some View {
