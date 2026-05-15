@@ -80,7 +80,7 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
                 session.selectLayer(layer.uuid)
-                if layer.kind != .aiOverlay || layer.image != nil {
+                if layer.kind != .image || layer.image != nil {
                     isSheetOpen = true
                 }
             }

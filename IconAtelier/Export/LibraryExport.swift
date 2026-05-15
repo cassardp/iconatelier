@@ -1,14 +1,13 @@
 import Foundation
 
-// MARK: - Top-level export envelope (v2: bundle layout)
+// MARK: - Top-level export envelope (v3: bundle layout)
 //
 // The export is a .zip wrapping a single folder named after the timestamp:
 //
 //     IconAtelier-YYYY-MM-DD-HHmm/
 //         manifest.json
 //         images/<uuid>-thumb.png        (per project, optional)
-//         images/<uuid>-bg.png           (per project AI background, optional)
-//         images/<layerUUID>.png         (per layer, optional)
+//         images/<layerUUID>.png         (per image layer, optional)
 //
 // Path values in the JSON are relative to the folder, e.g. "images/abc.png".
 // The importer strips that wrapping folder prefix transparently.
@@ -19,7 +18,7 @@ struct LibraryExport: Codable {
     let appVersion: String?
     let projects: [ProjectExport]
 
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 }
 
 // MARK: - DTOs
@@ -58,9 +57,6 @@ struct BackgroundExport: Codable {
     let meshColors: [StoredColor]
     let meshRotationDegrees: Double
 
-    let aiImage: String?
-    let aiPrompt: String?
-
     let isHidden: Bool
 }
 
@@ -71,9 +67,7 @@ struct LayerExport: Codable {
     let orderIndex: Int
 
     let image: String?
-    let sourcePrompt: String?
 
-    let symbolName: String
     let emoji: String
     let text: String
     let fontWeight: String
@@ -130,13 +124,8 @@ enum LibraryExporter {
                 in: imagesDir
             )
 
-            let bg = try project.background.map { background -> BackgroundExport in
-                let bgPath = try Self.writeImage(
-                    data: background.aiImagePNG,
-                    name: "\(project.uuid.uuidString)-bg",
-                    in: imagesDir
-                )
-                return BackgroundExport(
+            let bg = project.background.map { background in
+                BackgroundExport(
                     kind: background.kindRaw,
                     solidColor: background.storedSolidColor,
                     gradientColors: background.storedGradientColors,
@@ -145,8 +134,6 @@ enum LibraryExporter {
                     gradientCenter: background.storedGradientCenter,
                     meshColors: background.storedMeshColors,
                     meshRotationDegrees: background.meshRotationDegrees,
-                    aiImage: bgPath,
-                    aiPrompt: background.aiPrompt,
                     isHidden: background.isHidden
                 )
             }
@@ -165,8 +152,6 @@ enum LibraryExporter {
                     kind: layer.kindRaw,
                     orderIndex: layer.orderIndex,
                     image: layerPath,
-                    sourcePrompt: layer.sourcePrompt,
-                    symbolName: layer.symbolName,
                     emoji: layer.emoji,
                     text: layer.text,
                     fontWeight: layer.fontWeightRaw,

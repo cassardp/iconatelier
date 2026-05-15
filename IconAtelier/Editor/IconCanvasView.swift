@@ -266,14 +266,6 @@ struct BackgroundView: View {
                 )
             case .meshGradient:
                 meshView
-            case .ai:
-                if let image = background.aiImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Color(.secondarySystemBackground)
-                }
             }
         }
         .frame(width: side, height: side)
@@ -374,23 +366,19 @@ struct LayerContentView: View {
     @ViewBuilder
     private var content: some View {
         switch layer.kind {
-        case .aiOverlay:
-            let aiSide = side * 0.7 * scale
+        case .image:
+            let imageSide = side * 0.7 * scale
             if let image = layer.image {
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
-                    .frame(width: aiSide, height: aiSide)
+                    .frame(width: imageSide, height: imageSide)
                     .colorMultiply(layer.tintColor)
             } else {
                 Color.clear
-                    .frame(width: aiSide, height: aiSide)
+                    .frame(width: imageSide, height: imageSide)
             }
-        case .symbol:
-            Image(systemName: layer.symbolName)
-                .font(.system(size: side * 0.5 * scale, weight: layer.fontWeight.swiftUI))
-                .foregroundStyle(layer.tintColor)
         case .emoji:
             Text(layer.emoji)
                 .font(.system(size: side * 0.5 * scale))

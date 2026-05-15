@@ -191,39 +191,13 @@ final class IconProject {
     }
 
     @discardableResult
-    func addAIOverlay(image: UIImage, prompt: String) -> Layer {
-        recordUndo()
-        return append(Layer(
-            kind: .aiOverlay,
-            name: nextName(for: .aiOverlay, baseFallback: "Overlay"),
-            image: image,
-            sourcePrompt: prompt
-        ))
-    }
-
-    @discardableResult
     func addImportedOverlay(image: UIImage) -> Layer {
         recordUndo()
         return append(Layer(
-            kind: .aiOverlay,
-            name: nextName(for: .aiOverlay, baseFallback: "Import"),
+            kind: .image,
+            name: nextName(for: .image, baseFallback: "Import"),
             image: image
         ))
-    }
-
-    @discardableResult
-    func addEmptyAIOverlay() -> Layer {
-        recordUndo()
-        return append(Layer(
-            kind: .aiOverlay,
-            name: nextName(for: .aiOverlay, baseFallback: "Overlay")
-        ))
-    }
-
-    @discardableResult
-    func addSymbolOverlay(symbolName: String = "star.fill") -> Layer {
-        recordUndo()
-        return append(Layer(kind: .symbol, name: symbolName, symbolName: symbolName))
     }
 
     @discardableResult
@@ -247,32 +221,6 @@ final class IconProject {
     func addTextOverlay(text: String = "Aa") -> Layer {
         recordUndo()
         return append(Layer(kind: .text, name: text, text: text, tintColor: .black))
-    }
-
-    @discardableResult
-    func fillSelectedEmptyOverlayOrAdd(
-        selected: Layer?,
-        image: UIImage,
-        prompt: String
-    ) -> Layer {
-        if let selected, selected.kind == .aiOverlay, selected.image == nil {
-            recordUndo()
-            selected.image = image
-            selected.sourcePrompt = prompt
-            return selected
-        } else {
-            return addAIOverlay(image: image, prompt: prompt)
-        }
-    }
-
-    // MARK: - Background
-
-    func setBackgroundAI(image: UIImage, prompt: String) {
-        recordUndo()
-        if background == nil { background = Background() }
-        background?.kind = .ai
-        background?.aiImage = image
-        background?.aiPrompt = prompt
     }
 
     // MARK: - Layer mutations
@@ -347,7 +295,7 @@ final class IconProject {
     // MARK: - Boolean operations
 
     /// Rasterize the selected layers, apply the boolean op, and replace the
-    /// sources with a single new aiOverlay layer at the position of the
+    /// sources with a single new image layer at the position of the
     /// bottom-most source.
     @MainActor
     @discardableResult
@@ -371,14 +319,13 @@ final class IconProject {
         var remaining = layers.filter { !removeUUIDs.contains($0.uuid) }
 
         // Build the new layer. The boolean result image has been cropped to a
-        // square bbox; convert that bbox back into the aiOverlay placement model
+        // square bbox; convert that bbox back into the image placement model
         // (offset relative to canvas center, scale relative to the 0.7×side base
-        // frame the aiOverlay kind renders into).
+        // frame the image kind renders into).
         let newLayer = Layer(
-            kind: .aiOverlay,
+            kind: .image,
             name: op.label,
-            image: result.image,
-            sourcePrompt: nil
+            image: result.image
         )
         newLayer.offset = CGSize(
             width: result.centerInUnit.x,

@@ -3,8 +3,7 @@ import SwiftData
 import UIKit
 
 enum LayerKind: String, Equatable, CaseIterable {
-    case aiOverlay
-    case symbol
+    case image
     case emoji
     case text
     case parametricShape
@@ -57,13 +56,11 @@ enum LayerFontDesign: String, CaseIterable {
 final class Layer {
     var uuid: UUID = UUID()
     var name: String = ""
-    var kindRaw: String = LayerKind.aiOverlay.rawValue
+    var kindRaw: String = LayerKind.image.rawValue
     var orderIndex: Int = 0
 
     @Attribute(.externalStorage) var imagePNG: Data?
-    var sourcePrompt: String?
 
-    var symbolName: String = "star.fill"
     var emoji: String = "✨"
     var text: String = "Aa"
     var fontWeightRaw: String = LayerFontWeight.bold.rawValue
@@ -97,8 +94,6 @@ final class Layer {
         kind: LayerKind,
         name: String,
         image: UIImage? = nil,
-        sourcePrompt: String? = nil,
-        symbolName: String = "star.fill",
         emoji: String = "✨",
         text: String = "Aa",
         fontWeight: LayerFontWeight = .bold,
@@ -110,8 +105,6 @@ final class Layer {
         self.name = name
         self.kindRaw = kind.rawValue
         self.imagePNG = image?.pngData()
-        self.sourcePrompt = sourcePrompt
-        self.symbolName = symbolName
         self.emoji = emoji
         self.text = text
         self.fontWeightRaw = fontWeight.rawValue
@@ -123,7 +116,7 @@ final class Layer {
     // MARK: - Bridged properties
 
     var kind: LayerKind {
-        get { LayerKind(rawValue: kindRaw) ?? .aiOverlay }
+        get { LayerKind(rawValue: kindRaw) ?? .image }
         set { kindRaw = newValue.rawValue }
     }
 
@@ -185,8 +178,6 @@ struct LayerSnapshot {
     let kind: LayerKind
     let name: String
     let imagePNG: Data?
-    let sourcePrompt: String?
-    let symbolName: String
     let emoji: String
     let text: String
     let fontWeight: LayerFontWeight
@@ -217,8 +208,6 @@ extension Layer {
             kind: kind,
             name: name,
             imagePNG: imagePNG,
-            sourcePrompt: sourcePrompt,
-            symbolName: symbolName,
             emoji: emoji,
             text: text,
             fontWeight: fontWeight,
@@ -247,8 +236,6 @@ extension Layer {
         kindRaw = s.kind.rawValue
         name = s.name
         imagePNG = s.imagePNG
-        sourcePrompt = s.sourcePrompt
-        symbolName = s.symbolName
         emoji = s.emoji
         text = s.text
         fontWeightRaw = s.fontWeight.rawValue

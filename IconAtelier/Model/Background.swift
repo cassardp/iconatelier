@@ -3,7 +3,6 @@ import SwiftData
 import UIKit
 
 enum BackgroundKind: String, CaseIterable, Identifiable {
-    case ai
     case solid
     case meshGradient
     case linearGradient
@@ -25,9 +24,6 @@ final class Background {
     var storedMeshColors: [StoredColor] = []
     var meshRotationDegrees: Double = 0
 
-    @Attribute(.externalStorage) var aiImagePNG: Data?
-    var aiPrompt: String?
-
     var isHidden: Bool = false
 
     var project: IconProject?
@@ -39,9 +35,7 @@ final class Background {
         linearStart: UnitPoint = .topLeading,
         linearEnd: UnitPoint = .bottomTrailing,
         gradientCenter: UnitPoint = .center,
-        meshColors: [Color]? = nil,
-        aiImage: UIImage? = nil,
-        aiPrompt: String? = nil
+        meshColors: [Color]? = nil
     ) {
         self.kindRaw = kind.rawValue
         self.storedSolidColor = StoredColor(solidColor)
@@ -50,8 +44,6 @@ final class Background {
         self.storedLinearEnd = StoredPoint(linearEnd)
         self.storedGradientCenter = StoredPoint(gradientCenter)
         self.storedMeshColors = (meshColors ?? Background.defaultMeshColors).map { StoredColor($0) }
-        self.aiImagePNG = aiImage?.pngData()
-        self.aiPrompt = aiPrompt
         self.isHidden = false
     }
 
@@ -92,11 +84,6 @@ final class Background {
         set { storedMeshColors = newValue.map { StoredColor($0) } }
     }
 
-    var aiImage: UIImage? {
-        get { aiImagePNG.flatMap { UIImage(data: $0) } }
-        set { aiImagePNG = newValue?.pngData() }
-    }
-
     // MARK: - Defaults
 
     nonisolated static var defaultMeshColors: [Color] {
@@ -126,8 +113,6 @@ struct BackgroundSnapshot {
     let radialSpread: Double
     let meshColors: [StoredColor]
     let meshRotationDegrees: Double
-    let aiImagePNG: Data?
-    let aiPrompt: String?
     let isHidden: Bool
 }
 
@@ -143,8 +128,6 @@ extension Background {
             radialSpread: radialSpread,
             meshColors: storedMeshColors,
             meshRotationDegrees: meshRotationDegrees,
-            aiImagePNG: aiImagePNG,
-            aiPrompt: aiPrompt,
             isHidden: isHidden
         )
     }
@@ -159,8 +142,6 @@ extension Background {
         radialSpread = s.radialSpread
         storedMeshColors = s.meshColors
         meshRotationDegrees = s.meshRotationDegrees
-        aiImagePNG = s.aiImagePNG
-        aiPrompt = s.aiPrompt
         isHidden = s.isHidden
     }
 }

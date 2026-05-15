@@ -146,8 +146,6 @@ enum LibraryImporter {
         bg.storedGradientCenter = dto.gradientCenter
         bg.storedMeshColors = dto.meshColors
         bg.meshRotationDegrees = dto.meshRotationDegrees
-        bg.aiImagePNG = dto.aiImage.flatMap { fileMap[$0] }
-        bg.aiPrompt = dto.aiPrompt
         bg.isHidden = dto.isHidden
         return bg
     }
@@ -158,13 +156,11 @@ enum LibraryImporter {
     ) -> Layer {
         let layer = Layer(
             uuid: dto.uuid,
-            kind: LayerKind(rawValue: dto.kind) ?? .aiOverlay,
+            kind: LayerKind(rawValue: dto.kind) ?? .image,
             name: dto.name
         )
         layer.orderIndex = dto.orderIndex
         layer.imagePNG = dto.image.flatMap { fileMap[$0] }
-        layer.sourcePrompt = dto.sourcePrompt
-        layer.symbolName = dto.symbolName
         layer.emoji = dto.emoji
         layer.text = dto.text
         layer.fontWeightRaw = dto.fontWeight

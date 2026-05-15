@@ -141,7 +141,7 @@ struct GalleryView: View {
             }
             .navigationDestination(for: ProjectRoute.self) { route in
                 if let project = projects.first(where: { $0.uuid == route.projectUUID }) {
-                    ContentView(project: project, initialIntent: route.intent)
+                    ContentView(project: project)
                 }
             }
             .alert(
@@ -177,7 +177,7 @@ struct GalleryView: View {
             if isSelecting {
                 toggleSelection(project)
             } else {
-                path.append(ProjectRoute(projectUUID: project.uuid, intent: nil))
+                path.append(ProjectRoute(projectUUID: project.uuid))
             }
         } label: {
             GalleryCell(
@@ -285,7 +285,7 @@ struct GalleryView: View {
         IconRenderer.updateThumbnail(project)
         modelContext.insert(project)
         try? modelContext.save()
-        path.append(ProjectRoute(projectUUID: project.uuid, intent: nil))
+        path.append(ProjectRoute(projectUUID: project.uuid))
     }
 
     private func duplicate(_ project: IconProject) {

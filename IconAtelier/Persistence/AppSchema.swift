@@ -1,17 +1,6 @@
 import SwiftData
 
 // MARK: - Versioned schema baseline
-//
-// V1 captures the current shipping schema (post `Layer.storedShadowColor`).
-// The `@Model` classes themselves stay top-level in `Layer.swift`,
-// `Background.swift`, and `IconProject.swift` so the store keeps the same
-// entity signature it was created with — only the version marker changes.
-//
-// When the next schema modification lands, add an `AppSchemaV2` describing
-// the new shape and a `MigrationStage` (lightweight when only adding
-// optional/defaulted properties; custom otherwise). Never add or remove a
-// stored property on a `@Model` class without bumping this version first —
-// SwiftData wipes silently otherwise.
 
 enum AppSchemaV1: VersionedSchema {
     static var versionIdentifier = Schema.Version(1, 0, 0)
@@ -21,10 +10,6 @@ enum AppSchemaV1: VersionedSchema {
     }
 }
 
-// V2 adds the optional `shapeSpecJSON: Data?` field on `Layer` to back the new
-// `LayerKind.parametricShape` kind. Both V1 and V2 reference the same live
-// top-level @Model classes; the version marker is what tells SwiftData to
-// run a lightweight migration on existing stores.
 enum AppSchemaV2: VersionedSchema {
     static var versionIdentifier = Schema.Version(2, 0, 0)
 
@@ -33,14 +18,29 @@ enum AppSchemaV2: VersionedSchema {
     }
 }
 
+// V3 drops the AI-generation and SF-Symbol layer surface. Removed stored
+// properties: Layer.symbolName, Layer.sourcePrompt, Background.aiImagePNG,
+// Background.aiPrompt. LayerKind.aiOverlay and LayerKind.symbol cases removed
+// (existing rows fall back to LayerKind.image via the rawValue init's nil
+// fallback). BackgroundKind.ai case removed (rows fall back to .meshGradient).
+// Lightweight migration is sufficient since SwiftData drops orphaned columns.
+enum AppSchemaV3: VersionedSchema {
+    static var versionIdentifier = Schema.Version(3, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [IconProject.self, Background.self, Layer.self]
+    }
+}
+
 enum AppMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [AppSchemaV1.self, AppSchemaV2.self]
+        [AppSchemaV1.self, AppSchemaV2.self, AppSchemaV3.self]
     }
 
     static var stages: [MigrationStage] {
         [
-            .lightweight(fromVersion: AppSchemaV1.self, toVersion: AppSchemaV2.self)
+            .lightweight(fromVersion: AppSchemaV1.self, toVersion: AppSchemaV2.self),
+            .lightweight(fromVersion: AppSchemaV2.self, toVersion: AppSchemaV3.self)
         ]
     }
 }

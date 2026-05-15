@@ -85,8 +85,6 @@ struct BackgroundEditorContent: View {
             meshDirectionSection(for: background)
             SectionDivider()
             meshCornersSection(for: background)
-        case .ai:
-            EmptyView()
         }
     }
 
@@ -324,7 +322,6 @@ private extension BackgroundKind {
         case .linearGradient: return "Linear"
         case .radialGradient: return "Radial"
         case .meshGradient:   return "Mesh"
-        case .ai:             return "AI"
         }
     }
 }

@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
 
@@ -10,22 +9,12 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @Bindable var project: IconProject
-    var initialIntent: CreationIntent? = nil
-    private let service = OpenAIImageService()
 
     @State private var session = ProjectSession()
     @State private var showEditSheet = false
     @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
-    @State private var isGeneratingAI: Bool = false
-    @State private var aiError: String?
-    @State private var aiSeed: AIFlowSeed?
-    @State private var aiSelectedStyle: AIFlowOption?
-    @State private var aiSelectedMaterial: AIFlowOption?
-    @State private var didConsumeInitialIntent: Bool = false
-    @State private var showPromptSheet: Bool = false
-    @State private var showDrawingSheet: Bool = false
     @State private var showImportPicker: Bool = false
 
     // Lasso multi-selection (Phase 1)
@@ -79,6 +68,14 @@ struct ContentView: View {
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            DesignToolBar(
+                onAddPolygon: { addShapeLayer(spec: .defaultPolygon) },
+                onAddStar: { addShapeLayer(spec: .defaultStar) },
+                onAddSquircle: { addShapeLayer(spec: .defaultSquircle) },
+                onAddText: addTextLayer
+            )
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -135,23 +132,6 @@ struct ContentView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Section("Add Shape") {
-                        Button {
-                            addShapeLayer(spec: .defaultPolygon)
-                        } label: {
-                            Label("Polygon", systemImage: "hexagon")
-                        }
-                        Button {
-                            addShapeLayer(spec: .defaultStar)
-                        } label: {
-                            Label("Star", systemImage: "star")
-                        }
-                        Button {
-                            addShapeLayer(spec: .defaultSquircle)
-                        } label: {
-                            Label("Squircle", systemImage: "app")
-                        }
-                    }
                     Button {
                         showImportPicker = true
                     } label: {
@@ -210,7 +190,6 @@ struct ContentView: View {
                let topLayer = project.layers.last {
                 session.selectLayer(topLayer.uuid)
             }
-            consumeInitialIntent()
         }
         .onDisappear {
             persistSnapshotInBackground()
@@ -292,8 +271,8 @@ struct ContentView: View {
 
     private func layerBaseFraction(_ kind: LayerKind) -> CGFloat {
         switch kind {
-        case .aiOverlay: return 0.7
-        case .symbol, .emoji, .text, .parametricShape: return 0.5
+        case .image: return 0.7
+        case .emoji, .text, .parametricShape: return 0.5
         }
     }
 
@@ -330,66 +309,6 @@ struct ContentView: View {
             }
     }
 
-    // MARK: - AI generation
-
-    private func triggerGenerate() {
-        guard
-            let seed = aiSeed,
-            let style = aiSelectedStyle,
-            !isGeneratingAI
-        else { return }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        generateFromFlow(seed: seed, style: style, material: aiSelectedMaterial)
-    }
-
-    private func generateFromFlow(
-        seed: AIFlowSeed,
-        style: AIFlowOption,
-        material: AIFlowOption?
-    ) {
-        guard !isGeneratingAI else { return }
-        let materialClause = material.map { ", \($0.promptFragment)" } ?? ""
-        let prompt: String
-        let references: [UIImage]
-        switch seed {
-        case .photo(let image):
-            prompt = "the main subject from the reference image, isolated on transparent background, rendered as \(style.promptFragment)\(materialClause)"
-            references = [image]
-        case .prompt(let text):
-            let subject = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            prompt = "\(subject), isolated on transparent background, rendered as \(style.promptFragment)\(materialClause)"
-            references = []
-        case .drawing(let image):
-            prompt = "the reference image is a rough hand-drawn sketch made on a touchscreen with a finger. Use it only as a loose shape and composition reference: identify the intended subject, refine its proportions, smooth out shaky lines, fix wobbly geometry, clean up imperfections and produce a polished version of that subject. Do not preserve sketchy linework, do not copy stroke imperfections. The final image must be the cleaned-up, well-drawn subject, isolated on transparent background, rendered as \(style.promptFragment)\(materialClause)"
-            references = [image]
-        }
-        isGeneratingAI = true
-        aiError = nil
-        Task {
-            do {
-                let img = try await service.generateOverlay(
-                    prompt: prompt,
-                    references: references
-                )
-                let layer = project.addAIOverlay(image: img, prompt: prompt)
-                session.selectLayer(layer.uuid)
-                aiSeed = nil
-                aiSelectedStyle = nil
-                aiSelectedMaterial = nil
-            } catch {
-                aiError = error.localizedDescription
-            }
-            isGeneratingAI = false
-        }
-    }
-
-    private func addSymbolLayer(symbolName: String = "star.fill") {
-        withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
-            let layer = project.addSymbolOverlay(symbolName: symbolName)
-            session.selectLayer(layer.uuid)
-        }
-    }
-
     private func addShapeLayer(spec: ShapeSpec) {
         withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
             let layer = project.addShapeLayer(spec: spec)
@@ -402,11 +321,6 @@ struct ContentView: View {
             let layer = project.addTextOverlay()
             session.selectLayer(layer.uuid)
         }
-    }
-
-    private func addPromptLayer() {
-        let layer = project.addEmptyAIOverlay()
-        session.selectLayer(layer.uuid)
     }
 
     private func handleImportResult(_ result: Result<[URL], Error>) {
@@ -424,33 +338,6 @@ struct ContentView: View {
             session.selectLayer(layer.uuid)
         }
         showEditSheet = true
-    }
-
-    private func consumeInitialIntent() {
-        guard !didConsumeInitialIntent, let intent = initialIntent else { return }
-        didConsumeInitialIntent = true
-        switch intent {
-        case .symbol:
-            addSymbolLayer()
-        case .prompt(let text):
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                showPromptSheet = true
-            } else {
-                aiSeed = .prompt(trimmed)
-            }
-        case .photo(let item):
-            // Data load happens here (not in the gallery) so the editor can
-            // push immediately when the picker dismisses, avoiding a flash
-            // of the gallery between dismissal and navigation.
-            Task {
-                guard
-                    let data = try? await item.loadTransferable(type: Data.self),
-                    let image = UIImage(data: data)
-                else { return }
-                aiSeed = .photo(image)
-            }
-        }
     }
 
     private func presentExportSheet() {
@@ -495,14 +382,12 @@ struct ContentView: View {
         var hasher = Hasher()
         if let bg = project.background {
             hasher.combine(bg.kindRaw)
-            hasher.combine(bg.aiImagePNG?.hashValue ?? 0)
             hasher.combine(bg.isHidden)
         }
         for layer in project.layers {
             hasher.combine(layer.uuid)
             hasher.combine(layer.kindRaw)
             hasher.combine(layer.imagePNG?.hashValue ?? 0)
-            hasher.combine(layer.symbolName)
             hasher.combine(layer.emoji)
             hasher.combine(layer.text)
             hasher.combine(layer.shapeSpecJSON?.hashValue ?? 0)
@@ -517,6 +402,52 @@ struct ContentView: View {
             hasher.combine(layer.isFlippedVertically)
         }
         return hasher.finalize()
+    }
+}
+
+// MARK: - Design tool bar
+
+private struct DesignToolBar: View {
+    let onAddPolygon: () -> Void
+    let onAddStar: () -> Void
+    let onAddSquircle: () -> Void
+    let onAddText: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            actionButton(symbol: "hexagon", label: "Polygon", action: onAddPolygon)
+                .frame(maxWidth: .infinity)
+            actionButton(symbol: "star", label: "Star", action: onAddStar)
+                .frame(maxWidth: .infinity)
+            actionButton(symbol: "app", label: "Squircle", action: onAddSquircle)
+                .frame(maxWidth: .infinity)
+            actionButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+    }
+
+    private func actionButton(
+        symbol: String,
+        label: String,
+        weight: Font.Weight = .regular,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: weight))
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .frame(width: 54, height: 54)
+                .background(Color.primary, in: .circle)
+                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 1)
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 
