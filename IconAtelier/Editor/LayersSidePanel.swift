@@ -62,7 +62,7 @@ struct LayersBar: View {
     private func rowView(layer: Layer, index: Int) -> some View {
         let isDragging = draggingUUID == layer.uuid
         let shift = computeShift(for: index)
-        let isSelected = layer.uuid == session.selectedLayerUUID && !session.isBackgroundSelected
+        let isSelected = session.isLayerSelected(layer.uuid)
 
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)

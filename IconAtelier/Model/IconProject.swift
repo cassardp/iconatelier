@@ -323,6 +323,63 @@ final class IconProject {
         rawLayers = ordered
     }
 
+    // MARK: - Boolean operations
+
+    /// Rasterize the selected layers, apply the boolean op, and replace the
+    /// sources with a single new aiOverlay layer at the position of the
+    /// bottom-most source.
+    @MainActor
+    @discardableResult
+    func performBooleanOperation(
+        _ op: BooleanOpKind,
+        on layerUUIDs: Set<UUID>
+    ) -> Layer? {
+        let targets = rawLayers
+            .filter { layerUUIDs.contains($0.uuid) && !$0.isHidden }
+            .sorted { $0.orderIndex < $1.orderIndex }
+        guard targets.count >= 2 else { return nil }
+        guard let result = BooleanOpRenderer.compose(layers: targets, op: op) else {
+            return nil
+        }
+
+        recordUndo()
+
+        let bottomIndex = targets.first?.orderIndex ?? 0
+        let removeUUIDs = Set(targets.map(\.uuid))
+
+        var remaining = layers.filter { !removeUUIDs.contains($0.uuid) }
+
+        // Build the new layer. The boolean result image has been cropped to a
+        // square bbox; convert that bbox back into the aiOverlay placement model
+        // (offset relative to canvas center, scale relative to the 0.7×side base
+        // frame the aiOverlay kind renders into).
+        let newLayer = Layer(
+            kind: .aiOverlay,
+            name: op.label,
+            image: result.image,
+            sourcePrompt: nil
+        )
+        newLayer.offset = CGSize(
+            width: result.centerInUnit.x,
+            height: result.centerInUnit.y
+        )
+        newLayer.scaleValue = Double(result.sizeInUnit / 0.7)
+        newLayer.tintColor = .white
+
+        let insertAt = min(bottomIndex, remaining.count)
+        remaining.insert(newLayer, at: insertAt)
+
+        if let context = modelContext {
+            for layer in targets {
+                context.delete(layer)
+            }
+        }
+        for (i, l) in remaining.enumerated() { l.orderIndex = i }
+        rawLayers = remaining
+
+        return newLayer
+    }
+
     func toggleVisibility(_ layer: Layer) {
         recordUndo()
         layer.isHidden.toggle()

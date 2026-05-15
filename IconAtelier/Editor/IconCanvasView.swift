@@ -106,10 +106,12 @@ struct IconCanvasView: View {
             ForEach(project.layers) { layer in
                 if !layer.isHidden {
                     let isSelected = layer.uuid == session.selectedLayerUUID
+                    let isLassoed = session.lassoSelectedLayerUUIDs.contains(layer.uuid)
                     OverlayLayerView(
                         layer: layer,
                         side: side,
                         isSelected: isSelected,
+                        isLassoed: isLassoed,
                         transientOffset: isSelected ? dragSnap.translation : .zero,
                         transientScale: isSelected ? gestureScale : 1.0,
                         transientAngle: isSelected ? rotationSnap.delta : .zero,
@@ -315,6 +317,7 @@ private struct OverlayLayerView: View {
     let layer: Layer
     let side: CGFloat
     let isSelected: Bool
+    var isLassoed: Bool = false
     let transientOffset: CGSize
     let transientScale: CGFloat
     let transientAngle: Angle
@@ -326,7 +329,8 @@ private struct OverlayLayerView: View {
             side: side,
             transientOffset: transientOffset,
             transientScale: transientScale,
-            transientAngle: transientAngle
+            transientAngle: transientAngle,
+            highlightTint: isLassoed ? .accentColor : nil
         )
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
@@ -339,6 +343,7 @@ struct OverlayLayerRender: View {
     var transientOffset: CGSize = .zero
     var transientScale: CGFloat = 1.0
     var transientAngle: Angle = .zero
+    var highlightTint: Color? = nil
 
     var body: some View {
         let effectiveScale = layer.scale * transientScale
@@ -349,12 +354,36 @@ struct OverlayLayerRender: View {
                 x: side * layer.shadowOffsetX * effectiveScale,
                 y: side * layer.shadowOffsetY * effectiveScale
             )
+            .modifier(LayerHighlightHalo(tint: highlightTint, side: side, scale: effectiveScale))
             .rotationEffect(layer.rotation + transientAngle)
             .opacity(layer.opacity)
             .offset(
                 x: layer.offset.width * side + transientOffset.width,
                 y: layer.offset.height * side + transientOffset.height
             )
+    }
+}
+
+private struct LayerHighlightHalo: ViewModifier {
+    let tint: Color?
+    let side: CGFloat
+    let scale: CGFloat
+
+    private static let selectionStroke = Color(red: 1.0, green: 0.78, blue: 0.0)
+
+    func body(content: Content) -> some View {
+        if tint != nil {
+            // Four 1pt offset shadows with radius 0 create a crisp 1pt outline
+            // that hugs the layer's actual silhouette (works for opaque UIImage
+            // alpha, SF Symbols, emoji, and text glyphs alike).
+            content
+                .shadow(color: Self.selectionStroke, radius: 0, x: 1, y: 0)
+                .shadow(color: Self.selectionStroke, radius: 0, x: -1, y: 0)
+                .shadow(color: Self.selectionStroke, radius: 0, x: 0, y: 1)
+                .shadow(color: Self.selectionStroke, radius: 0, x: 0, y: -1)
+        } else {
+            content
+        }
     }
 }
 

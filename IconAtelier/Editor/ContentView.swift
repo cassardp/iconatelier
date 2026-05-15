@@ -26,6 +26,12 @@ struct ContentView: View {
     @State private var showPromptSheet: Bool = false
     @State private var showDrawingSheet: Bool = false
 
+    // Lasso multi-selection (Phase 1)
+    @State private var canvasFrame: CGRect = .zero
+    @State private var layersBarFrame: CGRect = .zero
+    @State private var lassoRect: CGRect? = nil
+    private static let editorSpaceName = "iconAtelierEditor"
+
     var body: some View {
         GeometryReader { geo in
             let layersBarHeight: CGFloat = 56 + 16
@@ -34,20 +40,40 @@ struct ContentView: View {
             let blockHeight = max(0, visibleHeight - verticalMargin * 2)
             let iconHeight = max(0, blockHeight - layersBarHeight)
             let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                IconCanvasView(project: project, session: session)
-                    .frame(width: iconSide, height: iconSide)
-                LayersBar(
-                    project: project,
-                    session: session,
-                    isSheetOpen: $showEditSheet
-                )
-                Spacer(minLength: 0)
+            ZStack {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    IconCanvasView(project: project, session: session)
+                        .frame(width: iconSide, height: iconSide)
+                        .onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .named(Self.editorSpaceName))
+                        } action: { newFrame in
+                            canvasFrame = newFrame
+                        }
+                    LayersBar(
+                        project: project,
+                        session: session,
+                        isSheetOpen: $showEditSheet
+                    )
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(Self.editorSpaceName))
+                    } action: { newFrame in
+                        layersBarFrame = newFrame
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(width: geo.size.width, height: visibleHeight)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+
+                if let rect = lassoRect {
+                    LassoMarquee(rect: rect)
+                        .allowsHitTesting(false)
+                }
             }
-            .frame(width: geo.size.width, height: visibleHeight)
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .coordinateSpace(name: Self.editorSpaceName)
             .contentShape(Rectangle())
+            .gesture(lassoGesture)
+            .simultaneousGesture(clearLassoTap)
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
@@ -77,20 +103,39 @@ struct ContentView: View {
 
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 20) {
-                    Button {
-                        project.undo()
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .disabled(!project.canUndo)
+                    if session.isMultiSelecting {
+                        Button {
+                            performBooleanOperation(.union)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Union")
 
-                    Button {
-                        project.redo()
-                    } label: {
-                        Image(systemName: "arrow.uturn.forward")
+                        Button {
+                            performBooleanOperation(.subtract)
+                        } label: {
+                            Image(systemName: "minus")
+                        }
+                        .accessibilityLabel("Subtract")
+                    } else {
+                        Button {
+                            project.undo()
+                            reselectTopIfNeeded()
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                        }
+                        .disabled(!project.canUndo)
+
+                        Button {
+                            project.redo()
+                            reselectTopIfNeeded()
+                        } label: {
+                            Image(systemName: "arrow.uturn.forward")
+                        }
+                        .disabled(!project.canRedo)
                     }
-                    .disabled(!project.canRedo)
                 }
+                .animation(.smooth(duration: 0.2), value: session.isMultiSelecting)
             }
 
             if project.hasContent {
@@ -168,6 +213,118 @@ struct ContentView: View {
         } message: { message in
             Text(message)
         }
+    }
+
+    // MARK: - Lasso multi-selection
+
+    private var lassoGesture: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .named(Self.editorSpaceName))
+            .onChanged { value in
+                let start = value.startLocation
+                // Only engage when the drag starts outside both the canvas and the
+                // layers bar — the canvas owns its own transform gestures and the
+                // bar owns long-press reorder, so we must not steal from them.
+                guard !canvasFrame.contains(start),
+                      !layersBarFrame.contains(start)
+                else { return }
+
+                let rect = CGRect(
+                    x: min(start.x, value.location.x),
+                    y: min(start.y, value.location.y),
+                    width: abs(value.location.x - start.x),
+                    height: abs(value.location.y - start.y)
+                )
+                lassoRect = rect
+
+                let canvasLocal = rect.offsetBy(dx: -canvasFrame.minX, dy: -canvasFrame.minY)
+                let newSelection = lassoHitTest(rect: canvasLocal, side: canvasFrame.width)
+                if newSelection != session.lassoSelectedLayerUUIDs {
+                    if newSelection.count > session.lassoSelectedLayerUUIDs.count {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    }
+                    session.setLassoSelection(newSelection)
+                }
+            }
+            .onEnded { _ in
+                withAnimation(.smooth(duration: 0.22)) {
+                    lassoRect = nil
+                }
+                if session.lassoSelectedLayerUUIDs.count == 1 {
+                    // A single layer matches — promote it to standard selection
+                    // for consistency with tap-to-select.
+                    if let only = session.lassoSelectedLayerUUIDs.first {
+                        session.selectLayer(only)
+                    }
+                } else if session.lassoSelectedLayerUUIDs.isEmpty {
+                    // Nothing matched — make sure we don't leave a dangling state.
+                    session.clearLassoSelection()
+                } else {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            }
+    }
+
+    /// Approximate axis-aligned bounding box of each visible layer, in canvas-local
+    /// coordinates. Good enough for marquee selection; the exact rotated bounds
+    /// are not worth the cost here.
+    private func lassoHitTest(rect: CGRect, side: CGFloat) -> Set<UUID> {
+        guard side > 0 else { return [] }
+        var matched: Set<UUID> = []
+        for layer in project.layers where !layer.isHidden {
+            let bboxSide = layerBaseFraction(layer.kind) * layer.scale * side
+            let centerX = side / 2 + layer.offset.width * side
+            let centerY = side / 2 + layer.offset.height * side
+            let layerRect = CGRect(
+                x: centerX - bboxSide / 2,
+                y: centerY - bboxSide / 2,
+                width: bboxSide,
+                height: bboxSide
+            )
+            if rect.intersects(layerRect) {
+                matched.insert(layer.uuid)
+            }
+        }
+        return matched
+    }
+
+    private func layerBaseFraction(_ kind: LayerKind) -> CGFloat {
+        switch kind {
+        case .aiOverlay: return 0.7
+        case .symbol, .emoji, .text: return 0.5
+        }
+    }
+
+    /// If the currently-selected layer no longer exists (e.g. after undo/redo
+    /// removed it), fall back to selecting the top-most remaining layer.
+    private func reselectTopIfNeeded() {
+        if let id = session.selectedLayerUUID, project.layer(withID: id) == nil {
+            session.selectLayer(project.layers.last?.uuid)
+        }
+    }
+
+    private func performBooleanOperation(_ op: BooleanOpKind) {
+        let uuids = session.lassoSelectedLayerUUIDs
+        guard uuids.count >= 2 else { return }
+        if let result = project.performBooleanOperation(op, on: uuids) {
+            session.clearLassoSelection()
+            session.selectLayer(result.uuid)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } else {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
+    }
+
+    private var clearLassoTap: some Gesture {
+        SpatialTapGesture(coordinateSpace: .named(Self.editorSpaceName))
+            .onEnded { value in
+                guard session.isMultiSelecting else { return }
+                let loc = value.location
+                guard !canvasFrame.contains(loc),
+                      !layersBarFrame.contains(loc)
+                else { return }
+                session.clearLassoSelection()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
     }
 
     // MARK: - AI generation
@@ -331,5 +488,28 @@ struct ContentView: View {
             hasher.combine(layer.isFlippedVertically)
         }
         return hasher.finalize()
+    }
+}
+
+// MARK: - Lasso marquee
+
+private struct LassoMarquee: View {
+    let rect: CGRect
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.accentColor.opacity(0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .strokeBorder(
+                            Color.accentColor.opacity(0.85),
+                            style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                        )
+                )
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
+        }
     }
 }
