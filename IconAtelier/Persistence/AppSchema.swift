@@ -21,10 +21,26 @@ enum AppSchemaV1: VersionedSchema {
     }
 }
 
+// V2 adds the optional `shapeSpecJSON: Data?` field on `Layer` to back the new
+// `LayerKind.parametricShape` kind. Both V1 and V2 reference the same live
+// top-level @Model classes; the version marker is what tells SwiftData to
+// run a lightweight migration on existing stores.
+enum AppSchemaV2: VersionedSchema {
+    static var versionIdentifier = Schema.Version(2, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [IconProject.self, Background.self, Layer.self]
+    }
+}
+
 enum AppMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [AppSchemaV1.self]
+        [AppSchemaV1.self, AppSchemaV2.self]
     }
 
-    static var stages: [MigrationStage] { [] }
+    static var stages: [MigrationStage] {
+        [
+            .lightweight(fromVersion: AppSchemaV1.self, toVersion: AppSchemaV2.self)
+        ]
+    }
 }

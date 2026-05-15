@@ -227,6 +227,17 @@ final class IconProject {
     }
 
     @discardableResult
+    func addShapeLayer(spec: ShapeSpec) -> Layer {
+        recordUndo()
+        return append(Layer(
+            kind: .parametricShape,
+            name: nextName(for: .parametricShape, baseFallback: spec.displayName),
+            tintColor: .white,
+            shapeSpec: spec
+        ))
+    }
+
+    @discardableResult
     func addEmojiOverlay() -> Layer {
         recordUndo()
         return append(Layer(kind: .emoji, name: "✨"))

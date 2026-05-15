@@ -7,6 +7,7 @@ enum LayerKind: String, Equatable, CaseIterable {
     case symbol
     case emoji
     case text
+    case parametricShape
 }
 
 enum LayerFontWeight: String, CaseIterable {
@@ -70,6 +71,8 @@ final class Layer {
 
     var storedTintColor: StoredColor = StoredColor.white
 
+    var shapeSpecJSON: Data?
+
     var offsetW: Double = 0
     var offsetH: Double = 0
     var scaleValue: Double = 1.0
@@ -100,7 +103,8 @@ final class Layer {
         text: String = "Aa",
         fontWeight: LayerFontWeight = .bold,
         fontDesign: LayerFontDesign = .rounded,
-        tintColor: Color = .white
+        tintColor: Color = .white,
+        shapeSpec: ShapeSpec? = nil
     ) {
         self.uuid = uuid
         self.name = name
@@ -113,6 +117,7 @@ final class Layer {
         self.fontWeightRaw = fontWeight.rawValue
         self.fontDesignRaw = fontDesign.rawValue
         self.storedTintColor = StoredColor(tintColor)
+        self.shapeSpecJSON = shapeSpec.flatMap { try? JSONEncoder().encode($0) }
     }
 
     // MARK: - Bridged properties
@@ -161,6 +166,16 @@ final class Layer {
         get { storedShadowColor.color }
         set { storedShadowColor = StoredColor(newValue) }
     }
+
+    var shapeSpec: ShapeSpec? {
+        get {
+            guard let data = shapeSpecJSON else { return nil }
+            return try? JSONDecoder().decode(ShapeSpec.self, from: data)
+        }
+        set {
+            shapeSpecJSON = newValue.flatMap { try? JSONEncoder().encode($0) }
+        }
+    }
 }
 
 // MARK: - Snapshot for undo
@@ -177,6 +192,7 @@ struct LayerSnapshot {
     let fontWeight: LayerFontWeight
     let fontDesign: LayerFontDesign
     let tintColor: StoredColor
+    let shapeSpecJSON: Data?
     let offsetW: Double
     let offsetH: Double
     let scaleValue: Double
@@ -208,6 +224,7 @@ extension Layer {
             fontWeight: fontWeight,
             fontDesign: fontDesign,
             tintColor: storedTintColor,
+            shapeSpecJSON: shapeSpecJSON,
             offsetW: offsetW,
             offsetH: offsetH,
             scaleValue: scaleValue,
@@ -237,6 +254,7 @@ extension Layer {
         fontWeightRaw = s.fontWeight.rawValue
         fontDesignRaw = s.fontDesign.rawValue
         storedTintColor = s.tintColor
+        shapeSpecJSON = s.shapeSpecJSON
         offsetW = s.offsetW
         offsetH = s.offsetH
         scaleValue = s.scaleValue

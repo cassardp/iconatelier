@@ -135,6 +135,23 @@ struct ContentView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Section("Add Shape") {
+                        Button {
+                            addShapeLayer(spec: .defaultPolygon)
+                        } label: {
+                            Label("Polygon", systemImage: "hexagon")
+                        }
+                        Button {
+                            addShapeLayer(spec: .defaultStar)
+                        } label: {
+                            Label("Star", systemImage: "star")
+                        }
+                        Button {
+                            addShapeLayer(spec: .defaultSquircle)
+                        } label: {
+                            Label("Squircle", systemImage: "app")
+                        }
+                    }
                     Button {
                         showImportPicker = true
                     } label: {
@@ -276,7 +293,7 @@ struct ContentView: View {
     private func layerBaseFraction(_ kind: LayerKind) -> CGFloat {
         switch kind {
         case .aiOverlay: return 0.7
-        case .symbol, .emoji, .text: return 0.5
+        case .symbol, .emoji, .text, .parametricShape: return 0.5
         }
     }
 
@@ -369,6 +386,13 @@ struct ContentView: View {
     private func addSymbolLayer(symbolName: String = "star.fill") {
         withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
             let layer = project.addSymbolOverlay(symbolName: symbolName)
+            session.selectLayer(layer.uuid)
+        }
+    }
+
+    private func addShapeLayer(spec: ShapeSpec) {
+        withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
+            let layer = project.addShapeLayer(spec: spec)
             session.selectLayer(layer.uuid)
         }
     }
@@ -481,6 +505,8 @@ struct ContentView: View {
             hasher.combine(layer.symbolName)
             hasher.combine(layer.emoji)
             hasher.combine(layer.text)
+            hasher.combine(layer.shapeSpecJSON?.hashValue ?? 0)
+            hasher.combine(layer.storedTintColor)
             hasher.combine(layer.scaleValue)
             hasher.combine(layer.rotationRadians)
             hasher.combine(layer.offsetW)

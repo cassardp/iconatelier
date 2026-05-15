@@ -100,6 +100,8 @@ struct EditTabContent: View {
             SymbolContentSection(layer: layer, project: project)
         case .text, .emoji:
             TextContentSection(layer: layer, project: project)
+        case .parametricShape:
+            ParametricShapeContentSection(layer: layer, project: project)
         }
     }
 

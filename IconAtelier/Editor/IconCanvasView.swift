@@ -409,6 +409,15 @@ struct LayerContentView: View {
                 .fixedSize()
                 .offset(y: metrics.centerOffsetY)
                 .frame(width: metrics.glyphWidth, height: metrics.glyphHeight)
+        case .parametricShape:
+            let shapeSide = side * 0.5 * scale
+            if let spec = layer.shapeSpec {
+                spec.anyShape()
+                    .fill(layer.tintColor)
+                    .frame(width: shapeSide, height: shapeSide)
+            } else {
+                Color.clear.frame(width: shapeSide, height: shapeSide)
+            }
         }
     }
 }

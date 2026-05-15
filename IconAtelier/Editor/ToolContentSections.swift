@@ -76,6 +76,17 @@ struct AIOverlayContentSection: View {
     }
 }
 
+struct ParametricShapeContentSection: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    var body: some View {
+        PanelSection(title: layer.shapeSpec?.displayName ?? "Shape") {
+            ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+        }
+    }
+}
+
 struct EmojiContentSection: View {
     @Bindable var layer: Layer
     let project: IconProject
