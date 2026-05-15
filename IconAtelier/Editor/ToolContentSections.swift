@@ -23,6 +23,33 @@ struct ParametricShapeContentSection: View {
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
         }
 
+        if layer.shapeSpec?.unwrapped.hasIntrinsicCornerRadius == false {
+            SectionDivider()
+            PanelSection(title: "Corner Radius") {
+                DialSliderRow(
+                    label: "Radius",
+                    value: $layer.cornerRadius,
+                    range: 0 ... 0.5,
+                    valueText: { String(format: "%.0f%%", $0 * 200) },
+                    defaultValue: 0,
+                    onBeginEditing: { project.recordUndo() }
+                )
+            }
+        }
+
+        SectionDivider()
+        PanelSection(title: "Border") {
+            DialSliderRow(
+                label: "Width",
+                value: $layer.borderWidth,
+                range: 0 ... 0.1,
+                valueText: { String(format: "%.0f%%", $0 * 1000) },
+                defaultValue: 0,
+                onBeginEditing: { project.recordUndo() }
+            )
+            ColorPickerRow(title: "Color", color: $layer.borderColor, project: project)
+        }
+
         SectionDivider()
         PanelSection(title: "Repeat") {
             repeatToggleRow
@@ -42,12 +69,12 @@ struct ParametricShapeContentSection: View {
                 label: "Sides",
                 value: baseDoubleBinding(
                     get: { spec in
-                        if case .polygon(let s, _) = spec { return Double(s) }
+                        if case .polygon(let s, _, _) = spec { return Double(s) }
                         return 6
                     },
                     set: { spec, v in
-                        if case .polygon(_, let r) = spec {
-                            return .polygon(sides: Int(v.rounded()), rotation: r)
+                        if case .polygon(_, let ir, let r) = spec {
+                            return .polygon(sides: Int(v.rounded()), innerRatio: ir, rotation: r)
                         }
                         return spec
                     }
@@ -58,74 +85,34 @@ struct ParametricShapeContentSection: View {
                 onBeginEditing: { project.recordUndo() }
             )
             DialSliderRow(
-                label: "Rotation",
-                value: baseDoubleBinding(
-                    get: { spec in
-                        if case .polygon(_, let r) = spec { return r }
-                        return -90
-                    },
-                    set: { spec, v in
-                        if case .polygon(let s, _) = spec {
-                            return .polygon(sides: s, rotation: v)
-                        }
-                        return spec
-                    }
-                ),
-                range: -180 ... 180,
-                valueText: { String(format: "%.0f°", $0) },
-                defaultValue: -90,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-        case .star:
-            DialSliderRow(
-                label: "Points",
-                value: baseDoubleBinding(
-                    get: { spec in
-                        if case .star(let p, _, _) = spec { return Double(p) }
-                        return 5
-                    },
-                    set: { spec, v in
-                        if case .star(_, let ir, let r) = spec {
-                            return .star(points: Int(v.rounded()), innerRatio: ir, rotation: r)
-                        }
-                        return spec
-                    }
-                ),
-                range: 3 ... 12,
-                valueText: { "\(Int($0.rounded()))" },
-                defaultValue: 5,
-                onBeginEditing: { project.recordUndo() }
-            )
-            DialSliderRow(
                 label: "Inner Ratio",
                 value: baseDoubleBinding(
                     get: { spec in
-                        if case .star(_, let ir, _) = spec { return ir }
-                        return 0.5
+                        if case .polygon(_, let ir, _) = spec { return ir }
+                        return 1.0
                     },
                     set: { spec, v in
-                        if case .star(let p, _, let r) = spec {
-                            return .star(points: p, innerRatio: v, rotation: r)
+                        if case .polygon(let s, _, let r) = spec {
+                            return .polygon(sides: s, innerRatio: v, rotation: r)
                         }
                         return spec
                     }
                 ),
-                range: 0.1 ... 0.9,
+                range: 0.1 ... 1.0,
                 valueText: { String(format: "%.2f", $0) },
-                defaultValue: 0.5,
+                defaultValue: 1.0,
                 onBeginEditing: { project.recordUndo() }
             )
             DialSliderRow(
                 label: "Rotation",
                 value: baseDoubleBinding(
                     get: { spec in
-                        if case .star(_, _, let r) = spec { return r }
+                        if case .polygon(_, _, let r) = spec { return r }
                         return -90
                     },
                     set: { spec, v in
-                        if case .star(let p, let ir, _) = spec {
-                            return .star(points: p, innerRatio: ir, rotation: v)
+                        if case .polygon(let s, let ir, _) = spec {
+                            return .polygon(sides: s, innerRatio: ir, rotation: v)
                         }
                         return spec
                     }
@@ -133,22 +120,6 @@ struct ParametricShapeContentSection: View {
                 range: -180 ... 180,
                 valueText: { String(format: "%.0f°", $0) },
                 defaultValue: -90,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-        case .squircle:
-            DialSliderRow(
-                label: "Corner",
-                value: baseDoubleBinding(
-                    get: { spec in
-                        if case .squircle(let crf) = spec { return crf }
-                        return 0.2237
-                    },
-                    set: { _, v in .squircle(cornerRadiusFraction: v) }
-                ),
-                range: 0 ... 0.5,
-                valueText: { String(format: "%.0f%%", $0 * 200) },
-                defaultValue: 0.2237,
                 onBeginEditing: { project.recordUndo() }
             )
 

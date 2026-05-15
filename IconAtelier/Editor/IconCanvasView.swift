@@ -400,8 +400,15 @@ struct LayerContentView: View {
         case .parametricShape:
             let shapeSide = side * 0.5 * scale
             if let spec = layer.shapeSpec {
-                spec.anyShape()
+                let shape = spec.anyShape(cornerRadiusFraction: layer.cornerRadius)
+                let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
+                shape
                     .fill(layer.tintColor)
+                    .overlay {
+                        if strokeWidth > 0 {
+                            shape.stroke(layer.borderColor, lineWidth: strokeWidth)
+                        }
+                    }
                     .frame(width: shapeSide, height: shapeSide)
             } else {
                 Color.clear.frame(width: shapeSide, height: shapeSide)

@@ -70,6 +70,11 @@ final class Layer {
 
     var shapeSpecJSON: Data?
 
+    // Shape-level styling (applies to .parametricShape layers).
+    var cornerRadius: Double = 0
+    var borderWidth: Double = 0
+    var storedBorderColor: StoredColor = StoredColor.white
+
     var offsetW: Double = 0
     var offsetH: Double = 0
     var scaleValue: Double = 1.0
@@ -160,6 +165,11 @@ final class Layer {
         set { storedShadowColor = StoredColor(newValue) }
     }
 
+    var borderColor: Color {
+        get { storedBorderColor.color }
+        set { storedBorderColor = StoredColor(newValue) }
+    }
+
     var shapeSpec: ShapeSpec? {
         get {
             guard let data = shapeSpecJSON else { return nil }
@@ -184,6 +194,9 @@ struct LayerSnapshot {
     let fontDesign: LayerFontDesign
     let tintColor: StoredColor
     let shapeSpecJSON: Data?
+    let cornerRadius: Double
+    let borderWidth: Double
+    let borderColor: StoredColor
     let offsetW: Double
     let offsetH: Double
     let scaleValue: Double
@@ -214,6 +227,9 @@ extension Layer {
             fontDesign: fontDesign,
             tintColor: storedTintColor,
             shapeSpecJSON: shapeSpecJSON,
+            cornerRadius: cornerRadius,
+            borderWidth: borderWidth,
+            borderColor: storedBorderColor,
             offsetW: offsetW,
             offsetH: offsetH,
             scaleValue: scaleValue,
@@ -242,6 +258,9 @@ extension Layer {
         fontDesignRaw = s.fontDesign.rawValue
         storedTintColor = s.tintColor
         shapeSpecJSON = s.shapeSpecJSON
+        cornerRadius = s.cornerRadius
+        borderWidth = s.borderWidth
+        storedBorderColor = s.borderColor
         offsetW = s.offsetW
         offsetH = s.offsetH
         scaleValue = s.scaleValue

@@ -71,8 +71,6 @@ struct ContentView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             DesignToolBar(
                 onAddPolygon: { addShapeLayer(spec: .defaultPolygon) },
-                onAddStar: { addShapeLayer(spec: .defaultStar) },
-                onAddSquircle: { addShapeLayer(spec: .defaultSquircle) },
                 onAddText: addTextLayer
             )
         }
@@ -391,6 +389,9 @@ struct ContentView: View {
             hasher.combine(layer.emoji)
             hasher.combine(layer.text)
             hasher.combine(layer.shapeSpecJSON?.hashValue ?? 0)
+            hasher.combine(layer.cornerRadius)
+            hasher.combine(layer.borderWidth)
+            hasher.combine(layer.storedBorderColor)
             hasher.combine(layer.storedTintColor)
             hasher.combine(layer.scaleValue)
             hasher.combine(layer.rotationRadians)
@@ -409,21 +410,14 @@ struct ContentView: View {
 
 private struct DesignToolBar: View {
     let onAddPolygon: () -> Void
-    let onAddStar: () -> Void
-    let onAddSquircle: () -> Void
     let onAddText: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 18) {
             actionButton(symbol: "hexagon", label: "Polygon", action: onAddPolygon)
-                .frame(maxWidth: .infinity)
-            actionButton(symbol: "star", label: "Star", action: onAddStar)
-                .frame(maxWidth: .infinity)
-            actionButton(symbol: "app", label: "Squircle", action: onAddSquircle)
-                .frame(maxWidth: .infinity)
             actionButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
-                .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
     }
