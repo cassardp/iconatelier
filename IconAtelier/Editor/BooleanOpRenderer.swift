@@ -2,19 +2,21 @@ import SwiftUI
 import UIKit
 
 enum BooleanOpKind: Hashable, CaseIterable {
-    case union, subtract
+    case union, subtract, intersect
 
     var label: String {
         switch self {
-        case .union:    return "Union"
-        case .subtract: return "Subtract"
+        case .union:     return "Union"
+        case .subtract:  return "Subtract"
+        case .intersect: return "Intersect"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .union:    return "plus"
-        case .subtract: return "minus"
+        case .union:     return "plus"
+        case .subtract:  return "minus"
+        case .intersect: return "circle.righthalf.filled"
         }
     }
 }
@@ -99,6 +101,15 @@ enum BooleanOpRenderer {
                 images[0].draw(in: fullRect, blendMode: .normal, alpha: 1)
                 for image in images.dropFirst() {
                     image.draw(in: fullRect, blendMode: .destinationOut, alpha: 1)
+                }
+
+            case .intersect:
+                // Bottom layer provides the pixels (colors stay intact); each
+                // upper layer acts as a mask via destinationIn — only the area
+                // covered by every upper silhouette survives.
+                images[0].draw(in: fullRect, blendMode: .normal, alpha: 1)
+                for image in images.dropFirst() {
+                    image.draw(in: fullRect, blendMode: .destinationIn, alpha: 1)
                 }
             }
         }

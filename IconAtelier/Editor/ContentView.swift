@@ -112,6 +112,13 @@ struct ContentView: View {
                         .accessibilityLabel("Union")
 
                         Button {
+                            performBooleanOperation(.intersect)
+                        } label: {
+                            Image(systemName: "circle.righthalf.filled")
+                        }
+                        .accessibilityLabel("Intersect")
+
+                        Button {
                             performBooleanOperation(.subtract)
                         } label: {
                             Image(systemName: "minus")
