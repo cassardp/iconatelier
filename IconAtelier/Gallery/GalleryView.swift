@@ -105,15 +105,12 @@ struct GalleryView: View {
 
                 Group {
                     if isSelecting {
-                        if !isFocusing {
-                            deleteSelectedButton
-                        }
+                        deleteSelectedButton
                     } else {
                         newProjectButton
                     }
                 }
                 .padding(.bottom, 16)
-                .animation(.smooth(duration: 0.25), value: isFocusing)
             }
             .background(Color.appPageBackground.ignoresSafeArea())
             .toolbar {
