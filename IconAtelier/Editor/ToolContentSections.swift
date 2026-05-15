@@ -82,7 +82,128 @@ struct ParametricShapeContentSection: View {
 
     var body: some View {
         PanelSection(title: layer.shapeSpec?.displayName ?? "Shape") {
+            shapeParamRows
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+        }
+    }
+
+    @ViewBuilder
+    private var shapeParamRows: some View {
+        switch layer.shapeSpec {
+        case .polygon:
+            DialSliderRow(
+                label: "Sides",
+                value: Binding(
+                    get: {
+                        if case .polygon(let s, _) = layer.shapeSpec { return Double(s) }
+                        return 6
+                    },
+                    set: { v in
+                        if case .polygon(_, let r) = layer.shapeSpec {
+                            layer.shapeSpec = .polygon(sides: Int(v.rounded()), rotation: r)
+                        }
+                    }
+                ),
+                range: 3 ... 12,
+                valueText: { "\(Int($0.rounded()))" },
+                defaultValue: 6,
+                onBeginEditing: { project.recordUndo() }
+            )
+            DialSliderRow(
+                label: "Rotation",
+                value: Binding(
+                    get: {
+                        if case .polygon(_, let r) = layer.shapeSpec { return r }
+                        return -90
+                    },
+                    set: { v in
+                        if case .polygon(let s, _) = layer.shapeSpec {
+                            layer.shapeSpec = .polygon(sides: s, rotation: v)
+                        }
+                    }
+                ),
+                range: -180 ... 180,
+                valueText: { String(format: "%.0f°", $0) },
+                defaultValue: -90,
+                onBeginEditing: { project.recordUndo() }
+            )
+
+        case .star:
+            DialSliderRow(
+                label: "Points",
+                value: Binding(
+                    get: {
+                        if case .star(let p, _, _) = layer.shapeSpec { return Double(p) }
+                        return 5
+                    },
+                    set: { v in
+                        if case .star(_, let ir, let r) = layer.shapeSpec {
+                            layer.shapeSpec = .star(points: Int(v.rounded()), innerRatio: ir, rotation: r)
+                        }
+                    }
+                ),
+                range: 3 ... 12,
+                valueText: { "\(Int($0.rounded()))" },
+                defaultValue: 5,
+                onBeginEditing: { project.recordUndo() }
+            )
+            DialSliderRow(
+                label: "Inner Ratio",
+                value: Binding(
+                    get: {
+                        if case .star(_, let ir, _) = layer.shapeSpec { return ir }
+                        return 0.5
+                    },
+                    set: { v in
+                        if case .star(let p, _, let r) = layer.shapeSpec {
+                            layer.shapeSpec = .star(points: p, innerRatio: v, rotation: r)
+                        }
+                    }
+                ),
+                range: 0.1 ... 0.9,
+                valueText: { String(format: "%.2f", $0) },
+                defaultValue: 0.5,
+                onBeginEditing: { project.recordUndo() }
+            )
+            DialSliderRow(
+                label: "Rotation",
+                value: Binding(
+                    get: {
+                        if case .star(_, _, let r) = layer.shapeSpec { return r }
+                        return -90
+                    },
+                    set: { v in
+                        if case .star(let p, let ir, _) = layer.shapeSpec {
+                            layer.shapeSpec = .star(points: p, innerRatio: ir, rotation: v)
+                        }
+                    }
+                ),
+                range: -180 ... 180,
+                valueText: { String(format: "%.0f°", $0) },
+                defaultValue: -90,
+                onBeginEditing: { project.recordUndo() }
+            )
+
+        case .squircle:
+            DialSliderRow(
+                label: "Corner",
+                value: Binding(
+                    get: {
+                        if case .squircle(let crf) = layer.shapeSpec { return crf }
+                        return 0.2237
+                    },
+                    set: { v in
+                        layer.shapeSpec = .squircle(cornerRadiusFraction: v)
+                    }
+                ),
+                range: 0 ... 0.5,
+                valueText: { String(format: "%.0f%%", $0 * 200) },
+                defaultValue: 0.2237,
+                onBeginEditing: { project.recordUndo() }
+            )
+
+        case nil:
+            EmptyView()
         }
     }
 }
