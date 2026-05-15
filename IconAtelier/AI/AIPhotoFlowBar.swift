@@ -34,7 +34,7 @@ struct AIPhotoFlowBar: View {
     @Binding var selectedStyle: AIFlowOption?
     @Binding var selectedMaterial: AIFlowOption?
     let onGenerate: () -> Void
-    let onAddSymbol: () -> Void
+    let onAddSymbol: (String) -> Void
     let onAddPrompt: () -> Void
     let onAddDrawing: () -> Void
     let onAddText: () -> Void
@@ -43,6 +43,15 @@ struct AIPhotoFlowBar: View {
     @State private var showPhotosPicker: Bool = false
     @State private var activePicker: ActivePicker? = nil
     @State private var countdown: Int = 90
+    @State private var showSymbolPopover: Bool = false
+
+    private static let shapePresets: [String] = [
+        "circle.fill", "square.fill", "triangle.fill", "diamond.fill",
+        "rhombus.fill", "pentagon.fill", "hexagon.fill", "octagon.fill",
+        "seal.fill", "star.fill", "heart.fill", "shield.fill",
+        "rectangle.fill", "capsule.fill", "drop.fill", "oval.fill",
+        "bolt.fill", "icloud.fill", "cone.fill", "minus",
+    ]
 
     private enum ActivePicker: Hashable { case style, material }
     private enum ChainSquareKind: Hashable { case seed, style, material }
@@ -157,7 +166,9 @@ struct AIPhotoFlowBar: View {
                 showPhotosPicker = true
             },
             SeedAction(id: "drawing", label: "Drawing", systemImage: "scribble.variable", action: onAddDrawing),
-            SeedAction(id: "symbol", label: "Symbol", systemImage: "star.fill", action: onAddSymbol),
+            SeedAction(id: "symbol", label: "Symbol", systemImage: "star.fill") {
+                showSymbolPopover = true
+            },
             SeedAction(id: "text", label: "Text", systemImage: "textformat", weight: .medium, action: onAddText)
         ]
     }
@@ -230,6 +241,19 @@ struct AIPhotoFlowBar: View {
             ForEach(seedActions) { item in
                 seedActionButton(item)
                     .frame(maxWidth: .infinity)
+                    .popover(
+                        isPresented: Binding(
+                            get: { item.id == "symbol" && showSymbolPopover },
+                            set: { if !$0 { showSymbolPopover = false } }
+                        ),
+                        attachmentAnchor: .point(.top),
+                        arrowEdge: .bottom
+                    ) {
+                        SymbolPresetsPopover(symbols: Self.shapePresets) { name in
+                            showSymbolPopover = false
+                            onAddSymbol(name)
+                        }
+                    }
             }
         }
         .padding(.horizontal, 12)
@@ -599,6 +623,45 @@ private struct SeedAction: Identifiable {
         self.systemImage = systemImage
         self.weight = weight
         self.action = action
+    }
+}
+
+// MARK: - Symbol presets popover
+
+private struct SymbolPresetsPopover: View {
+    let symbols: [String]
+    let onSelect: (String) -> Void
+
+    @State private var appeared: Bool = false
+
+    private let columns = Array(repeating: GridItem(.fixed(52), spacing: 8), count: 4)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(symbols, id: \.self) { name in
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onSelect(name)
+                } label: {
+                    Image(systemName: name)
+                        .font(.title2)
+                        .foregroundStyle(Color(uiColor: .systemBackground))
+                        .frame(width: 52, height: 52)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .scaleEffect(appeared ? 1.0 : 0.85)
+        .opacity(appeared ? 1.0 : 0.0)
+        .onAppear {
+            withAnimation(.smooth(duration: 0.22)) {
+                appeared = true
+            }
+        }
+        .presentationCompactAdaptation(.popover)
+        .presentationBackground(Color.primary)
     }
 }
 

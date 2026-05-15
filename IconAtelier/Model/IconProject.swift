@@ -211,9 +211,9 @@ final class IconProject {
     }
 
     @discardableResult
-    func addSymbolOverlay() -> Layer {
+    func addSymbolOverlay(symbolName: String = "star.fill") -> Layer {
         recordUndo()
-        return append(Layer(kind: .symbol, name: "star.fill"))
+        return append(Layer(kind: .symbol, name: symbolName, symbolName: symbolName))
     }
 
     @discardableResult

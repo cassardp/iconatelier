@@ -84,7 +84,7 @@ struct ContentView: View {
                 selectedStyle: $aiSelectedStyle,
                 selectedMaterial: $aiSelectedMaterial,
                 onGenerate: triggerGenerate,
-                onAddSymbol: addSymbolLayer,
+                onAddSymbol: { addSymbolLayer(symbolName: $0) },
                 onAddPrompt: { showPromptSheet = true },
                 onAddDrawing: { showDrawingSheet = true },
                 onAddText: addTextLayer
@@ -387,9 +387,9 @@ struct ContentView: View {
         }
     }
 
-    private func addSymbolLayer() {
+    private func addSymbolLayer(symbolName: String = "star.fill") {
         withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
-            let layer = project.addSymbolOverlay()
+            let layer = project.addSymbolOverlay(symbolName: symbolName)
             session.selectLayer(layer.uuid)
         }
     }
