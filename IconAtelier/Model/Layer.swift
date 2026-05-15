@@ -27,6 +27,20 @@ enum LayerFontWeight: String, CaseIterable {
     }
 }
 
+enum BorderPosition: String, CaseIterable {
+    case inner
+    case center
+    case outer
+
+    var displayName: String {
+        switch self {
+        case .inner:  return "Inside"
+        case .center: return "Center"
+        case .outer:  return "Outside"
+        }
+    }
+}
+
 enum LayerFontDesign: String, CaseIterable {
     case `default`
     case serif
@@ -73,7 +87,8 @@ final class Layer {
     // Shape-level styling (applies to .parametricShape layers).
     var cornerRadius: Double = 0
     var borderWidth: Double = 0
-    var storedBorderColor: StoredColor = StoredColor.white
+    var storedBorderColor: StoredColor = StoredColor.black
+    var borderPositionRaw: String = BorderPosition.center.rawValue
 
     var offsetW: Double = 0
     var offsetH: Double = 0
@@ -170,6 +185,11 @@ final class Layer {
         set { storedBorderColor = StoredColor(newValue) }
     }
 
+    var borderPosition: BorderPosition {
+        get { BorderPosition(rawValue: borderPositionRaw) ?? .center }
+        set { borderPositionRaw = newValue.rawValue }
+    }
+
     var shapeSpec: ShapeSpec? {
         get {
             guard let data = shapeSpecJSON else { return nil }
@@ -197,6 +217,7 @@ struct LayerSnapshot {
     let cornerRadius: Double
     let borderWidth: Double
     let borderColor: StoredColor
+    let borderPosition: BorderPosition
     let offsetW: Double
     let offsetH: Double
     let scaleValue: Double
@@ -230,6 +251,7 @@ extension Layer {
             cornerRadius: cornerRadius,
             borderWidth: borderWidth,
             borderColor: storedBorderColor,
+            borderPosition: borderPosition,
             offsetW: offsetW,
             offsetH: offsetH,
             scaleValue: scaleValue,
@@ -261,6 +283,7 @@ extension Layer {
         cornerRadius = s.cornerRadius
         borderWidth = s.borderWidth
         storedBorderColor = s.borderColor
+        borderPositionRaw = s.borderPosition.rawValue
         offsetW = s.offsetW
         offsetH = s.offsetH
         scaleValue = s.scaleValue

@@ -42,11 +42,12 @@ struct ParametricShapeContentSection: View {
             DialSliderRow(
                 label: "Width",
                 value: $layer.borderWidth,
-                range: 0 ... 0.1,
-                valueText: { String(format: "%.0f%%", $0 * 1000) },
+                range: 0 ... 0.5,
+                valueText: { String(format: "%.0f%%", $0 * 200) },
                 defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
+            BorderPositionRow(position: $layer.borderPosition, project: project)
             ColorPickerRow(title: "Color", color: $layer.borderColor, project: project)
         }
 
@@ -331,6 +332,39 @@ struct ColorPickerRow: View {
                 ),
                 supportsOpacity: false
             )
+            .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+}
+
+private struct BorderPositionRow: View {
+    @Binding var position: BorderPosition
+    let project: IconProject
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Position")
+                .foregroundStyle(.primary.opacity(0.72))
+            Spacer()
+            Picker("Position", selection: Binding(
+                get: { position },
+                set: {
+                    project.recordUndo()
+                    position = $0
+                }
+            )) {
+                ForEach(BorderPosition.allCases, id: \.self) { p in
+                    Text(p.displayName).tag(p)
+                }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
             .labelsHidden()
         }
         .padding(.horizontal, 14)

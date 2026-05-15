@@ -402,17 +402,43 @@ struct LayerContentView: View {
             if let spec = layer.shapeSpec {
                 let shape = spec.anyShape(cornerRadiusFraction: layer.cornerRadius)
                 let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
-                shape
-                    .fill(layer.tintColor)
-                    .overlay {
-                        if strokeWidth > 0 {
-                            shape.stroke(layer.borderColor, lineWidth: strokeWidth)
-                        }
+                ZStack {
+                    shape.fill(layer.tintColor)
+                    if strokeWidth > 0 {
+                        borderView(
+                            shape: shape,
+                            width: strokeWidth,
+                            color: layer.borderColor,
+                            position: layer.borderPosition
+                        )
                     }
-                    .frame(width: shapeSide, height: shapeSide)
+                }
+                .frame(width: shapeSide, height: shapeSide)
             } else {
                 Color.clear.frame(width: shapeSide, height: shapeSide)
             }
+        }
+    }
+
+    // Three border positions:
+    //  - .center: SwiftUI's default stroke, centered on the path. Bleeds inward
+    //    and outward; self-intersects on concave shapes at large widths.
+    //  - .inner:  doubled stroke clipped to the shape's interior. Effective
+    //    width = `width`, fully inside, no overflow.
+    //  - .outer:  doubled stroke with the shape's interior punched out via
+    //    `destinationOut`. Effective width = `width`, fully outside.
+    @ViewBuilder
+    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition) -> some View {
+        switch position {
+        case .center:
+            shape.stroke(color, lineWidth: width)
+        case .inner:
+            shape.stroke(color, lineWidth: width * 2)
+                .clipShape(shape)
+        case .outer:
+            shape.stroke(color, lineWidth: width * 2)
+                .overlay(shape.fill(.black).blendMode(.destinationOut))
+                .compositingGroup()
         }
     }
 }

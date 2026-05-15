@@ -6,6 +6,7 @@ import SwiftUI
 // current spec when enabled and unwraps it when disabled.
 nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     case polygon(sides: Int, innerRatio: Double, rotation: Double)
+    case squircle
     case radialRepeat(
         base: ShapeSpec,
         count: Int,
@@ -15,6 +16,12 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     )
 
     static let defaultPolygon: ShapeSpec = .polygon(sides: 6, innerRatio: 1.0, rotation: -90)
+    static let defaultStar: ShapeSpec = .polygon(sides: 5, innerRatio: 0.5, rotation: -90)
+    static let defaultSquircle: ShapeSpec = .squircle
+
+    /// Exact iPhone app-icon corner ratio. SquircleShape uses this directly;
+    /// it isn't user-tweakable (the slider is hidden via `hasIntrinsicCornerRadius`).
+    static let defaultSquircleCornerRadius: Double = 0.2237
 
     static let defaultRadialRepeat = RadialRepeatParams(
         count: 8,
@@ -26,6 +33,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     var displayName: String {
         switch self {
         case .polygon: return "Polygon"
+        case .squircle: return "Squircle"
         case .radialRepeat(let base, _, _, _, _):
             return base.displayName
         }
@@ -85,6 +93,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 rotationDegrees: rotation,
                 cornerRadiusFraction: cornerRadiusFraction
             ))
+        case .squircle:
+            return AnyShape(SquircleShape())
         case let .radialRepeat(base, count, centerHole, phaseDegrees, alternateScale):
             return AnyShape(RadialRepeat(
                 base: base.anyShape(cornerRadiusFraction: cornerRadiusFraction),
@@ -96,10 +106,13 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         }
     }
 
-    /// True when the shape uses its own intrinsic corner-radius parameter and
-    /// shouldn't expose a generic Layer-level cornerRadius control. After the
-    /// Polygon/Star/Squircle merge there is no such case anymore.
-    var hasIntrinsicCornerRadius: Bool { false }
+    /// True when the shape's corner radius is fixed by the preset and the
+    /// user shouldn't see the Layer-level cornerRadius slider. Currently only
+    /// the squircle preset (locked to the iPhone app-icon ratio).
+    var hasIntrinsicCornerRadius: Bool {
+        if case .squircle = self { return true }
+        return false
+    }
 }
 
 struct RadialRepeatParams: Hashable, Sendable {
@@ -111,12 +124,12 @@ struct RadialRepeatParams: Hashable, Sendable {
 
 // MARK: - Codable
 
-// Custom Codable conformance to migrate legacy `.star` and `.squircle` JSON
-// produced by earlier versions of the app:
-//   - `.star(points, innerRatio, rotation)`        → `.polygon(sides: points, innerRatio, rotation)`
-//   - `.squircle(cornerRadiusFraction)`            → `.polygon(sides: 4, innerRatio: 1.0, rotation: -45)`
-//     (the corner radius is dropped; the Layer-level cornerRadius slider now
-//     covers that role.)
+// Custom Codable conformance to migrate legacy `.star` JSON produced by
+// earlier versions of the app:
+//   - `.star(points, innerRatio, rotation)` → `.polygon(sides: points, …)`
+// The legacy `.squircle(cornerRadiusFraction)` payload is also accepted and
+// mapped to the parameterless `.squircle` case (its corner radius is now
+// intrinsic — locked to the iPhone app-icon ratio).
 extension ShapeSpec: Codable {
     private enum CaseKey: String, CodingKey {
         case polygon, star, squircle, radialRepeat
@@ -148,9 +161,9 @@ extension ShapeSpec: Codable {
             return
         }
         if container.contains(.squircle) {
-            // Legacy squircle → axis-aligned square. Corner radius is dropped
-            // (the Layer-level cornerRadius now handles rounding).
-            self = .polygon(sides: 4, innerRatio: 1.0, rotation: -45)
+            // Accepts both legacy `{ cornerRadiusFraction: … }` payloads and
+            // the new empty marker — the radius is intrinsic now.
+            self = .squircle
             return
         }
         if container.contains(.radialRepeat) {
@@ -183,6 +196,8 @@ extension ShapeSpec: Codable {
             try nested.encode(sides, forKey: .sides)
             try nested.encode(innerRatio, forKey: .innerRatio)
             try nested.encode(rotation, forKey: .rotation)
+        case .squircle:
+            _ = container.nestedContainer(keyedBy: LegacySquircleKeys.self, forKey: .squircle)
         case let .radialRepeat(base, count, centerHole, phaseDegrees, alternateScale):
             var nested = container.nestedContainer(keyedBy: RadialKeys.self, forKey: .radialRepeat)
             try nested.encode(base, forKey: .base)
