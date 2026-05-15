@@ -507,11 +507,11 @@ private struct LassoMarquee: View {
         ZStack(alignment: .topLeading) {
             Color.clear
             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(Color.accentColor.opacity(0.10))
+                .fill(Color.iaSelectionYellow.opacity(0.15))
                 .overlay(
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .strokeBorder(
-                            Color.accentColor.opacity(0.85),
+                            Color.iaSelectionYellow,
                             style: StrokeStyle(lineWidth: 1, dash: [5, 4])
                         )
                 )

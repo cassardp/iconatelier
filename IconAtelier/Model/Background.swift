@@ -173,6 +173,7 @@ extension Color {
     nonisolated static let iaPurple = Color(red: 0.345, green: 0.337, blue: 0.839)  // #5856D6
     nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)      // #FF2D55
     nonisolated static let iaOrange = Color(red: 1.0, green: 0.584, blue: 0.0)      // #FF9500
+    nonisolated static let iaSelectionYellow = Color(red: 1.0, green: 0.78, blue: 0.0) // #FFC700
 
     nonisolated static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         let ua = UIColor(a)
