@@ -82,26 +82,37 @@ struct ParametricShapeContentSection: View {
 
     var body: some View {
         PanelSection(title: layer.shapeSpec?.displayName ?? "Shape") {
-            shapeParamRows
+            baseShapeSliders
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+        }
+
+        SectionDivider()
+        PanelSection(title: "Repeat") {
+            repeatToggleRow
+            if layer.shapeSpec?.radialRepeatParams != nil {
+                radialRepeatSliders
+            }
         }
     }
 
+    // Base shape sliders read/write the unwrapped base, preserving the radial
+    // wrap if the layer is currently repeated.
     @ViewBuilder
-    private var shapeParamRows: some View {
-        switch layer.shapeSpec {
+    private var baseShapeSliders: some View {
+        switch layer.shapeSpec?.unwrapped {
         case .polygon:
             DialSliderRow(
                 label: "Sides",
-                value: Binding(
-                    get: {
-                        if case .polygon(let s, _) = layer.shapeSpec { return Double(s) }
+                value: baseDoubleBinding(
+                    get: { spec in
+                        if case .polygon(let s, _) = spec { return Double(s) }
                         return 6
                     },
-                    set: { v in
-                        if case .polygon(_, let r) = layer.shapeSpec {
-                            layer.shapeSpec = .polygon(sides: Int(v.rounded()), rotation: r)
+                    set: { spec, v in
+                        if case .polygon(_, let r) = spec {
+                            return .polygon(sides: Int(v.rounded()), rotation: r)
                         }
+                        return spec
                     }
                 ),
                 range: 3 ... 12,
@@ -111,15 +122,16 @@ struct ParametricShapeContentSection: View {
             )
             DialSliderRow(
                 label: "Rotation",
-                value: Binding(
-                    get: {
-                        if case .polygon(_, let r) = layer.shapeSpec { return r }
+                value: baseDoubleBinding(
+                    get: { spec in
+                        if case .polygon(_, let r) = spec { return r }
                         return -90
                     },
-                    set: { v in
-                        if case .polygon(let s, _) = layer.shapeSpec {
-                            layer.shapeSpec = .polygon(sides: s, rotation: v)
+                    set: { spec, v in
+                        if case .polygon(let s, _) = spec {
+                            return .polygon(sides: s, rotation: v)
                         }
+                        return spec
                     }
                 ),
                 range: -180 ... 180,
@@ -131,15 +143,16 @@ struct ParametricShapeContentSection: View {
         case .star:
             DialSliderRow(
                 label: "Points",
-                value: Binding(
-                    get: {
-                        if case .star(let p, _, _) = layer.shapeSpec { return Double(p) }
+                value: baseDoubleBinding(
+                    get: { spec in
+                        if case .star(let p, _, _) = spec { return Double(p) }
                         return 5
                     },
-                    set: { v in
-                        if case .star(_, let ir, let r) = layer.shapeSpec {
-                            layer.shapeSpec = .star(points: Int(v.rounded()), innerRatio: ir, rotation: r)
+                    set: { spec, v in
+                        if case .star(_, let ir, let r) = spec {
+                            return .star(points: Int(v.rounded()), innerRatio: ir, rotation: r)
                         }
+                        return spec
                     }
                 ),
                 range: 3 ... 12,
@@ -149,15 +162,16 @@ struct ParametricShapeContentSection: View {
             )
             DialSliderRow(
                 label: "Inner Ratio",
-                value: Binding(
-                    get: {
-                        if case .star(_, let ir, _) = layer.shapeSpec { return ir }
+                value: baseDoubleBinding(
+                    get: { spec in
+                        if case .star(_, let ir, _) = spec { return ir }
                         return 0.5
                     },
-                    set: { v in
-                        if case .star(let p, _, let r) = layer.shapeSpec {
-                            layer.shapeSpec = .star(points: p, innerRatio: v, rotation: r)
+                    set: { spec, v in
+                        if case .star(let p, _, let r) = spec {
+                            return .star(points: p, innerRatio: v, rotation: r)
                         }
+                        return spec
                     }
                 ),
                 range: 0.1 ... 0.9,
@@ -167,15 +181,16 @@ struct ParametricShapeContentSection: View {
             )
             DialSliderRow(
                 label: "Rotation",
-                value: Binding(
-                    get: {
-                        if case .star(_, _, let r) = layer.shapeSpec { return r }
+                value: baseDoubleBinding(
+                    get: { spec in
+                        if case .star(_, _, let r) = spec { return r }
                         return -90
                     },
-                    set: { v in
-                        if case .star(let p, let ir, _) = layer.shapeSpec {
-                            layer.shapeSpec = .star(points: p, innerRatio: ir, rotation: v)
+                    set: { spec, v in
+                        if case .star(let p, let ir, _) = spec {
+                            return .star(points: p, innerRatio: ir, rotation: v)
                         }
+                        return spec
                     }
                 ),
                 range: -180 ... 180,
@@ -187,14 +202,12 @@ struct ParametricShapeContentSection: View {
         case .squircle:
             DialSliderRow(
                 label: "Corner",
-                value: Binding(
-                    get: {
-                        if case .squircle(let crf) = layer.shapeSpec { return crf }
+                value: baseDoubleBinding(
+                    get: { spec in
+                        if case .squircle(let crf) = spec { return crf }
                         return 0.2237
                     },
-                    set: { v in
-                        layer.shapeSpec = .squircle(cornerRadiusFraction: v)
-                    }
+                    set: { _, v in .squircle(cornerRadiusFraction: v) }
                 ),
                 range: 0 ... 0.5,
                 valueText: { String(format: "%.0f%%", $0 * 200) },
@@ -202,72 +215,29 @@ struct ParametricShapeContentSection: View {
                 onBeginEditing: { project.recordUndo() }
             )
 
-        case .petal:
-            petalSliders
-
-        case .radialRepeat:
-            radialRepeatSliders
-
-        case nil:
+        default:
             EmptyView()
         }
     }
 
-    // Shared between top-level .petal layers and a .radialRepeat whose base
-    // is a .petal — both surface the same four params here.
-    @ViewBuilder
-    private var petalSliders: some View {
-        DialSliderRow(
-            label: "Length",
-            value: Binding(
-                get: { petalParam(\.length) ?? 0.9 },
-                set: { v in updatePetal { p in
-                    .petal(length: v, width: p.width, pointiness: p.pointiness, curvature: p.curvature)
-                } }
-            ),
-            range: 0.2 ... 1.0,
-            valueText: { String(format: "%.2f", $0) },
-            defaultValue: 0.9,
-            onBeginEditing: { project.recordUndo() }
-        )
-        DialSliderRow(
-            label: "Width",
-            value: Binding(
-                get: { petalParam(\.width) ?? 0.45 },
-                set: { v in updatePetal { p in
-                    .petal(length: p.length, width: v, pointiness: p.pointiness, curvature: p.curvature)
-                } }
-            ),
-            range: 0.1 ... 1.0,
-            valueText: { String(format: "%.2f", $0) },
-            defaultValue: 0.45,
-            onBeginEditing: { project.recordUndo() }
-        )
-        DialSliderRow(
-            label: "Pointiness",
-            value: Binding(
-                get: { petalParam(\.pointiness) ?? 0.5 },
-                set: { v in updatePetal { p in
-                    .petal(length: p.length, width: p.width, pointiness: v, curvature: p.curvature)
-                } }
-            ),
-            range: 0 ... 1,
-            valueText: { String(format: "%.2f", $0) },
-            defaultValue: 0.5,
-            onBeginEditing: { project.recordUndo() }
-        )
-        DialSliderRow(
-            label: "Curvature",
-            value: Binding(
-                get: { petalParam(\.curvature) ?? 0.4 },
-                set: { v in updatePetal { p in
-                    .petal(length: p.length, width: p.width, pointiness: p.pointiness, curvature: v)
-                } }
-            ),
-            range: -1 ... 1,
-            valueText: { String(format: "%+.2f", $0) },
-            defaultValue: 0.4,
-            onBeginEditing: { project.recordUndo() }
+    // Tiny pill-style toggle row that fits the panel's row metrics.
+    private var repeatToggleRow: some View {
+        let isOn = layer.shapeSpec?.radialRepeatParams != nil
+        return HStack(spacing: 8) {
+            Text("Apply")
+                .foregroundStyle(.primary.opacity(0.72))
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { isOn },
+                set: { newVal in toggleRepeat(to: newVal) }
+            ))
+            .labelsHidden()
+        }
+        .padding(.horizontal, PanelStyle.rowInsetH)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
         )
     }
 
@@ -275,140 +245,95 @@ struct ParametricShapeContentSection: View {
     private var radialRepeatSliders: some View {
         DialSliderRow(
             label: "Count",
-            value: Binding(
-                get: {
-                    if case .radialRepeat(_, let c, _, _, _) = layer.shapeSpec { return Double(c) }
-                    return 6
-                },
-                set: { v in
-                    if case .radialRepeat(let b, _, let h, let p, let a) = layer.shapeSpec {
-                        layer.shapeSpec = .radialRepeat(
-                            base: b, count: Int(v.rounded()),
-                            centerHole: h, phaseDegrees: p, alternateScale: a
-                        )
-                    }
-                }
+            value: radialDoubleBinding(
+                get: { Double($0.count) },
+                set: { p, v in var p = p; p.count = Int(v.rounded()); return p }
             ),
             range: 2 ... 24,
             valueText: { "\(Int($0.rounded()))" },
-            defaultValue: 6,
+            defaultValue: Double(ShapeSpec.defaultRadialRepeat.count),
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
             label: "Center Hole",
-            value: Binding(
-                get: {
-                    if case .radialRepeat(_, _, let h, _, _) = layer.shapeSpec { return h }
-                    return 0.1
-                },
-                set: { v in
-                    if case .radialRepeat(let b, let c, _, let p, let a) = layer.shapeSpec {
-                        layer.shapeSpec = .radialRepeat(
-                            base: b, count: c, centerHole: v, phaseDegrees: p, alternateScale: a
-                        )
-                    }
-                }
+            value: radialDoubleBinding(
+                get: { $0.centerHole },
+                set: { p, v in var p = p; p.centerHole = v; return p }
             ),
             range: 0 ... 0.5,
             valueText: { String(format: "%.0f%%", $0 * 200) },
-            defaultValue: 0.1,
+            defaultValue: ShapeSpec.defaultRadialRepeat.centerHole,
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
             label: "Phase",
-            value: Binding(
-                get: {
-                    if case .radialRepeat(_, _, _, let p, _) = layer.shapeSpec { return p }
-                    return -90
-                },
-                set: { v in
-                    if case .radialRepeat(let b, let c, let h, _, let a) = layer.shapeSpec {
-                        layer.shapeSpec = .radialRepeat(
-                            base: b, count: c, centerHole: h, phaseDegrees: v, alternateScale: a
-                        )
-                    }
-                }
+            value: radialDoubleBinding(
+                get: { $0.phaseDegrees },
+                set: { p, v in var p = p; p.phaseDegrees = v; return p }
             ),
             range: -180 ... 180,
             valueText: { String(format: "%.0f°", $0) },
-            defaultValue: -90,
+            defaultValue: ShapeSpec.defaultRadialRepeat.phaseDegrees,
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
             label: "Alternate",
-            value: Binding(
-                get: {
-                    if case .radialRepeat(_, _, _, _, let a) = layer.shapeSpec { return a }
-                    return 1.0
-                },
-                set: { v in
-                    if case .radialRepeat(let b, let c, let h, let p, _) = layer.shapeSpec {
-                        layer.shapeSpec = .radialRepeat(
-                            base: b, count: c, centerHole: h, phaseDegrees: p, alternateScale: v
-                        )
-                    }
-                }
+            value: radialDoubleBinding(
+                get: { $0.alternateScale },
+                set: { p, v in var p = p; p.alternateScale = v; return p }
             ),
             range: 0.2 ... 1.0,
             valueText: { String(format: "%.2f", $0) },
-            defaultValue: 1.0,
+            defaultValue: ShapeSpec.defaultRadialRepeat.alternateScale,
             onBeginEditing: { project.recordUndo() }
         )
+    }
 
-        // When the radial base is a petal, expose its 4 params here too so
-        // the user can shape the flower's petals without rebuilding the layer.
-        if case .radialRepeat(let base, _, _, _, _) = layer.shapeSpec,
-           case .petal = base {
-            SectionDivider()
-            petalSliders
+    // MARK: - Helpers
+
+    private func toggleRepeat(to enable: Bool) {
+        guard let spec = layer.shapeSpec else { return }
+        project.recordUndo()
+        if enable {
+            layer.shapeSpec = spec.wrappingInRadialRepeat(ShapeSpec.defaultRadialRepeat)
+        } else {
+            layer.shapeSpec = spec.unwrapped
         }
     }
 
-    // MARK: - Petal param access (handles top-level .petal or .radialRepeat→.petal)
-
-    private struct PetalParams {
-        var length: Double
-        var width: Double
-        var pointiness: Double
-        var curvature: Double
-    }
-
-    private func petalParam(_ field: KeyPath<PetalParams, Double>) -> Double? {
-        guard let params = currentPetalParams() else { return nil }
-        return params[keyPath: field]
-    }
-
-    private func currentPetalParams() -> PetalParams? {
-        switch layer.shapeSpec {
-        case let .petal(l, w, p, c):
-            return PetalParams(length: l, width: w, pointiness: p, curvature: c)
-        case let .radialRepeat(base, _, _, _, _):
-            if case let .petal(l, w, p, c) = base {
-                return PetalParams(length: l, width: w, pointiness: p, curvature: c)
+    /// Build a slider binding that reads/writes the base shape's params,
+    /// transparently preserving the radial-repeat wrap if any.
+    private func baseDoubleBinding(
+        get: @escaping (ShapeSpec) -> Double,
+        set: @escaping (ShapeSpec, Double) -> ShapeSpec
+    ) -> Binding<Double> {
+        Binding(
+            get: { layer.shapeSpec.map { get($0.unwrapped) } ?? 0 },
+            set: { newVal in
+                guard let spec = layer.shapeSpec else { return }
+                let newBase = set(spec.unwrapped, newVal)
+                layer.shapeSpec = spec.replacingBase(with: newBase)
             }
-            return nil
-        default:
-            return nil
-        }
+        )
     }
 
-    private func updatePetal(_ transform: (PetalParams) -> ShapeSpec) {
-        guard let params = currentPetalParams() else { return }
-        let newPetalSpec = transform(params)
-        switch layer.shapeSpec {
-        case .petal:
-            layer.shapeSpec = newPetalSpec
-        case let .radialRepeat(_, count, hole, phase, alt):
-            layer.shapeSpec = .radialRepeat(
-                base: newPetalSpec,
-                count: count,
-                centerHole: hole,
-                phaseDegrees: phase,
-                alternateScale: alt
-            )
-        default:
-            break
-        }
+    /// Build a slider binding that reads/writes the current radial-repeat
+    /// params. No-op if the spec isn't currently wrapped.
+    private func radialDoubleBinding(
+        get: @escaping (RadialRepeatParams) -> Double,
+        set: @escaping (RadialRepeatParams, Double) -> RadialRepeatParams
+    ) -> Binding<Double> {
+        Binding(
+            get: {
+                layer.shapeSpec?.radialRepeatParams.map(get) ?? 0
+            },
+            set: { newVal in
+                guard let spec = layer.shapeSpec,
+                      let params = spec.radialRepeatParams else { return }
+                let updated = set(params, newVal)
+                layer.shapeSpec = spec.wrappingInRadialRepeat(updated)
+            }
+        )
     }
 }
 

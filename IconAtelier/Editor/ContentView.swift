@@ -151,16 +151,6 @@ struct ContentView: View {
                         } label: {
                             Label("Squircle", systemImage: "app")
                         }
-                        Button {
-                            addShapeLayer(spec: .defaultPetal)
-                        } label: {
-                            Label("Petal", systemImage: "drop")
-                        }
-                        Button {
-                            addShapeLayer(spec: .defaultFlower)
-                        } label: {
-                            Label("Flower", systemImage: "camera.macro")
-                        }
                     }
                     Button {
                         showImportPicker = true
