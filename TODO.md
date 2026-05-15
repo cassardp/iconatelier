@@ -310,3 +310,54 @@ bg actuelle).
 ### Formats supplémentaires
 - Watch icons, Mac icons, visionOS, tvOS.
 - Mac Catalyst pour bosser sur Mac.
+
+## Idée spin-off — App dédiée "AI iMessage Stickers"
+
+App séparée, **pas** dans IconAtelier, qui réutilise le moteur de génération AI
++ édition pour produire des stickers iMessage cohérents.
+
+### Pourquoi
+La concurrence (Sticker Drop, Sticker Maker Studio, StickerX, Sticker Maker +
+Stickers, etc.) fait **exclusivement** du découpage de photos existantes
+(subject lifting iOS 16+ + bg removal + texte). **Personne ne génère de sticker
+from scratch via prompt.** Trou réel dans le marché segment sticker maker iOS.
+
+### Différenciants potentiels
+- **Generate from prompt** : "a tiny astronaut waving" → image générée + fond
+  transparent natif → directement utilisable comme sticker.
+- **Pack visuellement cohérent** : générer 12 stickers dans le même style
+  (mascot, flat, sketch…), pas un patchwork — argument de vente fort vs la
+  concurrence où chaque sticker est isolé.
+- **Édition vectorielle propre** : contour "puffy" Apple-style, contour blanc,
+  ombre portée, en SwiftUI Canvas.
+- **Mad Libs / templates** pour non-designers.
+
+### Architecture technique
+- Cible iOS 17+ (Live Stickers + Messages app extension).
+- 3 cibles Xcode : app principale + Messages app extension + App Group partagé.
+- Flow : génération AI dans l'app → écriture PNG transparent dans le container
+  App Group → la Messages extension (`MSStickerBrowserViewController`) lit
+  dynamiquement les fichiers → apparaît dans l'onglet de l'app dans Messages.
+- **Limitation Apple confirmée** : impossible de pousser au tiroir système
+  universel (celui partagé partout dans iOS). Le sticker reste dans **notre**
+  onglet dans Messages. Seul Apple peut alimenter le tiroir universel (via
+  Photos appui long → Add Sticker). Pas de hack via share extension non plus
+  (vérifié).
+- Fallback "tiroir universel" pour l'utilisateur : bouton "Save to Photos" +
+  tip "long-press in Photos to add as sticker".
+
+### Risques
+- **App Store review 4.2** (minimum functionality) : doit être suffisamment
+  riche en édition pour ne pas être perçue comme un wrapper de générateur.
+- **Coût API** : la concurrence est gratuite/freemium très peu cher. Pricing à
+  réfléchir (BYOK ? abo ? crédits ?).
+- **Risque WWDC** : si Apple sort un "Genmoji-like" pour stickers dans iOS 27,
+  ça peut tuer ce segment. À surveiller WWDC juin 2026.
+
+### À vérifier avant d'investir
+- Confirmer que `MSStickerBrowserViewController` peut bien être alimenté
+  dynamiquement depuis un App Group (validé par cas Sticker Drop / Stickerboard
+  en prod, mais à reproduire en POC).
+- Tester la qualité du fond transparent de `gpt-image-1.5` sur du sticker
+  (différent du fond transparent d'une icône d'app).
+- Tester l'effet "puffy / outline" SwiftUI sur PNG transparent.
