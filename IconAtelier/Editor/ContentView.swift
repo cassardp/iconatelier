@@ -79,20 +79,6 @@ struct ContentView: View {
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            AIPhotoFlowBar(
-                isGenerating: isGeneratingAI,
-                seed: $aiSeed,
-                selectedStyle: $aiSelectedStyle,
-                selectedMaterial: $aiSelectedMaterial,
-                onGenerate: triggerGenerate,
-                onAddSymbol: { addSymbolLayer(symbolName: $0) },
-                onAddPrompt: { showPromptSheet = true },
-                onAddDrawing: { showDrawingSheet = true },
-                onAddText: addTextLayer
-            )
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -179,18 +165,6 @@ struct ContentView: View {
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
         }
-        .sheet(isPresented: $showPromptSheet) {
-            AIPromptSheet { text in
-                aiSeed = .prompt(text)
-            }
-            .presentationDetents([.medium, .large])
-        }
-        .sheet(isPresented: $showDrawingSheet) {
-            AIDrawingSheet { image in
-                aiSeed = .drawing(image)
-            }
-            .presentationDragIndicator(.visible)
-        }
         .fileImporter(
             isPresented: $showImportPicker,
             allowedContentTypes: [.png],
@@ -224,18 +198,6 @@ struct ContentView: View {
         .onDisappear {
             persistSnapshotInBackground()
             project.clearHistory()
-        }
-        .alert(
-            "Generation failed",
-            isPresented: Binding(
-                get: { aiError != nil },
-                set: { if !$0 { aiError = nil } }
-            ),
-            presenting: aiError
-        ) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { message in
-            Text(message)
         }
     }
 
