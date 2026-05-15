@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -25,6 +26,7 @@ struct ContentView: View {
     @State private var didConsumeInitialIntent: Bool = false
     @State private var showPromptSheet: Bool = false
     @State private var showDrawingSheet: Bool = false
+    @State private var showImportPicker: Bool = false
 
     // Lasso multi-selection (Phase 1)
     @State private var canvasFrame: CGRect = .zero
@@ -145,15 +147,23 @@ struct ContentView: View {
                 .animation(.smooth(duration: 0.2), value: session.isMultiSelecting)
             }
 
-            if project.hasContent {
-                ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showImportPicker = true
+                    } label: {
+                        Label("Import Image", systemImage: "square.and.arrow.down")
+                    }
                     Button {
                         presentExportSheet()
                     } label: {
-                        Image(systemName: "square.and.arrow.up")
+                        Label("Export Icon", systemImage: "square.and.arrow.up")
                     }
-                    .accessibilityLabel("Export icon")
+                    .disabled(!project.hasContent)
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("More")
             }
         }
         .navigationTitle(project.title)
@@ -180,6 +190,13 @@ struct ContentView: View {
                 aiSeed = .drawing(image)
             }
             .presentationDragIndicator(.visible)
+        }
+        .fileImporter(
+            isPresented: $showImportPicker,
+            allowedContentTypes: [.png],
+            allowsMultipleSelection: false
+        ) { result in
+            handleImportResult(result)
         }
         .onChange(of: showEditSheet) { wasOpen, isOpen in
             if isOpen && !wasOpen {
@@ -404,6 +421,23 @@ struct ContentView: View {
     private func addPromptLayer() {
         let layer = project.addEmptyAIOverlay()
         session.selectLayer(layer.uuid)
+    }
+
+    private func handleImportResult(_ result: Result<[URL], Error>) {
+        guard case let .success(urls) = result, let url = urls.first else { return }
+        let needsScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if needsScope { url.stopAccessingSecurityScopedResource() }
+        }
+        guard
+            let data = try? Data(contentsOf: url),
+            let image = UIImage(data: data)
+        else { return }
+        withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
+            let layer = project.addImportedOverlay(image: image)
+            session.selectLayer(layer.uuid)
+        }
+        showEditSheet = true
     }
 
     private func consumeInitialIntent() {

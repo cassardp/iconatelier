@@ -202,6 +202,16 @@ final class IconProject {
     }
 
     @discardableResult
+    func addImportedOverlay(image: UIImage) -> Layer {
+        recordUndo()
+        return append(Layer(
+            kind: .aiOverlay,
+            name: nextName(for: .aiOverlay, baseFallback: "Import"),
+            image: image
+        ))
+    }
+
+    @discardableResult
     func addEmptyAIOverlay() -> Layer {
         recordUndo()
         return append(Layer(
