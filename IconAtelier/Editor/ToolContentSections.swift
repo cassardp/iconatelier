@@ -202,8 +202,212 @@ struct ParametricShapeContentSection: View {
                 onBeginEditing: { project.recordUndo() }
             )
 
+        case .petal:
+            petalSliders
+
+        case .radialRepeat:
+            radialRepeatSliders
+
         case nil:
             EmptyView()
+        }
+    }
+
+    // Shared between top-level .petal layers and a .radialRepeat whose base
+    // is a .petal — both surface the same four params here.
+    @ViewBuilder
+    private var petalSliders: some View {
+        DialSliderRow(
+            label: "Length",
+            value: Binding(
+                get: { petalParam(\.length) ?? 0.9 },
+                set: { v in updatePetal { p in
+                    .petal(length: v, width: p.width, pointiness: p.pointiness, curvature: p.curvature)
+                } }
+            ),
+            range: 0.2 ... 1.0,
+            valueText: { String(format: "%.2f", $0) },
+            defaultValue: 0.9,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Width",
+            value: Binding(
+                get: { petalParam(\.width) ?? 0.45 },
+                set: { v in updatePetal { p in
+                    .petal(length: p.length, width: v, pointiness: p.pointiness, curvature: p.curvature)
+                } }
+            ),
+            range: 0.1 ... 1.0,
+            valueText: { String(format: "%.2f", $0) },
+            defaultValue: 0.45,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Pointiness",
+            value: Binding(
+                get: { petalParam(\.pointiness) ?? 0.5 },
+                set: { v in updatePetal { p in
+                    .petal(length: p.length, width: p.width, pointiness: v, curvature: p.curvature)
+                } }
+            ),
+            range: 0 ... 1,
+            valueText: { String(format: "%.2f", $0) },
+            defaultValue: 0.5,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Curvature",
+            value: Binding(
+                get: { petalParam(\.curvature) ?? 0.4 },
+                set: { v in updatePetal { p in
+                    .petal(length: p.length, width: p.width, pointiness: p.pointiness, curvature: v)
+                } }
+            ),
+            range: -1 ... 1,
+            valueText: { String(format: "%+.2f", $0) },
+            defaultValue: 0.4,
+            onBeginEditing: { project.recordUndo() }
+        )
+    }
+
+    @ViewBuilder
+    private var radialRepeatSliders: some View {
+        DialSliderRow(
+            label: "Count",
+            value: Binding(
+                get: {
+                    if case .radialRepeat(_, let c, _, _, _) = layer.shapeSpec { return Double(c) }
+                    return 6
+                },
+                set: { v in
+                    if case .radialRepeat(let b, _, let h, let p, let a) = layer.shapeSpec {
+                        layer.shapeSpec = .radialRepeat(
+                            base: b, count: Int(v.rounded()),
+                            centerHole: h, phaseDegrees: p, alternateScale: a
+                        )
+                    }
+                }
+            ),
+            range: 2 ... 24,
+            valueText: { "\(Int($0.rounded()))" },
+            defaultValue: 6,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Center Hole",
+            value: Binding(
+                get: {
+                    if case .radialRepeat(_, _, let h, _, _) = layer.shapeSpec { return h }
+                    return 0.1
+                },
+                set: { v in
+                    if case .radialRepeat(let b, let c, _, let p, let a) = layer.shapeSpec {
+                        layer.shapeSpec = .radialRepeat(
+                            base: b, count: c, centerHole: v, phaseDegrees: p, alternateScale: a
+                        )
+                    }
+                }
+            ),
+            range: 0 ... 0.5,
+            valueText: { String(format: "%.0f%%", $0 * 200) },
+            defaultValue: 0.1,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Phase",
+            value: Binding(
+                get: {
+                    if case .radialRepeat(_, _, _, let p, _) = layer.shapeSpec { return p }
+                    return -90
+                },
+                set: { v in
+                    if case .radialRepeat(let b, let c, let h, _, let a) = layer.shapeSpec {
+                        layer.shapeSpec = .radialRepeat(
+                            base: b, count: c, centerHole: h, phaseDegrees: v, alternateScale: a
+                        )
+                    }
+                }
+            ),
+            range: -180 ... 180,
+            valueText: { String(format: "%.0f°", $0) },
+            defaultValue: -90,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Alternate",
+            value: Binding(
+                get: {
+                    if case .radialRepeat(_, _, _, _, let a) = layer.shapeSpec { return a }
+                    return 1.0
+                },
+                set: { v in
+                    if case .radialRepeat(let b, let c, let h, let p, _) = layer.shapeSpec {
+                        layer.shapeSpec = .radialRepeat(
+                            base: b, count: c, centerHole: h, phaseDegrees: p, alternateScale: v
+                        )
+                    }
+                }
+            ),
+            range: 0.2 ... 1.0,
+            valueText: { String(format: "%.2f", $0) },
+            defaultValue: 1.0,
+            onBeginEditing: { project.recordUndo() }
+        )
+
+        // When the radial base is a petal, expose its 4 params here too so
+        // the user can shape the flower's petals without rebuilding the layer.
+        if case .radialRepeat(let base, _, _, _, _) = layer.shapeSpec,
+           case .petal = base {
+            SectionDivider()
+            petalSliders
+        }
+    }
+
+    // MARK: - Petal param access (handles top-level .petal or .radialRepeat→.petal)
+
+    private struct PetalParams {
+        var length: Double
+        var width: Double
+        var pointiness: Double
+        var curvature: Double
+    }
+
+    private func petalParam(_ field: KeyPath<PetalParams, Double>) -> Double? {
+        guard let params = currentPetalParams() else { return nil }
+        return params[keyPath: field]
+    }
+
+    private func currentPetalParams() -> PetalParams? {
+        switch layer.shapeSpec {
+        case let .petal(l, w, p, c):
+            return PetalParams(length: l, width: w, pointiness: p, curvature: c)
+        case let .radialRepeat(base, _, _, _, _):
+            if case let .petal(l, w, p, c) = base {
+                return PetalParams(length: l, width: w, pointiness: p, curvature: c)
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func updatePetal(_ transform: (PetalParams) -> ShapeSpec) {
+        guard let params = currentPetalParams() else { return }
+        let newPetalSpec = transform(params)
+        switch layer.shapeSpec {
+        case .petal:
+            layer.shapeSpec = newPetalSpec
+        case let .radialRepeat(_, count, hole, phase, alt):
+            layer.shapeSpec = .radialRepeat(
+                base: newPetalSpec,
+                count: count,
+                centerHole: hole,
+                phaseDegrees: phase,
+                alternateScale: alt
+            )
+        default:
+            break
         }
     }
 }
