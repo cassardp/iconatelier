@@ -8,6 +8,7 @@ nonisolated struct StoredColor: Codable, Hashable, Sendable {
     var a: Double
 
     static let white = StoredColor(r: 1, g: 1, b: 1, a: 1)
+    static let black = StoredColor(r: 0, g: 0, b: 0, a: 1)
 
     init(r: Double, g: Double, b: Double, a: Double) {
         self.r = r; self.g = g; self.b = b; self.a = a

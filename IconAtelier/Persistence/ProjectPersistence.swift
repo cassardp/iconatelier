@@ -19,7 +19,7 @@ enum IconRenderer {
                     let s = CGFloat(layer.scale)
                     LayerContentView(layer: layer, side: side, scale: s)
                         .shadow(
-                            color: .black.opacity(layer.shadowOpacity),
+                            color: layer.shadowColor.opacity(layer.shadowOpacity),
                             radius: side * CGFloat(layer.shadowRadius) * s,
                             x: side * CGFloat(layer.shadowOffsetX) * s,
                             y: side * CGFloat(layer.shadowOffsetY) * s

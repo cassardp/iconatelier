@@ -141,7 +141,7 @@ private struct ContentField: View {
     }
 }
 
-private struct ColorPickerRow: View {
+struct ColorPickerRow: View {
     let title: String
     @Binding var color: Color
     let project: IconProject

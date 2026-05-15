@@ -91,6 +91,9 @@ struct LayerExport: Codable {
     let shadowRadius: Double
     let shadowOffsetX: Double
     let shadowOffsetY: Double
+    // Optional for backwards compat with v2 bundles exported before shadow color
+    // was a per-layer property (defaults to opaque black on import).
+    let shadowColor: StoredColor?
 
     let isHidden: Bool
     let isLocked: Bool
@@ -178,6 +181,7 @@ enum LibraryExporter {
                     shadowRadius: layer.shadowRadius,
                     shadowOffsetX: layer.shadowOffsetX,
                     shadowOffsetY: layer.shadowOffsetY,
+                    shadowColor: layer.storedShadowColor,
                     isHidden: layer.isHidden,
                     isLocked: layer.isLocked,
                     isFlippedHorizontally: layer.isFlippedHorizontally,

@@ -179,6 +179,7 @@ enum LibraryImporter {
         layer.shadowRadius = dto.shadowRadius
         layer.shadowOffsetX = dto.shadowOffsetX
         layer.shadowOffsetY = dto.shadowOffsetY
+        layer.storedShadowColor = dto.shadowColor ?? .black
         layer.isHidden = dto.isHidden
         layer.isLocked = dto.isLocked
         layer.isFlippedHorizontally = dto.isFlippedHorizontally

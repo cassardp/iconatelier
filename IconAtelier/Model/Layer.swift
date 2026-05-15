@@ -80,6 +80,7 @@ final class Layer {
     var shadowRadius: Double = 0.04
     var shadowOffsetX: Double = 0
     var shadowOffsetY: Double = 0.02
+    var storedShadowColor: StoredColor = StoredColor.black
 
     var isHidden: Bool = false
     var isLocked: Bool = false
@@ -155,6 +156,11 @@ final class Layer {
         get { .radians(rotationRadians) }
         set { rotationRadians = newValue.radians }
     }
+
+    var shadowColor: Color {
+        get { storedShadowColor.color }
+        set { storedShadowColor = StoredColor(newValue) }
+    }
 }
 
 // MARK: - Snapshot for undo
@@ -180,6 +186,7 @@ struct LayerSnapshot {
     let shadowRadius: Double
     let shadowOffsetX: Double
     let shadowOffsetY: Double
+    let shadowColor: StoredColor
     let isHidden: Bool
     let isLocked: Bool
     let isFlippedHorizontally: Bool
@@ -210,6 +217,7 @@ extension Layer {
             shadowRadius: shadowRadius,
             shadowOffsetX: shadowOffsetX,
             shadowOffsetY: shadowOffsetY,
+            shadowColor: storedShadowColor,
             isHidden: isHidden,
             isLocked: isLocked,
             isFlippedHorizontally: isFlippedHorizontally,
@@ -238,6 +246,7 @@ extension Layer {
         shadowRadius = s.shadowRadius
         shadowOffsetX = s.shadowOffsetX
         shadowOffsetY = s.shadowOffsetY
+        storedShadowColor = s.shadowColor
         isHidden = s.isHidden
         isLocked = s.isLocked
         isFlippedHorizontally = s.isFlippedHorizontally

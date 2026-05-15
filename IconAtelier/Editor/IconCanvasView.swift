@@ -349,7 +349,7 @@ struct OverlayLayerRender: View {
         let effectiveScale = layer.scale * transientScale
         LayerContentView(layer: layer, side: side, scale: effectiveScale)
             .shadow(
-                color: .black.opacity(layer.shadowOpacity),
+                color: layer.shadowColor.opacity(layer.shadowOpacity),
                 radius: side * layer.shadowRadius * effectiveScale,
                 x: side * layer.shadowOffsetX * effectiveScale,
                 y: side * layer.shadowOffsetY * effectiveScale

@@ -234,6 +234,15 @@ struct EditTabContent: View {
 
         SectionDivider()
         PanelSection(title: "Shadow") {
+            ColorPickerRow(
+                title: "Color",
+                color: Binding(
+                    get: { layer.shadowColor },
+                    set: { layer.shadowColor = $0 }
+                ),
+                project: project
+            )
+
             DialSliderRow(
                 label: "Opacity",
                 value: Binding(
