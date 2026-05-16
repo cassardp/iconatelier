@@ -10,11 +10,16 @@ struct EditTabContent: View {
         ScrollView {
             VStack(spacing: 18) {
                 if let layer = project.layer(withID: session.selectedLayerUUID) {
-                    actionsRow(for: layer)
-                    SectionDivider()
                     contentSection(for: layer)
+                    // Parametric shapes fold Transform + Offset into their
+                    // own "Shape" section (everything geometry-related stays
+                    // grouped). Other kinds still get the generic stack.
+                    if layer.kind != .parametricShape {
+                        SectionDivider()
+                        transformOffsetSection(for: layer)
+                    }
                     SectionDivider()
-                    transformSection(for: layer)
+                    shadowSection(for: layer)
                 }
             }
             .padding(.horizontal, 16)
@@ -42,136 +47,24 @@ struct EditTabContent: View {
         }
     }
 
-    // MARK: - Quick actions
+    // MARK: - Transform / Offset (non-parametric only)
 
     @ViewBuilder
-    private func actionsRow(for layer: Layer) -> some View {
-        HStack(spacing: 8) {
-            CompactActionButton(
-                title: layer.isHidden ? "Show" : "Hide",
-                systemImage: layer.isHidden ? "eye" : "eye.slash"
-            ) {
-                project.toggleVisibility(layer)
-            }
-            CompactActionButton(
-                title: "Flip Horizontal",
-                systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right"
-            ) {
-                withAnimation(.smooth(duration: 0.25)) {
-                    project.flipHorizontally(layer)
-                }
-            }
-            CompactActionButton(
-                title: "Flip Vertical",
-                systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down"
-            ) {
-                withAnimation(.smooth(duration: 0.25)) {
-                    project.flipVertically(layer)
-                }
-            }
-            CompactActionButton(
-                title: "Reset",
-                systemImage: "arrow.counterclockwise"
-            ) {
-                project.resetTransform(layer)
-            }
-            CompactActionButton(
-                title: "Duplicate",
-                systemImage: "square.on.square"
-            ) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    let copy = project.duplicate(layer)
-                    session.selectLayer(copy.uuid)
-                }
-            }
-            CompactActionButton(
-                title: "Delete",
-                systemImage: "trash"
-            ) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    let wasSelected = session.selectedLayerUUID == layer.uuid
-                    project.remove(layer)
-                    if wasSelected {
-                        session.selectedLayerUUID = project.layers.last?.uuid
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Transform
-
-    @ViewBuilder
-    private func transformSection(for layer: Layer) -> some View {
+    private func transformOffsetSection(for layer: Layer) -> some View {
         PanelSection(title: "Transform") {
-            DialSliderRow(
-                label: "Opacity",
-                value: Binding(
-                    get: { layer.opacity },
-                    set: { layer.opacity = $0 }
-                ),
-                range: 0 ... 1,
-                valueText: { String(format: "%.0f%%", $0 * 100) },
-                defaultValue: 1.0,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-            DialSliderRow(
-                label: "Scale",
-                value: Binding(
-                    get: { Double(layer.scale) },
-                    set: { layer.scale = CGFloat($0) }
-                ),
-                range: 0.1 ... 5.0,
-                valueText: { String(format: "%.2f", $0) },
-                defaultValue: 1.0,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-            DialSliderRow(
-                label: "Rotation",
-                value: Binding(
-                    get: {
-                        let d = layer.rotation.degrees
-                        return d.isFinite ? IconCanvasView.normalized(.degrees(d)).degrees : 0
-                    },
-                    set: { layer.rotation = IconCanvasView.normalized(.degrees($0)) }
-                ),
-                range: -180 ... 180,
-                valueText: { String(format: "%.0f°", $0) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
+            TransformSliders(layer: layer, project: project)
         }
 
         SectionDivider()
         PanelSection(title: "Offset") {
-            DialSliderRow(
-                label: "Offset X",
-                value: Binding(
-                    get: { Double(layer.offset.width) },
-                    set: { layer.offset = CGSize(width: CGFloat($0), height: layer.offset.height) }
-                ),
-                range: -1.0 ... 1.0,
-                valueText: { String(format: "%+.2f", $0) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-            DialSliderRow(
-                label: "Offset Y",
-                value: Binding(
-                    get: { Double(layer.offset.height) },
-                    set: { layer.offset = CGSize(width: layer.offset.width, height: CGFloat($0)) }
-                ),
-                range: -1.0 ... 1.0,
-                valueText: { String(format: "%+.2f", $0) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
+            OffsetSliders(layer: layer, project: project)
         }
+    }
 
-        SectionDivider()
+    // MARK: - Shadow
+
+    @ViewBuilder
+    private func shadowSection(for layer: Layer) -> some View {
         PanelSection(title: "Shadow") {
             ColorPickerRow(
                 title: "Color",
@@ -230,5 +123,84 @@ struct EditTabContent: View {
                 onBeginEditing: { project.recordUndo() }
             )
         }
+    }
+}
+
+// MARK: - Shared transform/offset rows
+
+struct TransformSliders: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    var body: some View {
+        DialSliderRow(
+            label: "Opacity",
+            value: Binding(
+                get: { layer.opacity },
+                set: { layer.opacity = $0 }
+            ),
+            range: 0 ... 1,
+            valueText: { String(format: "%.0f%%", $0 * 100) },
+            defaultValue: 1.0,
+            onBeginEditing: { project.recordUndo() }
+        )
+
+        DialSliderRow(
+            label: "Scale",
+            value: Binding(
+                get: { Double(layer.scale) },
+                set: { layer.scale = CGFloat($0) }
+            ),
+            range: 0.1 ... 5.0,
+            valueText: { String(format: "%.2f", $0) },
+            defaultValue: 1.0,
+            onBeginEditing: { project.recordUndo() }
+        )
+
+        DialSliderRow(
+            label: "Rotation",
+            value: Binding(
+                get: {
+                    let d = layer.rotation.degrees
+                    return d.isFinite ? IconCanvasView.normalized(.degrees(d)).degrees : 0
+                },
+                set: { layer.rotation = IconCanvasView.normalized(.degrees($0)) }
+            ),
+            range: -180 ... 180,
+            valueText: { String(format: "%.0f°", $0) },
+            defaultValue: 0,
+            onBeginEditing: { project.recordUndo() }
+        )
+    }
+}
+
+struct OffsetSliders: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    var body: some View {
+        DialSliderRow(
+            label: "Offset X",
+            value: Binding(
+                get: { Double(layer.offset.width) },
+                set: { layer.offset = CGSize(width: CGFloat($0), height: layer.offset.height) }
+            ),
+            range: -1.0 ... 1.0,
+            valueText: { String(format: "%+.2f", $0) },
+            defaultValue: 0,
+            onBeginEditing: { project.recordUndo() }
+        )
+
+        DialSliderRow(
+            label: "Offset Y",
+            value: Binding(
+                get: { Double(layer.offset.height) },
+                set: { layer.offset = CGSize(width: layer.offset.width, height: CGFloat($0)) }
+            ),
+            range: -1.0 ... 1.0,
+            valueText: { String(format: "%+.2f", $0) },
+            defaultValue: 0,
+            onBeginEditing: { project.recordUndo() }
+        )
     }
 }

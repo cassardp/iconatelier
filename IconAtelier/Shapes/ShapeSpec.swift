@@ -33,8 +33,12 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         alternateScale: Double
     )
 
-    // The default shape used when a user taps "Shape" in the toolbar.
-    static let defaultShape: ShapeSpec = .iosSquircle
+    // The default shape used when a user taps "Shape" in the toolbar. The
+    // squircle is intentionally NOT the default — it is a special, fixed
+    // primitive (the iOS-icon Lamé curve), not a parametric polygon, so it
+    // lives at the end of the picker. A plain square is a better neutral
+    // starting point for tweaking.
+    static let defaultShape: ShapeSpec = .preset(.square)
 
     static let defaultRadialRepeat = RadialRepeatParams(
         count: 8,
@@ -195,7 +199,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
     // ("flat side up") rather than diamond-oriented.
     var canonical: StarPolygonShape {
         switch self {
-        case .circle:        return .init(sides: 4, bulge: 0,     roundness: 1.0,  rotationDegrees: 45)
+        case .circle:        return .init(sides: 24, bulge: 1,    roundness: 1,    rotationDegrees: 0)
         case .squircle:      return .init(sides: 4, bulge: 0,     roundness: 0.6,  rotationDegrees: 45)
         case .roundedSquare: return .init(sides: 4, bulge: 0,     roundness: 0.3,  rotationDegrees: 45)
         case .square:        return .init(sides: 4, bulge: 0,     roundness: 0,    rotationDegrees: 45)
@@ -218,7 +222,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
     // through additional tiles. `.free` isn't a tile — the editor falls
     // into that state automatically when any slider is touched.
     static let pickerOrder: [PolygonPreset] = [
-        .squircle, .circle, .square, .triangle, .star5, .flower6
+        .square, .circle, .triangle, .star5, .flower6, .squircle
     ]
 }
 

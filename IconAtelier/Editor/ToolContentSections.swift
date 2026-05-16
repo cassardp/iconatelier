@@ -28,22 +28,12 @@ struct ParametricShapeContentSection: View {
                         .replacingBase(with: newBase)
                 }
             )
-            if !isIosSquircle {
-                DialSliderRow(
-                    label: "Rotation",
-                    value: rotationBinding,
-                    range: -180 ... 180,
-                    valueText: { String(format: "%.0f°", $0) },
-                    defaultValue: 0,
-                    onBeginEditing: { project.recordUndo() }
-                )
-            }
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
-        }
-
-        if !isIosSquircle {
-            SectionDivider()
-            parametersSection
+            if !isIosSquircle {
+                parameterSliders
+            }
+            TransformSliders(layer: layer, project: project)
+            OffsetSliders(layer: layer, project: project)
         }
 
         SectionDivider()
@@ -83,49 +73,48 @@ struct ParametricShapeContentSection: View {
         return currentParams.preset
     }
 
-    private var parametersSection: some View {
-        PanelSection(title: "Parameters") {
-            DialSliderRow(
-                label: "Sides",
-                value: sidesBinding,
-                range: 2 ... 24,
-                valueText: { "\(Int($0.rounded()))" },
-                defaultValue: 4,
-                onBeginEditing: { project.recordUndo() }
-            )
-            DialSliderRow(
-                label: "Bulge",
-                value: bulgeBinding,
-                range: -100 ... 100,
-                valueText: { "\(Int($0.rounded()))" },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-            DialSliderRow(
-                label: "Roundness",
-                value: percentBinding(\.roundness),
-                range: 0 ... 100,
-                valueText: { "\(Int($0.rounded()))" },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-            DialSliderRow(
-                label: "Stretch X",
-                value: stretchBinding(\.stretchX),
-                range: 0.3 ... 3,
-                valueText: { String(format: "%.2f×", $0) },
-                defaultValue: 1,
-                onBeginEditing: { project.recordUndo() }
-            )
-            DialSliderRow(
-                label: "Stretch Y",
-                value: stretchBinding(\.stretchY),
-                range: 0.3 ... 3,
-                valueText: { String(format: "%.2f×", $0) },
-                defaultValue: 1,
-                onBeginEditing: { project.recordUndo() }
-            )
-        }
+    @ViewBuilder
+    private var parameterSliders: some View {
+        DialSliderRow(
+            label: "Sides",
+            value: sidesBinding,
+            range: 2 ... 24,
+            valueText: { "\(Int($0.rounded()))" },
+            defaultValue: 4,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Bulge",
+            value: bulgeBinding,
+            range: -100 ... 100,
+            valueText: { "\(Int($0.rounded()))" },
+            defaultValue: 0,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Roundness",
+            value: percentBinding(\.roundness),
+            range: 0 ... 100,
+            valueText: { "\(Int($0.rounded()))" },
+            defaultValue: 0,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Stretch X",
+            value: stretchBinding(\.stretchX),
+            range: 0.3 ... 3,
+            valueText: { String(format: "%.2f×", $0) },
+            defaultValue: 1,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Stretch Y",
+            value: stretchBinding(\.stretchY),
+            range: 0.3 ... 3,
+            valueText: { String(format: "%.2f×", $0) },
+            defaultValue: 1,
+            onBeginEditing: { project.recordUndo() }
+        )
     }
 
     // MARK: - Polygon parameter plumbing
@@ -176,20 +165,6 @@ struct ParametricShapeContentSection: View {
         )
         layer.shapeSpec = (layer.shapeSpec ?? .defaultShape)
             .replacingBase(with: newBase)
-    }
-
-    // Rotation alone doesn't invalidate the active preset — a rotated
-    // pentagon is still a pentagon. Only the geometry params (sides, star,
-    // roundness) flip the preset to `.free`.
-    private var rotationBinding: Binding<Double> {
-        Binding(
-            get: { currentParams.rotation },
-            set: { newVal in
-                var p = currentParams
-                p.rotation = newVal
-                applyParams(p)
-            }
-        )
     }
 
     private var sidesBinding: Binding<Double> {
@@ -469,7 +444,7 @@ private struct PresetPickerRow: View {
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
         }
-        .frame(height: 84)
+        .frame(height: 72)
     }
 }
 
@@ -483,28 +458,21 @@ private struct PresetTile: View {
             UISelectionFeedbackGenerator().selectionChanged()
             action()
         } label: {
-            VStack(spacing: 4) {
-                Group {
-                    // The Squircle tile must render the true Lamé curve
-                    // (same as the iOS-icon mask), not a fillet-approximated
-                    // PolygonShape — otherwise the thumb wouldn't match
-                    // what the user actually gets on tap.
-                    if preset == .squircle {
-                        SquircleShape()
-                            .fill(Color.primary)
-                    } else {
-                        preset.canonical
-                            .fill(Color.primary)
-                    }
+            Group {
+                // The Squircle tile must render the true Lamé curve
+                // (same as the iOS-icon mask), not a fillet-approximated
+                // PolygonShape — otherwise the thumb wouldn't match
+                // what the user actually gets on tap.
+                if preset == .squircle {
+                    SquircleShape()
+                        .fill(Color.primary)
+                } else {
+                    preset.canonical
+                        .fill(Color.primary)
                 }
-                .frame(width: 36, height: 36)
-                Text(preset.displayName)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
             }
-            .frame(width: 68, height: 76)
+            .frame(width: 40, height: 40)
+            .frame(width: 64, height: 64)
             .background(
                 RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
                     .fill(isSelected ? PanelStyle.rowFillActive : PanelStyle.rowFill)

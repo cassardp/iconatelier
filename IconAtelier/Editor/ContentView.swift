@@ -51,6 +51,10 @@ struct ContentView: View {
                     } action: { newFrame in
                         layersBarFrame = newFrame
                     }
+                    if !showEditSheet {
+                        LayerQuickActionsBar(project: project, session: session)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                     Spacer(minLength: 0)
                 }
                 .frame(width: geo.size.width, height: visibleHeight)
