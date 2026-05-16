@@ -304,8 +304,36 @@ final class IconProject {
             .filter { layerUUIDs.contains($0.uuid) && !$0.isHidden }
             .sorted { $0.orderIndex < $1.orderIndex }
         guard targets.count >= 2 else { return nil }
-        guard let result = BooleanOpRenderer.compose(layers: targets, op: op) else {
-            return nil
+
+        // Try the vector path first — if every source is a parametric shape
+        // or text layer, the result stays a real Shape and inherits border,
+        // radial-repeat, and color edits like any other parametric layer.
+        // Falls back to raster for image/emoji sources (or when the vector
+        // boolean ops yield an empty path, e.g. an intersect with no overlap).
+        let newLayer: Layer
+        if let vector = BooleanOpRenderer.vectorCompose(layers: targets, op: op),
+           let layer = buildVectorBooleanLayer(
+               vector: vector,
+               op: op,
+               bottomColor: targets.first?.tintColor ?? .white
+           ) {
+            newLayer = layer
+        } else {
+            guard let result = BooleanOpRenderer.compose(layers: targets, op: op) else {
+                return nil
+            }
+            let layer = Layer(
+                kind: .image,
+                name: op.label,
+                image: result.image
+            )
+            layer.offset = CGSize(
+                width: result.centerInUnit.x,
+                height: result.centerInUnit.y
+            )
+            layer.scaleValue = Double(result.sizeInUnit / 0.7)
+            layer.tintColor = .white
+            newLayer = layer
         }
 
         recordUndo()
@@ -314,22 +342,6 @@ final class IconProject {
         let removeUUIDs = Set(targets.map(\.uuid))
 
         var remaining = layers.filter { !removeUUIDs.contains($0.uuid) }
-
-        // Build the new layer. The boolean result image has been cropped to a
-        // square bbox; convert that bbox back into the image placement model
-        // (offset relative to canvas center, scale relative to the 0.7×side base
-        // frame the image kind renders into).
-        let newLayer = Layer(
-            kind: .image,
-            name: op.label,
-            image: result.image
-        )
-        newLayer.offset = CGSize(
-            width: result.centerInUnit.x,
-            height: result.centerInUnit.y
-        )
-        newLayer.scaleValue = Double(result.sizeInUnit / 0.7)
-        newLayer.tintColor = .white
 
         let insertAt = min(bottomIndex, remaining.count)
         remaining.insert(newLayer, at: insertAt)
@@ -348,5 +360,45 @@ final class IconProject {
     func toggleVisibility(_ layer: Layer) {
         recordUndo()
         layer.isHidden.toggle()
+    }
+
+    /// Wrap a vector boolean result as a parametric-shape layer. Derives
+    /// the layer's offset and scale from the path's bbox so that, when the
+    /// shape pipeline renders the `customPath` into its standard
+    /// `canvasSide * 0.5 * scale` square frame, the path lands exactly
+    /// where the silhouette was computed. Returns nil for a degenerate
+    /// (empty / zero-area) result — caller falls back to raster compose.
+    @MainActor
+    private func buildVectorBooleanLayer(
+        vector: BooleanVectorResult,
+        op: BooleanOpKind,
+        bottomColor: Color
+    ) -> Layer? {
+        let bbox = vector.path.boundingRect
+        guard bbox.width > 0, bbox.height > 0 else { return nil }
+        guard let primitive = PathPrimitive(path: vector.path) else { return nil }
+
+        // Layer rendering uses a `canvasSide * 0.5 * scale` square frame for
+        // parametric shapes. We want the frame's side to equal the path's
+        // longest dimension, so `scale = maxSide / (canvasSide * 0.5)`. The
+        // offset is the bbox center expressed in canvas-normalized units
+        // (canvas = unit square, origin = canvas center) — same convention
+        // as `Layer.offset` everywhere else.
+        let maxSide = max(bbox.width, bbox.height)
+        let scale = maxSide / (vector.canvasSide * 0.5)
+        let offset = CGSize(
+            width: bbox.midX / vector.canvasSide,
+            height: bbox.midY / vector.canvasSide
+        )
+
+        let layer = Layer(
+            kind: .parametricShape,
+            name: op.label,
+            tintColor: bottomColor,
+            shapeSpec: .customPath(primitive)
+        )
+        layer.offset = offset
+        layer.scaleValue = Double(scale)
+        return layer
     }
 }

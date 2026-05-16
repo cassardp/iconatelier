@@ -136,17 +136,17 @@ final class Layer {
     // MARK: - Bridged properties
 
     var kind: LayerKind {
-        get { LayerKind(rawValue: kindRaw) ?? .image }
+        get { LayerKind(rawValue: kindRaw)! }
         set { kindRaw = newValue.rawValue }
     }
 
     var fontWeight: LayerFontWeight {
-        get { LayerFontWeight(rawValue: fontWeightRaw) ?? .bold }
+        get { LayerFontWeight(rawValue: fontWeightRaw)! }
         set { fontWeightRaw = newValue.rawValue }
     }
 
     var fontDesign: LayerFontDesign {
-        get { LayerFontDesign(rawValue: fontDesignRaw) ?? .rounded }
+        get { LayerFontDesign(rawValue: fontDesignRaw)! }
         set { fontDesignRaw = newValue.rawValue }
     }
 
@@ -186,7 +186,7 @@ final class Layer {
     }
 
     var borderPosition: BorderPosition {
-        get { BorderPosition(rawValue: borderPositionRaw) ?? .center }
+        get { BorderPosition(rawValue: borderPositionRaw)! }
         set { borderPositionRaw = newValue.rawValue }
     }
 

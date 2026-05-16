@@ -8,8 +8,7 @@ struct IconAtelierApp: App {
     init() {
         do {
             container = try ModelContainer(
-                for: IconProject.self, Background.self, Layer.self,
-                migrationPlan: AppMigrationPlan.self
+                for: IconProject.self, Background.self, Layer.self
             )
         } catch {
             print("⛔️ SwiftData ModelContainer init failed: \(error)")

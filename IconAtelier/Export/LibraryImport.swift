@@ -6,7 +6,6 @@ import SwiftData
 enum LibraryImportError: LocalizedError {
     case missingManifest
     case invalidManifest(String)
-    case unsupportedSchema(Int)
 
     var errorDescription: String? {
         switch self {
@@ -14,8 +13,6 @@ enum LibraryImportError: LocalizedError {
             return "The archive doesn't contain a manifest.json file."
         case .invalidManifest(let detail):
             return "The manifest is invalid: \(detail)"
-        case .unsupportedSchema(let v):
-            return "Schema version \(v) isn't supported by this version of the app."
         }
     }
 }
@@ -33,22 +30,18 @@ enum LibraryImporter {
     ) throws -> LibraryImportSummary {
         let entries = try ZipReader.extract(zipURL: zipURL)
 
-        // The archive may either have files at its root (manifest.json,
-        // images/...) or wrapped in a top-level folder named after the export
-        // directory. NSFileCoordinator(.forUploading) produces the wrapped
-        // form, so detect the prefix once and strip it from every lookup.
+        // NSFileCoordinator(.forUploading) wraps the bundle in a top-level
+        // folder named after the export directory. Detect that prefix once
+        // and strip it from every lookup.
         var manifestData: Data?
         var prefix: String = ""
         for entry in entries where entry.name.hasSuffix("manifest.json") {
             let name = entry.name
-            if name == "manifest.json" {
-                manifestData = entry.data
-                prefix = ""
-            } else if name.hasSuffix("/manifest.json") {
-                manifestData = entry.data
-                prefix = String(name.dropLast("manifest.json".count))
-            }
-            if manifestData != nil { break }
+            manifestData = entry.data
+            prefix = name.hasSuffix("/manifest.json")
+                ? String(name.dropLast("manifest.json".count))
+                : ""
+            break
         }
 
         guard let manifestData else { throw LibraryImportError.missingManifest }
@@ -57,7 +50,7 @@ enum LibraryImporter {
         fileMap.reserveCapacity(entries.count)
         for entry in entries {
             let name = entry.name
-            guard name != "manifest.json", !name.hasSuffix("/manifest.json") else { continue }
+            guard !name.hasSuffix("manifest.json") else { continue }
             let key = (!prefix.isEmpty && name.hasPrefix(prefix))
                 ? String(name.dropFirst(prefix.count))
                 : name
@@ -72,10 +65,6 @@ enum LibraryImporter {
             manifest = try decoder.decode(LibraryExport.self, from: manifestData)
         } catch {
             throw LibraryImportError.invalidManifest(error.localizedDescription)
-        }
-
-        guard manifest.schemaVersion == LibraryExport.currentSchemaVersion else {
-            throw LibraryImportError.unsupportedSchema(manifest.schemaVersion)
         }
 
         let existingUUIDs = Set(
@@ -156,7 +145,7 @@ enum LibraryImporter {
     ) -> Layer {
         let layer = Layer(
             uuid: dto.uuid,
-            kind: LayerKind(rawValue: dto.kind) ?? .image,
+            kind: LayerKind(rawValue: dto.kind)!,
             name: dto.name
         )
         layer.orderIndex = dto.orderIndex
@@ -175,15 +164,15 @@ enum LibraryImporter {
         layer.shadowRadius = dto.shadowRadius
         layer.shadowOffsetX = dto.shadowOffsetX
         layer.shadowOffsetY = dto.shadowOffsetY
-        layer.storedShadowColor = dto.shadowColor ?? .black
+        layer.storedShadowColor = dto.shadowColor
         layer.isHidden = dto.isHidden
         layer.isLocked = dto.isLocked
         layer.isFlippedHorizontally = dto.isFlippedHorizontally
         layer.isFlippedVertically = dto.isFlippedVertically
-        if let cornerRadius = dto.cornerRadius { layer.cornerRadius = cornerRadius }
-        if let borderWidth = dto.borderWidth { layer.borderWidth = borderWidth }
-        if let borderColor = dto.borderColor { layer.storedBorderColor = borderColor }
-        if let borderPosition = dto.borderPosition { layer.borderPositionRaw = borderPosition }
+        layer.cornerRadius = dto.cornerRadius
+        layer.borderWidth = dto.borderWidth
+        layer.storedBorderColor = dto.borderColor
+        layer.borderPositionRaw = dto.borderPosition
         layer.shapeSpecJSON = dto.shapeSpecJSON
         return layer
     }

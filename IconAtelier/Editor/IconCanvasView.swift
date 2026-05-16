@@ -437,7 +437,7 @@ struct LayerContentView: View {
         case .parametricShape:
             let shapeSide = side * 0.5 * scale
             if let spec = layer.shapeSpec {
-                let shape = spec.anyShape(cornerRadiusFraction: layer.cornerRadius)
+                let shape = spec.anyShape()
                 let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
                 ZStack {
                     shape.fill(layer.tintColor)

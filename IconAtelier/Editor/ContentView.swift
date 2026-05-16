@@ -26,14 +26,26 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geo in
             let layersBarHeight: CGFloat = 56 + 16
-            let verticalMargin: CGFloat = sheetFraction > 0 ? 8 : 0
+            let layersBarBottomInset: CGFloat = 8  // matches LayersBar's internal bottom padding
+            let actionsBarHeight: CGFloat = showsBottomPalette ? 60 : 0
             let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
-            let blockHeight = max(0, visibleHeight - verticalMargin * 2)
-            let iconHeight = max(0, blockHeight - layersBarHeight)
+            let contentMaxHeight = max(0, visibleHeight - 16) // 8pt minimum top + bottom outer margin
+            let iconHeight = max(0, contentMaxHeight - layersBarHeight - actionsBarHeight)
             let iconSide = max(0, min(geo.size.width - 32, iconHeight))
+            // Spacer above the icon vs Spacer below the layers/palette: the
+            // LayersBar carries its own 8pt internal bottom padding, so when the
+            // palette is hidden the visible "edge" of the layers list sits 8pt
+            // above the LayersBar frame end. Add that 8pt back to the top
+            // spacer so the visual whitespace above the icon equals the visual
+            // whitespace below the last thumbnail.
+            let totalContent = iconSide + layersBarHeight + actionsBarHeight
+            let leftover = max(0, visibleHeight - totalContent)
+            let bottomCompensation: CGFloat = showsBottomPalette ? 0 : layersBarBottomInset
+            let bottomSpacer = max(0, (leftover - bottomCompensation) / 2)
+            let topSpacer = max(0, leftover - bottomSpacer)
             ZStack {
                 VStack(spacing: 0) {
-                    Spacer(minLength: 0)
+                    Color.clear.frame(height: topSpacer)
                     IconCanvasView(project: project, session: session)
                         .frame(width: iconSide, height: iconSide)
                         .onGeometryChange(for: CGRect.self) { proxy in
@@ -51,8 +63,21 @@ struct ContentView: View {
                     } action: { newFrame in
                         layersBarFrame = newFrame
                     }
-                    Spacer(minLength: 0)
+                    if showsBottomPalette {
+                        Group {
+                            if session.isMultiSelecting {
+                                BooleanOpsPalette(onBooleanOp: performBooleanOperation)
+                            } else if let layer = selectedNonBackgroundLayer {
+                                LayerActionPalette(project: project, session: session, layer: layer)
+                            }
+                        }
+                        .frame(height: actionsBarHeight)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    Color.clear.frame(height: bottomSpacer)
                 }
+                .animation(.smooth(duration: 0.22), value: showsBottomPalette)
+                .animation(.smooth(duration: 0.22), value: session.isMultiSelecting)
                 .frame(width: geo.size.width, height: visibleHeight)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 
@@ -69,15 +94,19 @@ struct ContentView: View {
         }
         .background(Color.appPageBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
+            // Always keep the toolbar in the safe-area inset so `geo.size.height`
+            // stays constant when the sheet opens — otherwise the visible-height
+            // calculation drifts and the icon + layers block ends up flush against
+            // the sheet's top edge instead of leaving a margin.
             DesignToolBar(
                 project: project,
                 session: session,
-                showQuickActions: !showEditSheet,
-                onOpenEditor: { showEditSheet = true },
-                onBooleanOp: { performBooleanOperation($0) },
                 onAddShape: { addShapeLayer(spec: .defaultShape) },
                 onAddText: addTextLayer
             )
+            .opacity(showEditSheet ? 0 : 1)
+            .allowsHitTesting(!showEditSheet)
+            .animation(.smooth(duration: 0.22), value: showEditSheet)
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -357,6 +386,16 @@ struct ContentView: View {
         return 0
     }
 
+    private var selectedNonBackgroundLayer: Layer? {
+        guard !session.isBackgroundSelected else { return nil }
+        return project.layer(withID: session.selectedLayerUUID)
+    }
+
+    private var showsBottomPalette: Bool {
+        guard !showEditSheet else { return false }
+        return session.isMultiSelecting || selectedNonBackgroundLayer != nil
+    }
+
     private var exportSignature: Int {
         var hasher = Hasher()
         if let bg = project.background {
@@ -393,90 +432,17 @@ struct ContentView: View {
 private struct DesignToolBar: View {
     @Bindable var project: IconProject
     let session: ProjectSession
-    let showQuickActions: Bool
-    let onOpenEditor: () -> Void
-    let onBooleanOp: (BooleanOpKind) -> Void
     let onAddShape: () -> Void
     let onAddText: () -> Void
 
-    private var selectedLayer: Layer? {
-        guard !session.isBackgroundSelected else { return nil }
-        return project.layer(withID: session.selectedLayerUUID)
-    }
-
-    private var showsTopRow: Bool {
-        showQuickActions && (session.isMultiSelecting || selectedLayer != nil)
-    }
-
     var body: some View {
-        VStack(spacing: 22) {
-            if showsTopRow {
-                topRow
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-            HStack(spacing: 18) {
-                addButton(symbol: "square.on.circle", label: "Shape", action: onAddShape)
-                addButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
-            }
+        HStack(spacing: 18) {
+            addButton(symbol: "square.on.circle", label: "Shape", action: onAddShape)
+            addButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
         }
-        .animation(.smooth(duration: 0.22), value: showsTopRow)
-        .animation(.smooth(duration: 0.22), value: session.isMultiSelecting)
-        .animation(.smooth(duration: 0.22), value: selectedLayer?.uuid)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-    }
-
-    @ViewBuilder
-    private var topRow: some View {
-        if session.isMultiSelecting {
-            booleanOpsRow
-        } else if let layer = selectedLayer {
-            quickActionsRow(layer: layer)
-        }
-    }
-
-    private var booleanOpsRow: some View {
-        HStack(spacing: 14) {
-            quickActionButton(symbol: "plus", label: "Union") {
-                onBooleanOp(.union)
-            }
-            quickActionButton(symbol: "circle.righthalf.filled", label: "Intersect") {
-                onBooleanOp(.intersect)
-            }
-            quickActionButton(symbol: "minus", label: "Subtract") {
-                onBooleanOp(.subtract)
-            }
-        }
-    }
-
-    private func quickActionsRow(layer: Layer) -> some View {
-        HStack(spacing: 14) {
-            quickActionButton(symbol: "gearshape", label: "Edit") {
-                onOpenEditor()
-            }
-            quickActionButton(
-                symbol: layer.isHidden ? "eye" : "eye.slash",
-                label: layer.isHidden ? "Show" : "Hide"
-            ) {
-                project.toggleVisibility(layer)
-            }
-            quickActionButton(symbol: "square.on.square", label: "Duplicate") {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    let copy = project.duplicate(layer)
-                    session.selectLayer(copy.uuid)
-                }
-            }
-            quickActionButton(symbol: "trash", label: "Delete") {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    let wasSelected = session.selectedLayerUUID == layer.uuid
-                    project.remove(layer)
-                    if wasSelected {
-                        session.selectedLayerUUID = project.layers.last?.uuid
-                    }
-                }
-            }
-        }
     }
 
     private func addButton(
@@ -500,12 +466,70 @@ private struct DesignToolBar: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
+}
 
-    private func quickActionButton(
-        symbol: String,
-        label: String,
-        action: @escaping () -> Void
-    ) -> some View {
+// MARK: - Layer action palette
+
+private struct LayerActionPalette: View {
+    @Bindable var project: IconProject
+    let session: ProjectSession
+    let layer: Layer
+
+    var body: some View {
+        HStack(spacing: 14) {
+            PaletteActionButton(
+                symbol: layer.isHidden ? "eye" : "eye.slash",
+                label: layer.isHidden ? "Show" : "Hide"
+            ) {
+                project.toggleVisibility(layer)
+            }
+            PaletteActionButton(symbol: "square.on.square", label: "Duplicate") {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let copy = project.duplicate(layer)
+                    session.selectLayer(copy.uuid)
+                }
+            }
+            PaletteActionButton(symbol: "trash", label: "Delete") {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let wasSelected = session.selectedLayerUUID == layer.uuid
+                    project.remove(layer)
+                    if wasSelected {
+                        session.selectedLayerUUID = project.layers.last?.uuid
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Boolean ops palette
+
+private struct BooleanOpsPalette: View {
+    let onBooleanOp: (BooleanOpKind) -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            PaletteActionButton(symbol: "plus", label: "Union") {
+                onBooleanOp(.union)
+            }
+            PaletteActionButton(symbol: "circle.righthalf.filled", label: "Intersect") {
+                onBooleanOp(.intersect)
+            }
+            PaletteActionButton(symbol: "minus", label: "Subtract") {
+                onBooleanOp(.subtract)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct PaletteActionButton: View {
+    let symbol: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             action()

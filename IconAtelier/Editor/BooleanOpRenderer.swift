@@ -29,11 +29,130 @@ struct BooleanOpResult {
     let sizeInUnit: CGFloat
 }
 
+/// Vector-mode boolean result. Carries a Path expressed in canvas-centered
+/// coordinates (origin = canvas center, units = pixels of `workingPixelSide`)
+/// so callers can derive the new layer's offset and scale by inspecting the
+/// path's bounding box. Path content is the raw silhouette — no per-layer
+/// border, shadow, or fill — which matches user intent: the boolean op
+/// freezes the *shape* of the combination, not its current styling.
+struct BooleanVectorResult {
+    let path: Path
+    /// The canvas side used to express coordinates; callers normalize the
+    /// path's bbox against this to derive a (-0.5...0.5) offset and a
+    /// 0...1 size in canvas units.
+    let canvasSide: CGFloat
+}
+
 enum BooleanOpRenderer {
     /// Pixel side of the working canvas. The boolean op runs on this square.
     /// Chosen large enough that even after cropping a small intersection we still
     /// keep a decent number of pixels for the resulting overlay.
     static let workingPixelSide: CGFloat = 1024
+
+    /// Try to compose `layers` as a single vector path. Returns nil if any
+    /// source layer can't be expressed as a Path (image, emoji) — caller
+    /// should fall back to the raster `compose` path. When successful, the
+    /// caller gets a Path expressed in canvas-centered pixel coords; the
+    /// new layer's offset and scale can be derived from the path's bbox.
+    @MainActor
+    static func vectorCompose(
+        layers: [Layer],
+        op: BooleanOpKind
+    ) -> BooleanVectorResult? {
+        let visible = layers
+            .filter { !$0.isHidden }
+            .sorted { $0.orderIndex < $1.orderIndex }
+        guard visible.count >= 2 else { return nil }
+
+        let canvasSide = workingPixelSide
+        var sourcePaths: [CGPath] = []
+        sourcePaths.reserveCapacity(visible.count)
+        for layer in visible {
+            guard let p = vectorPath(for: layer, canvasSide: canvasSide) else {
+                return nil
+            }
+            sourcePaths.append(p.cgPath)
+        }
+        guard sourcePaths.count >= 2 else { return nil }
+
+        var combined = sourcePaths[0]
+        for next in sourcePaths.dropFirst() {
+            switch op {
+            case .union:
+                combined = combined.union(next, using: .evenOdd)
+            case .intersect:
+                combined = combined.intersection(next, using: .evenOdd)
+            case .subtract:
+                combined = combined.subtracting(next, using: .evenOdd)
+            }
+        }
+        let path = Path(combined)
+        guard !path.isEmpty else { return nil }
+        return BooleanVectorResult(path: path, canvasSide: canvasSide)
+    }
+
+    /// Build the Path representation of a layer in canvas-centered pixel
+    /// coordinates. Bakes offset/rotation/flip/scale into the path so the
+    /// boolean op can operate on independent vectors. Returns nil for kinds
+    /// that have no native vector silhouette (image, emoji).
+    @MainActor
+    private static func vectorPath(for layer: Layer, canvasSide: CGFloat) -> Path? {
+        let shape: AnyShape
+        let baseSide: CGFloat
+        switch layer.kind {
+        case .parametricShape:
+            guard let spec = layer.shapeSpec else { return nil }
+            // Mirrors `LayerContentView.parametricShape` — same shape, same
+            // 0.5×canvas base frame, so the silhouette matches what's drawn.
+            shape = spec.anyShape()
+            baseSide = canvasSide * 0.5
+        case .text:
+            let glyph = TextGlyphShape(
+                text: layer.text,
+                weight: layer.fontWeight,
+                design: layer.fontDesign
+            )
+            if let params = layer.shapeSpec?.radialRepeatParams {
+                shape = AnyShape(RadialRepeat(
+                    base: glyph,
+                    count: params.count,
+                    centerHole: params.centerHole,
+                    phaseDegrees: params.phaseDegrees,
+                    alternateScale: params.alternateScale
+                ))
+            } else {
+                shape = AnyShape(glyph)
+            }
+            baseSide = canvasSide * 0.6
+        case .image, .emoji:
+            return nil
+        }
+
+        let shapeSide = baseSide * CGFloat(layer.scale)
+        // Draw the shape into a square centered at the origin so the
+        // affine transform below can rotate around its center naturally.
+        let rect = CGRect(
+            x: -shapeSide / 2,
+            y: -shapeSide / 2,
+            width: shapeSide,
+            height: shapeSide
+        )
+
+        // Same transform order as `IconCanvasView`: flip (innermost) →
+        // rotate → translate (outermost). CGAffineTransform's chained
+        // builders right-multiply, so `.scaledBy.rotated.translatedBy`
+        // applies flip first, then rotate, then translate when a point
+        // is passed through `.applying(_:)`.
+        var t = CGAffineTransform.identity
+        if layer.isFlippedHorizontally { t = t.scaledBy(x: -1, y: 1) }
+        if layer.isFlippedVertically { t = t.scaledBy(x: 1, y: -1) }
+        t = t.rotated(by: CGFloat(layer.rotationRadians))
+        t = t.translatedBy(
+            x: layer.offset.width * canvasSide,
+            y: layer.offset.height * canvasSide
+        )
+        return shape.path(in: rect).applying(t)
+    }
 
     /// Render N layers into a square canvas, apply the boolean op via CGBlendMode,
     /// then crop the result to a square bounding box of its visible pixels.

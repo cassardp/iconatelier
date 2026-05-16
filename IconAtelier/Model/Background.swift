@@ -50,7 +50,7 @@ final class Background {
     // MARK: - Bridged properties (Color, UnitPoint, UIImage)
 
     var kind: BackgroundKind {
-        get { BackgroundKind(rawValue: kindRaw) ?? .meshGradient }
+        get { BackgroundKind(rawValue: kindRaw)! }
         set { kindRaw = newValue.rawValue }
     }
 

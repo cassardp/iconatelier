@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Top-level export envelope (v3: bundle layout)
+// MARK: - Top-level export envelope
 //
 // The export is a .zip wrapping a single folder named after the timestamp:
 //
@@ -10,15 +10,11 @@ import Foundation
 //         images/<layerUUID>.png         (per image layer, optional)
 //
 // Path values in the JSON are relative to the folder, e.g. "images/abc.png".
-// The importer strips that wrapping folder prefix transparently.
 
 struct LibraryExport: Codable {
-    let schemaVersion: Int
     let exportedAt: Date
     let appVersion: String?
     let projects: [ProjectExport]
-
-    static let currentSchemaVersion = 3
 }
 
 // MARK: - DTOs
@@ -85,21 +81,17 @@ struct LayerExport: Codable {
     let shadowRadius: Double
     let shadowOffsetX: Double
     let shadowOffsetY: Double
-    // Optional for backwards compat with v2 bundles exported before shadow color
-    // was a per-layer property (defaults to opaque black on import).
-    let shadowColor: StoredColor?
+    let shadowColor: StoredColor
 
     let isHidden: Bool
     let isLocked: Bool
     let isFlippedHorizontally: Bool
     let isFlippedVertically: Bool
 
-    // Optional for backwards compat with bundles exported before parametric
-    // shape styling (corner radius, border, shape spec) was per-layer state.
-    let cornerRadius: Double?
-    let borderWidth: Double?
-    let borderColor: StoredColor?
-    let borderPosition: String?
+    let cornerRadius: Double
+    let borderWidth: Double
+    let borderColor: StoredColor
+    let borderPosition: String
     let shapeSpecJSON: Data?
 }
 
@@ -208,7 +200,6 @@ enum LibraryExporter {
         }
 
         let manifest = LibraryExport(
-            schemaVersion: LibraryExport.currentSchemaVersion,
             exportedAt: .now,
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
             projects: projectDTOs

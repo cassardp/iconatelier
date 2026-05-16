@@ -86,6 +86,7 @@ struct LayersBar: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 session.selectLayer(layer.uuid)
+                isSheetOpen = true
             }
             .gesture(
                 LongPressDragRecognizer { recognizer, location in
