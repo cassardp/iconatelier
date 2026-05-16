@@ -9,6 +9,7 @@ struct ImageContentSection: View {
     var body: some View {
         PanelSection(title: "Color") {
             ColorPickerRow(title: "Tint", color: $layer.tintColor, project: project)
+            OpacitySlider(layer: layer, project: project)
         }
     }
 }
@@ -32,12 +33,11 @@ struct ParametricShapeContentSection: View {
             if !isIosSquircle {
                 parameterSliders
             }
-            TransformSliders(layer: layer, project: project)
-            OffsetSliders(layer: layer, project: project)
+            OpacitySlider(layer: layer, project: project)
         }
 
         SectionDivider()
-        PanelSection(title: "Border") {
+        PanelSection(title: "Border", defaultExpanded: false) {
             DialSliderRow(
                 label: "Width",
                 value: $layer.borderWidth,
@@ -51,11 +51,15 @@ struct ParametricShapeContentSection: View {
         }
 
         SectionDivider()
-        PanelSection(title: "Repeat") {
-            repeatToggleRow
-            if layer.shapeSpec?.radialRepeatParams != nil {
-                radialRepeatSliders
-            }
+        PanelSection(title: "Repeat", defaultExpanded: false) {
+            RadialRepeatPanelContent(
+                layer: layer,
+                project: project,
+                // Wrap the live parametric base when enabling, and unwrap
+                // back to it (preserving the polygon) when disabling.
+                wrapBase: { layer.shapeSpec ?? .defaultShape },
+                disabledShapeSpec: { layer.shapeSpec?.unwrapped }
+            )
         }
     }
 
@@ -226,7 +230,34 @@ struct ParametricShapeContentSection: View {
         )
     }
 
-    // Tiny pill-style toggle row that fits the panel's row metrics.
+    // MARK: - Helpers
+}
+
+// MARK: - Reusable radial-repeat panel content
+
+/// Toggle + 4 sliders for the radial-repeat wrap, driven through
+/// `layer.shapeSpec`. Used by both parametric shapes (where the spec also
+/// carries the base polygon) and text layers (where the base is a sentinel
+/// — only the repeat params matter; the actual base is the live
+/// `TextGlyphShape` at render time).
+///
+/// `wrapBase` provides the base to wrap when enabling the toggle.
+/// `disabledShapeSpec` decides what `shapeSpec` becomes when disabling —
+/// for parametric shapes it returns the unwrapped polygon; for text it
+/// returns nil so the layer goes back to "no spec at all".
+struct RadialRepeatPanelContent: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+    let wrapBase: () -> ShapeSpec
+    let disabledShapeSpec: () -> ShapeSpec?
+
+    var body: some View {
+        repeatToggleRow
+        if layer.shapeSpec?.radialRepeatParams != nil {
+            sliders
+        }
+    }
+
     private var repeatToggleRow: some View {
         let isOn = layer.shapeSpec?.radialRepeatParams != nil
         return HStack(spacing: 8) {
@@ -248,10 +279,10 @@ struct ParametricShapeContentSection: View {
     }
 
     @ViewBuilder
-    private var radialRepeatSliders: some View {
+    private var sliders: some View {
         DialSliderRow(
             label: "Count",
-            value: radialDoubleBinding(
+            value: doubleBinding(
                 get: { Double($0.count) },
                 set: { p, v in var p = p; p.count = Int(v.rounded()); return p }
             ),
@@ -262,7 +293,7 @@ struct ParametricShapeContentSection: View {
         )
         DialSliderRow(
             label: "Center Hole",
-            value: radialDoubleBinding(
+            value: doubleBinding(
                 get: { $0.centerHole },
                 set: { p, v in var p = p; p.centerHole = v; return p }
             ),
@@ -273,7 +304,7 @@ struct ParametricShapeContentSection: View {
         )
         DialSliderRow(
             label: "Phase",
-            value: radialDoubleBinding(
+            value: doubleBinding(
                 get: { $0.phaseDegrees },
                 set: { p, v in var p = p; p.phaseDegrees = v; return p }
             ),
@@ -284,7 +315,7 @@ struct ParametricShapeContentSection: View {
         )
         DialSliderRow(
             label: "Alternate",
-            value: radialDoubleBinding(
+            value: doubleBinding(
                 get: { $0.alternateScale },
                 set: { p, v in var p = p; p.alternateScale = v; return p }
             ),
@@ -295,21 +326,17 @@ struct ParametricShapeContentSection: View {
         )
     }
 
-    // MARK: - Helpers
-
     private func toggleRepeat(to enable: Bool) {
-        guard let spec = layer.shapeSpec else { return }
         project.recordUndo()
         if enable {
-            layer.shapeSpec = spec.wrappingInRadialRepeat(ShapeSpec.defaultRadialRepeat)
+            let base = layer.shapeSpec ?? wrapBase()
+            layer.shapeSpec = base.wrappingInRadialRepeat(ShapeSpec.defaultRadialRepeat)
         } else {
-            layer.shapeSpec = spec.unwrapped
+            layer.shapeSpec = disabledShapeSpec()
         }
     }
 
-    /// Build a slider binding that reads/writes the current radial-repeat
-    /// params. No-op if the spec isn't currently wrapped.
-    private func radialDoubleBinding(
+    private func doubleBinding(
         get: @escaping (RadialRepeatParams) -> Double,
         set: @escaping (RadialRepeatParams, Double) -> RadialRepeatParams
     ) -> Binding<Double> {
@@ -341,6 +368,7 @@ struct EmojiContentSection: View {
                 focused: $emojiFocused,
                 project: project
             )
+            OpacitySlider(layer: layer, project: project)
         }
     }
 }
@@ -362,6 +390,35 @@ struct TextContentSection: View {
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
             FontDesignRow(design: $layer.fontDesign, project: project)
             FontWeightRow(weight: $layer.fontWeight, project: project)
+            OpacitySlider(layer: layer, project: project)
+        }
+
+        SectionDivider()
+        PanelSection(title: "Border", defaultExpanded: false) {
+            DialSliderRow(
+                label: "Width",
+                value: $layer.borderWidth,
+                range: 0 ... 0.2,
+                valueText: { String(format: "%.0f%%", $0 * 500) },
+                defaultValue: 0,
+                onBeginEditing: { project.recordUndo() }
+            )
+            BorderPositionRow(position: $layer.borderPosition, project: project)
+            ColorPickerRow(title: "Color", color: $layer.borderColor, project: project)
+        }
+
+        SectionDivider()
+        PanelSection(title: "Repeat", defaultExpanded: false) {
+            RadialRepeatPanelContent(
+                layer: layer,
+                project: project,
+                // Text layers don't actually carry a parametric base — the
+                // glyph path itself becomes the base at render time. We
+                // still need a non-nil ShapeSpec to hang the radial-repeat
+                // params on; iosSquircle is used as an inert sentinel.
+                wrapBase: { .iosSquircle },
+                disabledShapeSpec: { nil }
+            )
         }
     }
 }
@@ -380,7 +437,7 @@ private struct ContentField: View {
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)
             .focused(focused)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, PanelStyle.rowInsetH)
             .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
@@ -415,7 +472,7 @@ struct ColorPickerRow: View {
             )
             .labelsHidden()
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, PanelStyle.rowInsetH)
         .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
@@ -441,7 +498,6 @@ private struct PresetPickerRow: View {
                     )
                 }
             }
-            .padding(.horizontal, 4)
             .padding(.vertical, 2)
         }
         .frame(height: 72)
@@ -514,7 +570,7 @@ private struct BorderPositionRow: View {
             .fixedSize()
             .labelsHidden()
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, PanelStyle.rowInsetH)
         .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
@@ -547,7 +603,7 @@ private struct FontDesignRow: View {
             .tint(.primary.opacity(0.72))
             .labelsHidden()
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, PanelStyle.rowInsetH)
         .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
@@ -582,7 +638,7 @@ private struct FontWeightRow: View {
             .tint(.primary.opacity(0.72))
             .labelsHidden()
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, PanelStyle.rowInsetH)
         .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)

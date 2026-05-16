@@ -38,9 +38,21 @@ struct SectionDivider: View {
 
 struct PanelSection<Content: View>: View {
     let title: String
+    var defaultExpanded: Bool = true
     @ViewBuilder var content: () -> Content
 
-    @State private var isExpanded = true
+    @State private var isExpanded: Bool
+
+    init(
+        title: String,
+        defaultExpanded: Bool = true,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.defaultExpanded = defaultExpanded
+        self.content = content
+        _isExpanded = State(initialValue: defaultExpanded)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -394,21 +394,43 @@ struct LayerContentView: View {
                 .font(.system(size: side * 0.5 * scale))
                 .contentShape(Rectangle())
         case .text:
-            let fontSize = side * 0.3 * scale
-            let metrics = TextOverlayMetrics.measure(
+            // Render the text as a glyph-derived Path so it plugs into the
+            // same fill + stroke + radial-repeat pipeline as parametric
+            // shapes. The optional radial-repeat is read from
+            // `layer.shapeSpec` — for text layers only the wrap's params
+            // matter, the base is ignored (the glyph path is the base).
+            let textSide = side * 0.6 * scale
+            let glyphShape = TextGlyphShape(
                 text: layer.text,
-                size: fontSize,
                 weight: layer.fontWeight,
                 design: layer.fontDesign
             )
-            Text(layer.text)
-                .font(.system(size: fontSize, weight: layer.fontWeight.swiftUI))
-                .fontDesign(layer.fontDesign.swiftUI)
-                .foregroundStyle(layer.tintColor)
-                .fixedSize()
-                .offset(y: metrics.centerOffsetY)
-                .frame(width: metrics.glyphWidth, height: metrics.glyphHeight)
-                .contentShape(Rectangle())
+            let renderShape: AnyShape = {
+                if let params = layer.shapeSpec?.radialRepeatParams {
+                    return AnyShape(RadialRepeat(
+                        base: glyphShape,
+                        count: params.count,
+                        centerHole: params.centerHole,
+                        phaseDegrees: params.phaseDegrees,
+                        alternateScale: params.alternateScale
+                    ))
+                }
+                return AnyShape(glyphShape)
+            }()
+            let strokeWidth = textSide * CGFloat(layer.borderWidth)
+            ZStack {
+                renderShape.fill(layer.tintColor)
+                if strokeWidth > 0 {
+                    borderView(
+                        shape: renderShape,
+                        width: strokeWidth,
+                        color: layer.borderColor,
+                        position: layer.borderPosition
+                    )
+                }
+            }
+            .frame(width: textSide, height: textSide)
+            .contentShape(Rectangle())
         case .parametricShape:
             let shapeSide = side * 0.5 * scale
             if let spec = layer.shapeSpec {
@@ -457,68 +479,6 @@ struct LayerContentView: View {
             shape.stroke(color, lineWidth: width * 2)
                 .overlay(shape.fill(.black).blendMode(.destinationOut))
                 .compositingGroup()
-        }
-    }
-}
-
-private enum TextOverlayMetrics {
-    struct Result {
-        var glyphWidth: CGFloat
-        var glyphHeight: CGFloat
-        var centerOffsetY: CGFloat
-    }
-
-    static func measure(
-        text: String,
-        size: CGFloat,
-        weight: LayerFontWeight,
-        design: LayerFontDesign
-    ) -> Result {
-        let font = uiFont(size: size, weight: weight, design: design)
-        guard !text.isEmpty else {
-            return Result(glyphWidth: 0, glyphHeight: 0, centerOffsetY: 0)
-        }
-        let attr = NSAttributedString(string: text, attributes: [.font: font])
-        let line = CTLineCreateWithAttributedString(attr)
-        let glyph = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
-        let glyphCenterAboveBaseline = glyph.minY + glyph.height / 2
-        let glyphCenterFromTop = font.ascender - glyphCenterAboveBaseline
-        let frameCenterFromTop = font.lineHeight / 2
-        return Result(
-            glyphWidth: max(glyph.width, 1),
-            glyphHeight: max(glyph.height, 1),
-            centerOffsetY: frameCenterFromTop - glyphCenterFromTop
-        )
-    }
-
-    private static func uiFont(
-        size: CGFloat,
-        weight: LayerFontWeight,
-        design: LayerFontDesign
-    ) -> UIFont {
-        let base = UIFont.systemFont(ofSize: size, weight: uiWeight(weight))
-        if let descriptor = base.fontDescriptor.withDesign(uiDesign(design)) {
-            return UIFont(descriptor: descriptor, size: size)
-        }
-        return base
-    }
-
-    private static func uiWeight(_ w: LayerFontWeight) -> UIFont.Weight {
-        switch w {
-        case .regular:  return .regular
-        case .medium:   return .medium
-        case .semibold: return .semibold
-        case .bold:     return .bold
-        case .heavy:    return .heavy
-        }
-    }
-
-    private static func uiDesign(_ d: LayerFontDesign) -> UIFontDescriptor.SystemDesign {
-        switch d {
-        case .default:    return .default
-        case .serif:      return .serif
-        case .rounded:    return .rounded
-        case .monospaced: return .monospaced
         }
     }
 }
