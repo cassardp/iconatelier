@@ -20,6 +20,7 @@ struct ContentView: View {
     // Lasso multi-selection (Phase 1)
     @State private var canvasFrame: CGRect = .zero
     @State private var layersBarFrame: CGRect = .zero
+    @State private var bottomPaletteFrame: CGRect = .zero
     @State private var lassoRect: CGRect? = nil
     private static let editorSpaceName = "iconAtelierEditor"
 
@@ -72,6 +73,11 @@ struct ContentView: View {
                             }
                         }
                         .frame(height: actionsBarHeight)
+                        .onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .named(Self.editorSpaceName))
+                        } action: { newFrame in
+                            bottomPaletteFrame = newFrame
+                        }
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                     Color.clear.frame(height: bottomSpacer)
@@ -309,8 +315,13 @@ struct ContentView: View {
             .onEnded { value in
                 guard session.isMultiSelecting else { return }
                 let loc = value.location
+                // Also exclude the bottom palette: taps on its buttons must
+                // not clear the lasso before the button's action reads
+                // `lassoSelectedLayerUUIDs` — otherwise the boolean op fires
+                // with an empty selection set and silently no-ops.
                 guard !canvasFrame.contains(loc),
-                      !layersBarFrame.contains(loc)
+                      !layersBarFrame.contains(loc),
+                      !bottomPaletteFrame.contains(loc)
                 else { return }
                 session.clearLassoSelection()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
