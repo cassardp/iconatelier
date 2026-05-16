@@ -121,7 +121,7 @@ struct IconCanvasView: View {
             centerGuides(side: side)
         }
         .frame(width: side, height: side)
-        .clipShape(.rect(cornerRadius: side * 0.2237, style: .continuous))
+        .clipShape(SquircleShape())
     }
 
     @ViewBuilder
@@ -320,8 +320,16 @@ private struct OverlayLayerView: View {
             transientScale: transientScale,
             transientAngle: transientAngle
         )
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
+        // No `.contentShape(Rectangle())` here on purpose — LayerContentView
+        // sets a per-kind content shape (the actual Path for parametric
+        // shapes, Rectangle for image/emoji/text) so taps on transparent
+        // areas of a star or polygon no longer select the layer.
+        .onTapGesture {
+            if !isSelected {
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+            onTap()
+        }
     }
 }
 
@@ -375,13 +383,16 @@ struct LayerContentView: View {
                     .scaledToFit()
                     .frame(width: imageSide, height: imageSide)
                     .colorMultiply(layer.tintColor)
+                    .contentShape(Rectangle())
             } else {
                 Color.clear
                     .frame(width: imageSide, height: imageSide)
+                    .contentShape(Rectangle())
             }
         case .emoji:
             Text(layer.emoji)
                 .font(.system(size: side * 0.5 * scale))
+                .contentShape(Rectangle())
         case .text:
             let fontSize = side * 0.3 * scale
             let metrics = TextOverlayMetrics.measure(
@@ -397,6 +408,7 @@ struct LayerContentView: View {
                 .fixedSize()
                 .offset(y: metrics.centerOffsetY)
                 .frame(width: metrics.glyphWidth, height: metrics.glyphHeight)
+                .contentShape(Rectangle())
         case .parametricShape:
             let shapeSide = side * 0.5 * scale
             if let spec = layer.shapeSpec {
@@ -414,8 +426,14 @@ struct LayerContentView: View {
                     }
                 }
                 .frame(width: shapeSide, height: shapeSide)
+                // Precise hit-testing via Path.contains: taps in the negative
+                // space of a star or radial-repeat pattern don't select the
+                // layer anymore — they fall through to whatever is below.
+                .contentShape(shape)
             } else {
-                Color.clear.frame(width: shapeSide, height: shapeSide)
+                Color.clear
+                    .frame(width: shapeSide, height: shapeSide)
+                    .contentShape(Rectangle())
             }
         }
     }

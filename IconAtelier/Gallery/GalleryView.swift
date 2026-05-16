@@ -193,6 +193,9 @@ struct GalleryView: View {
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: project.uuid, in: galleryNamespace) { config in
+            // matchedTransitionSource is restricted to RoundedRectangle clip
+            // shapes by SwiftUI, so the transition uses the .continuous
+            // approximation. The settled cell itself uses SquircleShape.
             config.clipShape(
                 RoundedRectangle(
                     cornerRadius: max(tileSide, 1) * 0.2237,
@@ -364,13 +367,6 @@ private struct UniformIconGridLayout: Layout {
     }
 }
 
-private struct AppIconSquircle: Shape {
-    func path(in rect: CGRect) -> Path {
-        let radius = min(rect.width, rect.height) * 0.2237
-        return RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
-    }
-}
-
 private struct GalleryCell: View {
     let project: IconProject
     var isSelecting: Bool = false
@@ -379,9 +375,9 @@ private struct GalleryCell: View {
     var body: some View {
         thumbnail
             .aspectRatio(1, contentMode: .fit)
-            .clipShape(AppIconSquircle())
+            .clipShape(SquircleShape())
             .overlay {
-                AppIconSquircle()
+                SquircleShape()
                     .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
             }
             .overlay(alignment: .topTrailing) {

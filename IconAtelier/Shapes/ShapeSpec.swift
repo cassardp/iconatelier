@@ -19,10 +19,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     static let defaultStar: ShapeSpec = .polygon(sides: 5, innerRatio: 0.5, rotation: -90)
     static let defaultSquircle: ShapeSpec = .squircle
 
-    /// Exact iPhone app-icon corner ratio. SquircleShape uses this directly;
-    /// it isn't user-tweakable (the slider is hidden via `hasIntrinsicCornerRadius`).
-    static let defaultSquircleCornerRadius: Double = 0.2237
-
     static let defaultRadialRepeat = RadialRepeatParams(
         count: 8,
         centerHole: 0.0,

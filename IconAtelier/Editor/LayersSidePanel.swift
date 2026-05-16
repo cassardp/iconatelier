@@ -45,6 +45,9 @@ struct LayersBar: View {
         )
         .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
         .onTapGesture {
+            if !session.isBackgroundSelected {
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
             session.selectBackground()
             isSheetOpen = true
         }
@@ -79,6 +82,9 @@ struct LayersBar: View {
             .animation(.smooth(duration: 0.2), value: shift)
             .animation(.smooth(duration: 0.2), value: isDragging)
             .onTapGesture {
+                if !isSelected {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
                 session.selectLayer(layer.uuid)
                 if layer.kind != .image || layer.image != nil {
                     isSheetOpen = true
@@ -159,14 +165,14 @@ struct BackgroundThumbnailRow: View {
     let background: Background
     let isSelected: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 GeometryReader { geo in
-                    let outerRadius = geo.size.width * 0.2237
                     let inset: CGFloat = 4
-                    let innerRadius = max(0, outerRadius - inset)
                     ZStack {
                         ZStack {
                             TransparencyCheckerboard(tile: 6)
@@ -178,18 +184,23 @@ struct BackgroundThumbnailRow: View {
                                 BackgroundView(background: background, side: geo.size.width - inset * 2)
                             }
                         }
-                        .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
+                        .clipShape(SquircleShape())
                         .padding(inset)
 
                         if isSelected {
-                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                            SquircleShape()
                                 .strokeBorder(
                                     LayersBar.selectedBorderColor,
                                     lineWidth: LayersBar.borderWidth
                                 )
+                                .transition(
+                                    reduceMotion
+                                        ? .opacity
+                                        : .scale(scale: 1.08).combined(with: .opacity)
+                                )
                         }
                     }
-                    .animation(.smooth(duration: 0.18), value: isSelected)
+                    .animation(.snappy(duration: 0.25, extraBounce: 0.15), value: isSelected)
                 }
             }
             .contentShape(Rectangle())
@@ -232,14 +243,14 @@ struct LayerThumbnailRow: View {
     let layer: Layer
     let isSelected: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 GeometryReader { geo in
-                    let outerRadius = geo.size.width * 0.2237
                     let inset: CGFloat = 4
-                    let innerRadius = max(0, outerRadius - inset)
                     let contentSide = max(0, geo.size.width - inset * 2)
                     ZStack {
                         ZStack {
@@ -253,18 +264,23 @@ struct LayerThumbnailRow: View {
                             }
                         }
                         .frame(width: contentSide, height: contentSide)
-                        .clipShape(.rect(cornerRadius: innerRadius, style: .continuous))
+                        .clipShape(SquircleShape())
                         .padding(inset)
 
                         if isSelected {
-                            RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
+                            SquircleShape()
                                 .strokeBorder(
                                     LayersBar.selectedBorderColor,
                                     lineWidth: LayersBar.borderWidth
                                 )
+                                .transition(
+                                    reduceMotion
+                                        ? .opacity
+                                        : .scale(scale: 1.08).combined(with: .opacity)
+                                )
                         }
                     }
-                    .animation(.smooth(duration: 0.18), value: isSelected)
+                    .animation(.snappy(duration: 0.25, extraBounce: 0.15), value: isSelected)
                 }
             }
             .contentShape(Rectangle())
