@@ -430,7 +430,10 @@ struct LayerContentView: View {
                 }
             }
             .frame(width: textSide, height: textSide)
-            .contentShape(Rectangle())
+            // Same path-aware hit-testing as parametric shapes: taps in the
+            // negative space of a glyph (or between repeated copies) fall
+            // through instead of selecting the text layer.
+            .contentShape(renderShape)
         case .parametricShape:
             let shapeSide = side * 0.5 * scale
             if let spec = layer.shapeSpec {

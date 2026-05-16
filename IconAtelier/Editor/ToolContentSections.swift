@@ -19,7 +19,7 @@ struct ParametricShapeContentSection: View {
     let project: IconProject
 
     var body: some View {
-        PanelSection(title: "Shape") {
+        PanelSection(title: "Preset") {
             PresetPickerRow(
                 selectedPreset: selectedPreset,
                 onSelect: { preset in
@@ -29,6 +29,10 @@ struct ParametricShapeContentSection: View {
                         .replacingBase(with: newBase)
                 }
             )
+        }
+
+        SectionDivider()
+        PanelSection(title: "Shape") {
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
             if !isIosSquircle {
                 parameterSliders
@@ -380,6 +384,17 @@ struct TextContentSection: View {
     @FocusState private var textFocused: Bool
 
     var body: some View {
+        PanelSection(title: "Preset") {
+            FontPresetPickerRow(
+                selected: layer.fontDesign,
+                onSelect: { design in
+                    project.recordUndo()
+                    layer.fontDesign = design
+                }
+            )
+        }
+
+        SectionDivider()
         PanelSection(title: "Text") {
             ContentField(
                 placeholder: "Text",
@@ -388,7 +403,6 @@ struct TextContentSection: View {
                 project: project
             )
             ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
-            FontDesignRow(design: $layer.fontDesign, project: project)
             FontWeightRow(weight: $layer.fontWeight, project: project)
             OpacitySlider(layer: layer, project: project)
         }
@@ -579,36 +593,89 @@ private struct BorderPositionRow: View {
     }
 }
 
-private struct FontDesignRow: View {
-    @Binding var design: LayerFontDesign
-    let project: IconProject
+// MARK: - Font preset picker
+
+private struct FontPresetPickerRow: View {
+    let selected: LayerFontDesign
+    let onSelect: (LayerFontDesign) -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text("Font")
-                .foregroundStyle(.primary.opacity(0.72))
-            Spacer()
-            Picker("Font", selection: Binding(
-                get: { design },
-                set: {
-                    project.recordUndo()
-                    design = $0
-                }
-            )) {
-                ForEach(LayerFontDesign.allCases, id: \.self) { d in
-                    Text(d.displayName).tag(d)
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                ForEach(LayerFontDesign.allCases, id: \.self) { design in
+                    FontPresetTile(
+                        design: design,
+                        isSelected: design == selected,
+                        action: { onSelect(design) }
+                    )
                 }
             }
-            .pickerStyle(.menu)
-            .tint(.primary.opacity(0.72))
-            .labelsHidden()
+            .padding(.vertical, 2)
         }
-        .padding(.horizontal, PanelStyle.rowInsetH)
-        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                .fill(PanelStyle.rowFill)
-        )
+        .frame(height: 72)
+    }
+}
+
+private struct FontPresetTile: View {
+    let design: LayerFontDesign
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            action()
+        } label: {
+            FontPresetLabel(design: design)
+                .frame(width: 64, height: 64)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .fill(isSelected ? PanelStyle.rowFillActive : PanelStyle.rowFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .strokeBorder(
+                            isSelected ? Color.primary.opacity(0.6) : .clear,
+                            lineWidth: 1.5
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(design.displayName)
+    }
+}
+
+private struct FontPresetLabel: UIViewRepresentable {
+    let design: LayerFontDesign
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.text = "Ag"
+        label.textAlignment = .center
+        label.textColor = .label
+        label.adjustsFontForContentSizeCategory = false
+        configure(label)
+        return label
+    }
+
+    func updateUIView(_ uiView: UILabel, context: Context) {
+        configure(uiView)
+    }
+
+    private func configure(_ label: UILabel) {
+        let base = UIFont.systemFont(ofSize: 28, weight: .semibold)
+        let uiDesign: UIFontDescriptor.SystemDesign
+        switch design {
+        case .default:    uiDesign = .default
+        case .serif:      uiDesign = .serif
+        case .rounded:    uiDesign = .rounded
+        case .monospaced: uiDesign = .monospaced
+        }
+        if let descriptor = base.fontDescriptor.withDesign(uiDesign) {
+            label.font = UIFont(descriptor: descriptor, size: 28)
+        } else {
+            label.font = base
+        }
     }
 }
 
