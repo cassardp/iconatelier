@@ -8,9 +8,6 @@ pertinents (`swiftui-patterns`, `swiftui-layout-components`, `swiftui-gestures`,
 `swift-language`, `app-store-review`…). Skill d'abord, code ensuite — même
 pour 3 lignes.
 
-⚠️ `swiftui-liquid-glass` n'est **pas** pertinent : Liquid Glass = iOS 26+
-uniquement, cible = iOS 18. Utiliser `.regularMaterial`, `.thinMaterial`, etc.
-
 ## Langue de l'app
 
 UI **100 % anglaise** (labels, boutons, titres, messages, placeholders).
