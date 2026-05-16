@@ -79,19 +79,37 @@ struct StarPolygonShape: InsettableShape, Equatable {
             local.append((radius * Darwin.cos(angle), radius * Darwin.sin(angle)))
         }
 
-        // Apply per-axis stretch, then rescale so the dominant axis still
-        // touches the bounds. With sx=sy=1 the path is unchanged; with
-        // sx=2,sy=1 it becomes twice as wide as tall but still fits.
+        // Apply per-axis stretch, then fit the actual vertex bounding box
+        // (not the circumscribed circle) to the rect. This unifies visual
+        // sizes across primitives — without it, a square inscribed in the
+        // unit circle is √2× smaller than a circle, and a triangle's bbox
+        // is taller above its centroid than below, so it appears to float
+        // upward. Recentering on the bbox midpoint fixes both.
         let sx = max(0.01, stretchX)
         let sy = max(0.01, stretchY)
-        let fit = 1.0 / max(sx, sy)
+
+        var minX = Double.infinity, maxX = -Double.infinity
+        var minY = Double.infinity, maxY = -Double.infinity
+        for v in local {
+            let x = v.x * sx
+            let y = v.y * sy
+            if x < minX { minX = x }
+            if x > maxX { maxX = x }
+            if y < minY { minY = y }
+            if y > maxY { maxY = y }
+        }
+        let bboxW = maxX - minX
+        let bboxH = maxY - minY
+        let bboxMidX = (maxX + minX) / 2
+        let bboxMidY = (maxY + minY) / 2
+        let fit = Double(side) / max(bboxW, bboxH)
 
         var pts: [CGPoint] = []
         pts.reserveCapacity(count)
         for v in local {
             pts.append(CGPoint(
-                x: cx + v.x * sx * fit,
-                y: cy + v.y * sy * fit
+                x: cx + (v.x * sx - bboxMidX) * fit,
+                y: cy + (v.y * sy - bboxMidY) * fit
             ))
         }
 
