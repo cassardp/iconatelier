@@ -11,38 +11,49 @@ struct ContentView: View {
     @Bindable var project: IconProject
 
     @State private var session = ProjectSession()
-    @State private var showEditSheet = false
+    @State private var showEditSheet = true
     @State private var showExportSheet = false
-    @State private var sheetDetent: PresentationDetent = .fraction(0.5)
+    @State private var sheetDetent: PresentationDetent = Self.peekDetent
 
     @State private var showImportPicker: Bool = false
+
+    private static let peekHeight: CGFloat = 100
+    private static let peekDetent: PresentationDetent = .height(100)
 
     // Lasso multi-selection (Phase 1)
     @State private var canvasFrame: CGRect = .zero
     @State private var layersBarFrame: CGRect = .zero
-    @State private var bottomPaletteFrame: CGRect = .zero
     @State private var lassoRect: CGRect? = nil
     private static let editorSpaceName = "iconAtelierEditor"
 
     var body: some View {
         GeometryReader { geo in
             let layersBarHeight: CGFloat = 56 + 16
-            let layersBarBottomInset: CGFloat = 8  // matches LayersBar's internal bottom padding
-            let actionsBarHeight: CGFloat = showsBottomPalette ? 60 : 0
-            let visibleHeight = max(0, geo.size.height * (1 - sheetFraction))
-            let contentMaxHeight = max(0, visibleHeight - 16) // 8pt minimum top + bottom outer margin
-            let iconHeight = max(0, contentMaxHeight - layersBarHeight - actionsBarHeight)
+            let layersBarBottomInset: CGFloat = 8  // internal LayersBar verticalPadding
+            // Minimum air to keep above the icon and below the layers bar in
+            // the 0.5 detent so the block isn't crammed against the sheet.
+            let minVerticalMargin: CGFloat = 20
+            // The sheet's `.fraction(0.5)` and `.height(N)` detents measure
+            // against the *full* window height (including the top/bottom safe
+            // areas), whereas `geo.size.height` excludes them. Reconstructing
+            // the total screen height here lets us project the sheet's cover
+            // band back into geo's coordinate space — otherwise the VStack
+            // ends up extending behind the sheet by ~50pt in the 0.5 detent.
+            let totalScreenHeight = geo.size.height
+                + geo.safeAreaInsets.top
+                + geo.safeAreaInsets.bottom
+            let sheetCoverFromScreenBottom = sheetCoverHeight(totalHeight: totalScreenHeight)
+            let sheetCoverInGeo = max(0, sheetCoverFromScreenBottom - geo.safeAreaInsets.bottom)
+            let visibleHeight = max(0, geo.size.height - sheetCoverInGeo)
+            let iconHeight = max(0, visibleHeight - layersBarHeight - 2 * minVerticalMargin)
             let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-            // Spacer above the icon vs Spacer below the layers/palette: the
-            // LayersBar carries its own 8pt internal bottom padding, so when the
-            // palette is hidden the visible "edge" of the layers list sits 8pt
-            // above the LayersBar frame end. Add that 8pt back to the top
-            // spacer so the visual whitespace above the icon equals the visual
-            // whitespace below the last thumbnail.
-            let totalContent = iconSide + layersBarHeight + actionsBarHeight
+            // Center icon+layers in visibleHeight, but bias the bottom spacer
+            // down by 8pt so the visible whitespace above the icon equals the
+            // whitespace below the last thumbnail (LayersBar carries an 8pt
+            // internal bottom padding).
+            let totalContent = iconSide + layersBarHeight
             let leftover = max(0, visibleHeight - totalContent)
-            let bottomCompensation: CGFloat = showsBottomPalette ? 0 : layersBarBottomInset
-            let bottomSpacer = max(0, (leftover - bottomCompensation) / 2)
+            let bottomSpacer = max(0, (leftover - layersBarBottomInset) / 2)
             let topSpacer = max(0, leftover - bottomSpacer)
             ZStack {
                 VStack(spacing: 0) {
@@ -57,33 +68,17 @@ struct ContentView: View {
                     LayersBar(
                         project: project,
                         session: session,
-                        isSheetOpen: $showEditSheet
+                        onAddShape: { addShapeLayer(spec: .defaultShape) },
+                        onAddText: addTextLayer,
+                        onImportImage: { showImportPicker = true }
                     )
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .named(Self.editorSpaceName))
                     } action: { newFrame in
                         layersBarFrame = newFrame
                     }
-                    if showsBottomPalette {
-                        Group {
-                            if session.isMultiSelecting {
-                                BooleanOpsPalette(onBooleanOp: performBooleanOperation)
-                            } else if let layer = selectedNonBackgroundLayer {
-                                LayerActionPalette(project: project, session: session, layer: layer)
-                            }
-                        }
-                        .frame(height: actionsBarHeight)
-                        .onGeometryChange(for: CGRect.self) { proxy in
-                            proxy.frame(in: .named(Self.editorSpaceName))
-                        } action: { newFrame in
-                            bottomPaletteFrame = newFrame
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
                     Color.clear.frame(height: bottomSpacer)
                 }
-                .animation(.smooth(duration: 0.22), value: showsBottomPalette)
-                .animation(.smooth(duration: 0.22), value: session.isMultiSelecting)
                 .frame(width: geo.size.width, height: visibleHeight)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 
@@ -99,21 +94,6 @@ struct ContentView: View {
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            // Always keep the toolbar in the safe-area inset so `geo.size.height`
-            // stays constant when the sheet opens — otherwise the visible-height
-            // calculation drifts and the icon + layers block ends up flush against
-            // the sheet's top edge instead of leaving a margin.
-            DesignToolBar(
-                project: project,
-                session: session,
-                onAddShape: { addShapeLayer(spec: .defaultShape) },
-                onAddText: addTextLayer
-            )
-            .opacity(showEditSheet ? 0 : 1)
-            .allowsHitTesting(!showEditSheet)
-            .animation(.smooth(duration: 0.22), value: showEditSheet)
-        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -167,11 +147,19 @@ struct ContentView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $showEditSheet) {
-            EditSheet(project: project, session: session)
-                .presentationDetents([.fraction(0.5), .large], selection: $sheetDetent)
-                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
-                .presentationContentInteraction(.scrolls)
-                .presentationDragIndicator(.visible)
+            EditSheet(
+                project: project,
+                session: session,
+                onBooleanOp: performBooleanOperation
+            )
+            .presentationDetents(
+                [Self.peekDetent, .fraction(0.5), .large],
+                selection: $sheetDetent
+            )
+            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
+            .presentationContentInteraction(.scrolls)
+            .presentationDragIndicator(.visible)
+            .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
@@ -183,9 +171,15 @@ struct ContentView: View {
         ) { result in
             handleImportResult(result)
         }
-        .onChange(of: showEditSheet) { wasOpen, isOpen in
-            if isOpen && !wasOpen {
-                sheetDetent = .fraction(0.5)
+        .onChange(of: showExportSheet) { _, isPresented in
+            // The edit sheet is normally always open. We close it while the
+            // export sheet is on screen (iOS allows only one sheet from a given
+            // anchor), then re-open it once export is dismissed.
+            if !isPresented && !showEditSheet {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    showEditSheet = true
+                }
             }
         }
         .onChange(of: exportSignature) { _, _ in
@@ -315,13 +309,8 @@ struct ContentView: View {
             .onEnded { value in
                 guard session.isMultiSelecting else { return }
                 let loc = value.location
-                // Also exclude the bottom palette: taps on its buttons must
-                // not clear the lasso before the button's action reads
-                // `lassoSelectedLayerUUIDs` — otherwise the boolean op fires
-                // with an empty selection set and silently no-ops.
                 guard !canvasFrame.contains(loc),
-                      !layersBarFrame.contains(loc),
-                      !bottomPaletteFrame.contains(loc)
+                      !layersBarFrame.contains(loc)
                 else { return }
                 session.clearLassoSelection()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -356,7 +345,7 @@ struct ContentView: View {
             let layer = project.addImportedOverlay(image: image)
             session.selectLayer(layer.uuid)
         }
-        showEditSheet = true
+        sheetDetent = .fraction(0.5)
     }
 
     private func presentExportSheet() {
@@ -392,19 +381,16 @@ struct ContentView: View {
         }
     }
 
-    private var sheetFraction: CGFloat {
-        if showEditSheet, sheetDetent == .fraction(0.5) { return 0.5 }
-        return 0
-    }
-
-    private var selectedNonBackgroundLayer: Layer? {
-        guard !session.isBackgroundSelected else { return nil }
-        return project.layer(withID: session.selectedLayerUUID)
-    }
-
-    private var showsBottomPalette: Bool {
-        guard !showEditSheet else { return false }
-        return session.isMultiSelecting || selectedNonBackgroundLayer != nil
+    /// Height (in points) that the sheet visually claims from the bottom of
+    /// the *full* window for the current detent. The caller projects this
+    /// into geo space if needed.
+    private func sheetCoverHeight(totalHeight: CGFloat) -> CGFloat {
+        guard showEditSheet else { return 0 }
+        if sheetDetent == Self.peekDetent { return Self.peekHeight }
+        if sheetDetent == .fraction(0.5) { return totalHeight * 0.5 }
+        // .large covers (almost) everything — clamp so the canvas can collapse
+        // without producing negative dimensions.
+        return totalHeight
     }
 
     private var exportSignature: Int {
@@ -435,125 +421,6 @@ struct ContentView: View {
             hasher.combine(layer.isFlippedVertically)
         }
         return hasher.finalize()
-    }
-}
-
-// MARK: - Design tool bar
-
-private struct DesignToolBar: View {
-    @Bindable var project: IconProject
-    let session: ProjectSession
-    let onAddShape: () -> Void
-    let onAddText: () -> Void
-
-    var body: some View {
-        HStack(spacing: 18) {
-            addButton(symbol: "square.on.circle", label: "Shape", action: onAddShape)
-            addButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-    }
-
-    private func addButton(
-        symbol: String,
-        label: String,
-        weight: Font.Weight = .regular,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            action()
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: weight))
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(width: 54, height: 54)
-                .background(Color.primary, in: .circle)
-                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 1)
-                .contentShape(.circle)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-}
-
-// MARK: - Layer action palette
-
-private struct LayerActionPalette: View {
-    @Bindable var project: IconProject
-    let session: ProjectSession
-    let layer: Layer
-
-    var body: some View {
-        HStack(spacing: 14) {
-            PaletteActionButton(
-                symbol: layer.isHidden ? "eye" : "eye.slash",
-                label: layer.isHidden ? "Show" : "Hide"
-            ) {
-                project.toggleVisibility(layer)
-            }
-            PaletteActionButton(symbol: "square.on.square", label: "Duplicate") {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    let copy = project.duplicate(layer)
-                    session.selectLayer(copy.uuid)
-                }
-            }
-            PaletteActionButton(symbol: "trash", label: "Delete") {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    let wasSelected = session.selectedLayerUUID == layer.uuid
-                    project.remove(layer)
-                    if wasSelected {
-                        session.selectedLayerUUID = project.layers.last?.uuid
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Boolean ops palette
-
-private struct BooleanOpsPalette: View {
-    let onBooleanOp: (BooleanOpKind) -> Void
-
-    var body: some View {
-        HStack(spacing: 14) {
-            PaletteActionButton(symbol: "plus", label: "Union") {
-                onBooleanOp(.union)
-            }
-            PaletteActionButton(symbol: "circle.righthalf.filled", label: "Intersect") {
-                onBooleanOp(.intersect)
-            }
-            PaletteActionButton(symbol: "minus", label: "Subtract") {
-                onBooleanOp(.subtract)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct PaletteActionButton: View {
-    let symbol: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            action()
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .regular))
-                .foregroundStyle(.primary)
-                .frame(width: 46, height: 46)
-                .background(Color(uiColor: .systemGray5), in: .circle)
-                .contentShape(.circle)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 }
 

@@ -4,7 +4,9 @@ import UIKit
 struct LayersBar: View {
     @Bindable var project: IconProject
     let session: ProjectSession
-    @Binding var isSheetOpen: Bool
+    let onAddShape: () -> Void
+    let onAddText: () -> Void
+    let onImportImage: () -> Void
 
     @State private var draggingUUID: UUID?
     @State private var dragOffset: CGFloat = 0
@@ -24,6 +26,7 @@ struct LayersBar: View {
         GeometryReader { geo in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.spacing) {
+                    addLayerButton
                     ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
@@ -38,6 +41,33 @@ struct LayersBar: View {
         .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
     }
 
+    private var addLayerButton: some View {
+        Menu {
+            Button {
+                onAddShape()
+            } label: {
+                Label("Shape", systemImage: "square.on.circle")
+            }
+            Button {
+                onAddText()
+            } label: {
+                Label("Text", systemImage: "textformat")
+            }
+            Button {
+                onImportImage()
+            } label: {
+                Label("Import Image", systemImage: "square.and.arrow.down")
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 26, weight: .regular))
+                .foregroundStyle(.primary)
+                .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Add layer")
+    }
+
     private var backgroundButton: some View {
         BackgroundThumbnailRow(
             background: project.safeBackground,
@@ -49,7 +79,6 @@ struct LayersBar: View {
                 UISelectionFeedbackGenerator().selectionChanged()
             }
             session.selectBackground()
-            isSheetOpen = true
         }
     }
 
@@ -86,7 +115,6 @@ struct LayersBar: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 session.selectLayer(layer.uuid)
-                isSheetOpen = true
             }
             .gesture(
                 LongPressDragRecognizer { recognizer, location in
