@@ -51,10 +51,6 @@ struct ContentView: View {
                     } action: { newFrame in
                         layersBarFrame = newFrame
                     }
-                    if !showEditSheet {
-                        LayerQuickActionsBar(project: project, session: session)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
                     Spacer(minLength: 0)
                 }
                 .frame(width: geo.size.width, height: visibleHeight)
@@ -74,6 +70,11 @@ struct ContentView: View {
         .background(Color.appPageBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             DesignToolBar(
+                project: project,
+                session: session,
+                showQuickActions: !showEditSheet,
+                onOpenEditor: { showEditSheet = true },
+                onBooleanOp: { performBooleanOperation($0) },
                 onAddShape: { addShapeLayer(spec: .defaultShape) },
                 onAddText: addTextLayer
             )
@@ -90,46 +91,22 @@ struct ContentView: View {
 
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 20) {
-                    if session.isMultiSelecting {
-                        Button {
-                            performBooleanOperation(.union)
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .accessibilityLabel("Union")
-
-                        Button {
-                            performBooleanOperation(.intersect)
-                        } label: {
-                            Image(systemName: "circle.righthalf.filled")
-                        }
-                        .accessibilityLabel("Intersect")
-
-                        Button {
-                            performBooleanOperation(.subtract)
-                        } label: {
-                            Image(systemName: "minus")
-                        }
-                        .accessibilityLabel("Subtract")
-                    } else {
-                        Button {
-                            project.undo()
-                            reselectTopIfNeeded()
-                        } label: {
-                            Image(systemName: "arrow.uturn.backward")
-                        }
-                        .disabled(!project.canUndo)
-
-                        Button {
-                            project.redo()
-                            reselectTopIfNeeded()
-                        } label: {
-                            Image(systemName: "arrow.uturn.forward")
-                        }
-                        .disabled(!project.canRedo)
+                    Button {
+                        project.undo()
+                        reselectTopIfNeeded()
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
                     }
+                    .disabled(!project.canUndo)
+
+                    Button {
+                        project.redo()
+                        reselectTopIfNeeded()
+                    } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!project.canRedo)
                 }
-                .animation(.smooth(duration: 0.2), value: session.isMultiSelecting)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -414,20 +391,95 @@ struct ContentView: View {
 // MARK: - Design tool bar
 
 private struct DesignToolBar: View {
+    @Bindable var project: IconProject
+    let session: ProjectSession
+    let showQuickActions: Bool
+    let onOpenEditor: () -> Void
+    let onBooleanOp: (BooleanOpKind) -> Void
     let onAddShape: () -> Void
     let onAddText: () -> Void
 
+    private var selectedLayer: Layer? {
+        guard !session.isBackgroundSelected else { return nil }
+        return project.layer(withID: session.selectedLayerUUID)
+    }
+
+    private var showsTopRow: Bool {
+        showQuickActions && (session.isMultiSelecting || selectedLayer != nil)
+    }
+
     var body: some View {
-        HStack(spacing: 18) {
-            actionButton(symbol: "square.on.circle", label: "Shape", action: onAddShape)
-            actionButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
+        VStack(spacing: 22) {
+            if showsTopRow {
+                topRow
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            HStack(spacing: 18) {
+                addButton(symbol: "square.on.circle", label: "Shape", action: onAddShape)
+                addButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
+            }
         }
+        .animation(.smooth(duration: 0.22), value: showsTopRow)
+        .animation(.smooth(duration: 0.22), value: session.isMultiSelecting)
+        .animation(.smooth(duration: 0.22), value: selectedLayer?.uuid)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
     }
 
-    private func actionButton(
+    @ViewBuilder
+    private var topRow: some View {
+        if session.isMultiSelecting {
+            booleanOpsRow
+        } else if let layer = selectedLayer {
+            quickActionsRow(layer: layer)
+        }
+    }
+
+    private var booleanOpsRow: some View {
+        HStack(spacing: 14) {
+            quickActionButton(symbol: "plus", label: "Union") {
+                onBooleanOp(.union)
+            }
+            quickActionButton(symbol: "circle.righthalf.filled", label: "Intersect") {
+                onBooleanOp(.intersect)
+            }
+            quickActionButton(symbol: "minus", label: "Subtract") {
+                onBooleanOp(.subtract)
+            }
+        }
+    }
+
+    private func quickActionsRow(layer: Layer) -> some View {
+        HStack(spacing: 14) {
+            quickActionButton(symbol: "gearshape", label: "Edit") {
+                onOpenEditor()
+            }
+            quickActionButton(
+                symbol: layer.isHidden ? "eye" : "eye.slash",
+                label: layer.isHidden ? "Show" : "Hide"
+            ) {
+                project.toggleVisibility(layer)
+            }
+            quickActionButton(symbol: "square.on.square", label: "Duplicate") {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let copy = project.duplicate(layer)
+                    session.selectLayer(copy.uuid)
+                }
+            }
+            quickActionButton(symbol: "trash", label: "Delete") {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let wasSelected = session.selectedLayerUUID == layer.uuid
+                    project.remove(layer)
+                    if wasSelected {
+                        session.selectedLayerUUID = project.layers.last?.uuid
+                    }
+                }
+            }
+        }
+    }
+
+    private func addButton(
         symbol: String,
         label: String,
         weight: Font.Weight = .regular,
@@ -443,6 +495,26 @@ private struct DesignToolBar: View {
                 .frame(width: 54, height: 54)
                 .background(Color.primary, in: .circle)
                 .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 1)
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func quickActionButton(
+        symbol: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 19, weight: .regular))
+                .foregroundStyle(.primary)
+                .frame(width: 46, height: 46)
+                .background(Color(uiColor: .systemGray5), in: .circle)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)

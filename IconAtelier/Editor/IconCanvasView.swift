@@ -472,14 +472,18 @@ struct LayerContentView: View {
     //    `destinationOut`. Effective width = `width`, fully outside.
     @ViewBuilder
     private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition) -> some View {
+        // Use rounded joins/caps everywhere — at large render sizes the default
+        // .miter join produces long spikes wherever a glyph or path has an
+        // acute angle. Invisible on a 56pt thumbnail, very visible at full
+        // canvas size as a stray "tail" outside the shape.
         switch position {
         case .center:
-            shape.stroke(color, lineWidth: width)
+            shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
         case .inner:
-            shape.stroke(color, lineWidth: width * 2)
+            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
                 .clipShape(shape)
         case .outer:
-            shape.stroke(color, lineWidth: width * 2)
+            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
                 .overlay(shape.fill(.black).blendMode(.destinationOut))
                 .compositingGroup()
         }

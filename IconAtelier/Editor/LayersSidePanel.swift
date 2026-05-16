@@ -86,9 +86,6 @@ struct LayersBar: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 session.selectLayer(layer.uuid)
-                if layer.kind != .image || layer.image != nil {
-                    isSheetOpen = true
-                }
             }
             .gesture(
                 LongPressDragRecognizer { recognizer, location in
@@ -158,60 +155,6 @@ struct LayersBar: View {
         if didMove {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
-    }
-}
-
-struct LayerQuickActionsBar: View {
-    @Bindable var project: IconProject
-    let session: ProjectSession
-
-    var body: some View {
-        if let layer = project.layer(withID: session.selectedLayerUUID) {
-            HStack(spacing: 24) {
-                actionButton(
-                    title: layer.isHidden ? "Show" : "Hide",
-                    systemImage: layer.isHidden ? "eye" : "eye.slash"
-                ) {
-                    project.toggleVisibility(layer)
-                }
-                actionButton(title: "Duplicate", systemImage: "square.on.square") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        let copy = project.duplicate(layer)
-                        session.selectLayer(copy.uuid)
-                    }
-                }
-                actionButton(title: "Delete", systemImage: "trash") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        let wasSelected = session.selectedLayerUUID == layer.uuid
-                        project.remove(layer)
-                        if wasSelected {
-                            session.selectedLayerUUID = project.layers.last?.uuid
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-        }
-    }
-
-    private func actionButton(
-        title: String,
-        systemImage: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            action()
-        } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(.primary)
-                .frame(width: 44, height: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
     }
 }
 
