@@ -70,9 +70,7 @@ struct ContentView: View {
         .background(Color.appPageBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             DesignToolBar(
-                onAddPolygon: { addShapeLayer(spec: .defaultPolygon) },
-                onAddStar: { addShapeLayer(spec: .defaultStar) },
-                onAddSquircle: { addShapeLayer(spec: .defaultSquircle) },
+                onAddShape: { addShapeLayer(spec: .defaultShape) },
                 onAddText: addTextLayer
             )
         }
@@ -412,16 +410,12 @@ struct ContentView: View {
 // MARK: - Design tool bar
 
 private struct DesignToolBar: View {
-    let onAddPolygon: () -> Void
-    let onAddStar: () -> Void
-    let onAddSquircle: () -> Void
+    let onAddShape: () -> Void
     let onAddText: () -> Void
 
     var body: some View {
         HStack(spacing: 18) {
-            actionButton(symbol: "hexagon", label: "Polygon", action: onAddPolygon)
-            actionButton(symbol: "star", label: "Star", action: onAddStar)
-            actionButton(symbol: "app", label: "Squircle", action: onAddSquircle)
+            actionButton(symbol: "square.on.circle", label: "Shape", action: onAddShape)
             actionButton(symbol: "textformat", label: "Text", weight: .medium, action: onAddText)
         }
         .frame(maxWidth: .infinity)

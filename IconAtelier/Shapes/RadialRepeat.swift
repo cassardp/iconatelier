@@ -9,7 +9,13 @@ import Foundation
 struct RadialRepeat<Base: Shape>: Shape {
     var base: Base
     var count: Int            // 2..24
-    var centerHole: Double    // 0..0.5 — fraction of outer radius left empty at the center
+    var centerHole: Double    // -0.5..0.5 — signed fraction of outer radius:
+                              //   > 0  empty hole at the center,
+                              //   = 0  bases meet at the center,
+                              //   < 0  bases cross the center → overlap.
+                              // The outer tip always lands at outerRadius
+                              // because unitLen = outerRadius - inner, so the
+                              // pattern never overflows the bounds.
     var phaseDegrees: Double  // global rotation of the pattern
     var alternateScale: Double // 0..1 — odd-indexed instances scaled by this factor (1 = uniform)
 
@@ -17,7 +23,7 @@ struct RadialRepeat<Base: Shape>: Shape {
         let side = min(rect.width, rect.height)
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let outerRadius = side / 2
-        let inner = outerRadius * max(0, min(0.5, centerHole))
+        let inner = outerRadius * max(-0.5, min(0.5, centerHole))
         let unitLen = max(0, outerRadius - inner)
         let unitWid = unitLen * 0.55
         let n = max(2, count)

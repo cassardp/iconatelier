@@ -18,23 +18,32 @@ struct ParametricShapeContentSection: View {
     let project: IconProject
 
     var body: some View {
-        PanelSection(title: layer.shapeSpec?.displayName ?? "Shape") {
-            baseShapeSliders
-            ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
-        }
-
-        if layer.shapeSpec?.unwrapped.hasIntrinsicCornerRadius == false {
-            SectionDivider()
-            PanelSection(title: "Corner Radius") {
+        PanelSection(title: "Shape") {
+            PresetPickerRow(
+                selectedPreset: selectedPreset,
+                onSelect: { preset in
+                    project.recordUndo()
+                    let newBase = ShapeSpec.preset(preset)
+                    layer.shapeSpec = (layer.shapeSpec ?? .defaultShape)
+                        .replacingBase(with: newBase)
+                }
+            )
+            if !isIosSquircle {
                 DialSliderRow(
-                    label: "Radius",
-                    value: $layer.cornerRadius,
-                    range: 0 ... 0.5,
-                    valueText: { String(format: "%.0f%%", $0 * 200) },
+                    label: "Rotation",
+                    value: rotationBinding,
+                    range: -180 ... 180,
+                    valueText: { String(format: "%.0f°", $0) },
                     defaultValue: 0,
                     onBeginEditing: { project.recordUndo() }
                 )
             }
+            ColorPickerRow(title: "Color", color: $layer.tintColor, project: project)
+        }
+
+        if !isIosSquircle {
+            SectionDivider()
+            parametersSection
         }
 
         SectionDivider()
@@ -60,73 +69,186 @@ struct ParametricShapeContentSection: View {
         }
     }
 
-    // Base shape sliders read/write the unwrapped base, preserving the radial
-    // wrap if the layer is currently repeated.
-    @ViewBuilder
-    private var baseShapeSliders: some View {
-        switch layer.shapeSpec?.unwrapped {
-        case .polygon:
+    // True iOS-icon squircle is parameter-less by design — sliders are
+    // hidden so the user can't drift away from the pixel-identical mask.
+    private var isIosSquircle: Bool {
+        if case .iosSquircle = layer.shapeSpec?.unwrapped { return true }
+        return false
+    }
+
+    // Picker selection. The iosSquircle case maps back to the .squircle
+    // preset so its tile is highlighted in the picker.
+    private var selectedPreset: PolygonPreset {
+        if case .iosSquircle = layer.shapeSpec?.unwrapped { return .squircle }
+        return currentParams.preset
+    }
+
+    private var parametersSection: some View {
+        PanelSection(title: "Parameters") {
             DialSliderRow(
                 label: "Sides",
-                value: baseDoubleBinding(
-                    get: { spec in
-                        if case .polygon(let s, _, _) = spec { return Double(s) }
-                        return 6
-                    },
-                    set: { spec, v in
-                        if case .polygon(_, let ir, let r) = spec {
-                            return .polygon(sides: Int(v.rounded()), innerRatio: ir, rotation: r)
-                        }
-                        return spec
-                    }
-                ),
-                range: 3 ... 12,
+                value: sidesBinding,
+                range: 2 ... 24,
                 valueText: { "\(Int($0.rounded()))" },
-                defaultValue: 6,
+                defaultValue: 4,
                 onBeginEditing: { project.recordUndo() }
             )
             DialSliderRow(
-                label: "Inner Ratio",
-                value: baseDoubleBinding(
-                    get: { spec in
-                        if case .polygon(_, let ir, _) = spec { return ir }
-                        return 1.0
-                    },
-                    set: { spec, v in
-                        if case .polygon(let s, _, let r) = spec {
-                            return .polygon(sides: s, innerRatio: v, rotation: r)
-                        }
-                        return spec
-                    }
-                ),
-                range: 0.1 ... 1.0,
-                valueText: { String(format: "%.2f", $0) },
-                defaultValue: 1.0,
+                label: "Bulge",
+                value: bulgeBinding,
+                range: -100 ... 100,
+                valueText: { "\(Int($0.rounded()))" },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
             DialSliderRow(
-                label: "Rotation",
-                value: baseDoubleBinding(
-                    get: { spec in
-                        if case .polygon(_, _, let r) = spec { return r }
-                        return -90
-                    },
-                    set: { spec, v in
-                        if case .polygon(let s, let ir, _) = spec {
-                            return .polygon(sides: s, innerRatio: ir, rotation: v)
-                        }
-                        return spec
-                    }
-                ),
-                range: -180 ... 180,
-                valueText: { String(format: "%.0f°", $0) },
-                defaultValue: -90,
+                label: "Roundness",
+                value: percentBinding(\.roundness),
+                range: 0 ... 100,
+                valueText: { "\(Int($0.rounded()))" },
+                defaultValue: 0,
                 onBeginEditing: { project.recordUndo() }
             )
-
-        default:
-            EmptyView()
+            DialSliderRow(
+                label: "Stretch X",
+                value: stretchBinding(\.stretchX),
+                range: 0.3 ... 3,
+                valueText: { String(format: "%.2f×", $0) },
+                defaultValue: 1,
+                onBeginEditing: { project.recordUndo() }
+            )
+            DialSliderRow(
+                label: "Stretch Y",
+                value: stretchBinding(\.stretchY),
+                range: 0.3 ... 3,
+                valueText: { String(format: "%.2f×", $0) },
+                defaultValue: 1,
+                onBeginEditing: { project.recordUndo() }
+            )
         }
+    }
+
+    // MARK: - Polygon parameter plumbing
+
+    // Mirror of the .polygon case payload — lets the editor read/write each
+    // parameter independently without re-pattern-matching everywhere.
+    private struct PolygonParams: Equatable {
+        var preset: PolygonPreset
+        var sides: Int
+        var bulge: Double      // -1...+1
+        var roundness: Double  // 0...1
+        var stretchX: Double   // 0.3...3
+        var stretchY: Double
+        var rotation: Double   // degrees
+
+        static let fallback = PolygonParams(
+            preset: .squircle,
+            sides: 4, bulge: 0, roundness: 0.6,
+            stretchX: 1, stretchY: 1, rotation: 45
+        )
+    }
+
+    private var currentParams: PolygonParams {
+        if case let .polygon(preset, sides, bulge, roundness, sx, sy, rotation)
+            = layer.shapeSpec?.unwrapped {
+            return PolygonParams(
+                preset: preset,
+                sides: sides,
+                bulge: bulge,
+                roundness: roundness,
+                stretchX: sx,
+                stretchY: sy,
+                rotation: rotation
+            )
+        }
+        return .fallback
+    }
+
+    private func applyParams(_ p: PolygonParams) {
+        let newBase = ShapeSpec.polygon(
+            preset: p.preset,
+            sides: p.sides,
+            bulge: p.bulge,
+            roundness: p.roundness,
+            stretchX: p.stretchX,
+            stretchY: p.stretchY,
+            rotation: p.rotation
+        )
+        layer.shapeSpec = (layer.shapeSpec ?? .defaultShape)
+            .replacingBase(with: newBase)
+    }
+
+    // Rotation alone doesn't invalidate the active preset — a rotated
+    // pentagon is still a pentagon. Only the geometry params (sides, star,
+    // roundness) flip the preset to `.free`.
+    private var rotationBinding: Binding<Double> {
+        Binding(
+            get: { currentParams.rotation },
+            set: { newVal in
+                var p = currentParams
+                p.rotation = newVal
+                applyParams(p)
+            }
+        )
+    }
+
+    private var sidesBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentParams.sides) },
+            set: { newVal in
+                var p = currentParams
+                p.sides = max(2, min(24, Int(newVal.rounded())))
+                p.preset = .free
+                applyParams(p)
+            }
+        )
+    }
+
+    // Roundness is stored as 0...1 but exposed as 0–100. Anything that
+    // touches geometry flips the preset to `.free`.
+    private func percentBinding(
+        _ keyPath: WritableKeyPath<PolygonParams, Double>
+    ) -> Binding<Double> {
+        Binding(
+            get: { currentParams[keyPath: keyPath] * 100 },
+            set: { newPercent in
+                var p = currentParams
+                p[keyPath: keyPath] = min(1, max(0, newPercent / 100))
+                p.preset = .free
+                applyParams(p)
+            }
+        )
+    }
+
+    // Bulge is stored as -1...+1 but exposed as -100...+100 so the dial
+    // reads symmetrically around zero (negative = star/pinch, positive =
+    // puff toward 2N-gon). Same preset-invalidation contract as the rest.
+    private var bulgeBinding: Binding<Double> {
+        Binding(
+            get: { currentParams.bulge * 100 },
+            set: { newPercent in
+                var p = currentParams
+                p.bulge = min(1, max(-1, newPercent / 100))
+                p.preset = .free
+                applyParams(p)
+            }
+        )
+    }
+
+    // StretchX/StretchY are stored as a multiplier around 1.0. The slider
+    // exposes the same value range directly so the label reads as "1.0×".
+    private func stretchBinding(
+        _ keyPath: WritableKeyPath<PolygonParams, Double>
+    ) -> Binding<Double> {
+        Binding(
+            get: { currentParams[keyPath: keyPath] },
+            set: { newVal in
+                var p = currentParams
+                p[keyPath: keyPath] = max(0.3, min(3, newVal))
+                p.preset = .free
+                applyParams(p)
+            }
+        )
     }
 
     // Tiny pill-style toggle row that fits the panel's row metrics.
@@ -169,7 +291,7 @@ struct ParametricShapeContentSection: View {
                 get: { $0.centerHole },
                 set: { p, v in var p = p; p.centerHole = v; return p }
             ),
-            range: 0 ... 0.5,
+            range: -0.5 ... 0.5,
             valueText: { String(format: "%.0f%%", $0 * 200) },
             defaultValue: ShapeSpec.defaultRadialRepeat.centerHole,
             onBeginEditing: { project.recordUndo() }
@@ -208,22 +330,6 @@ struct ParametricShapeContentSection: View {
         } else {
             layer.shapeSpec = spec.unwrapped
         }
-    }
-
-    /// Build a slider binding that reads/writes the base shape's params,
-    /// transparently preserving the radial-repeat wrap if any.
-    private func baseDoubleBinding(
-        get: @escaping (ShapeSpec) -> Double,
-        set: @escaping (ShapeSpec, Double) -> ShapeSpec
-    ) -> Binding<Double> {
-        Binding(
-            get: { layer.shapeSpec.map { get($0.unwrapped) } ?? 0 },
-            set: { newVal in
-                guard let spec = layer.shapeSpec else { return }
-                let newBase = set(spec.unwrapped, newVal)
-                layer.shapeSpec = spec.replacingBase(with: newBase)
-            }
-        )
     }
 
     /// Build a slider binding that reads/writes the current radial-repeat
@@ -340,6 +446,79 @@ struct ColorPickerRow: View {
             RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
                 .fill(PanelStyle.rowFill)
         )
+    }
+}
+
+// MARK: - Shape preset picker
+
+private struct PresetPickerRow: View {
+    let selectedPreset: PolygonPreset
+    let onSelect: (PolygonPreset) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                ForEach(PolygonPreset.pickerOrder, id: \.self) { preset in
+                    PresetTile(
+                        preset: preset,
+                        isSelected: preset == selectedPreset,
+                        action: { onSelect(preset) }
+                    )
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+        }
+        .frame(height: 84)
+    }
+}
+
+private struct PresetTile: View {
+    let preset: PolygonPreset
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            action()
+        } label: {
+            VStack(spacing: 4) {
+                Group {
+                    // The Squircle tile must render the true Lamé curve
+                    // (same as the iOS-icon mask), not a fillet-approximated
+                    // PolygonShape — otherwise the thumb wouldn't match
+                    // what the user actually gets on tap.
+                    if preset == .squircle {
+                        SquircleShape()
+                            .fill(Color.primary)
+                    } else {
+                        preset.canonical
+                            .fill(Color.primary)
+                    }
+                }
+                .frame(width: 36, height: 36)
+                Text(preset.displayName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(width: 68, height: 76)
+            .background(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                    .fill(isSelected ? PanelStyle.rowFillActive : PanelStyle.rowFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.primary.opacity(0.6) : .clear,
+                        lineWidth: 1.5
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(preset.displayName)
     }
 }
 

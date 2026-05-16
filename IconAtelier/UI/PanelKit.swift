@@ -168,13 +168,29 @@ struct DialSliderRow: View {
     let range: ClosedRange<Double>
     let valueText: (Double) -> String
     var defaultValue: Double? = nil
+    // When true, the slider position maps to value via a log curve over the
+    // range, so equal screen distance covers equal multiplicative steps.
+    // Required for exponent-like parameters (e.g. Gielis n1/n2/n3) whose
+    // perceptually-interesting region spans several orders of magnitude.
+    // Range must be strictly positive when enabled.
+    var logarithmic: Bool = false
     let onBeginEditing: () -> Void
 
     private var safeValue: Double {
         value.isFinite ? value : (defaultValue ?? range.lowerBound)
     }
 
+    private var useLog: Bool {
+        logarithmic && range.lowerBound > 0 && range.upperBound > range.lowerBound
+    }
+
     private var fraction: Double {
+        if useLog {
+            let logLow = Darwin.log(range.lowerBound)
+            let logHigh = Darwin.log(range.upperBound)
+            let logVal = Darwin.log(max(safeValue, range.lowerBound))
+            return min(max((logVal - logLow) / (logHigh - logLow), 0), 1)
+        }
         let span = range.upperBound - range.lowerBound
         guard span > 0 else { return 0 }
         return min(max((safeValue - range.lowerBound) / span, 0), 1)
@@ -190,6 +206,12 @@ struct DialSliderRow: View {
     private func update(at x: CGFloat, width: CGFloat) {
         guard width > 0 else { return }
         let f = min(max(Double(x / width), 0), 1)
+        if useLog {
+            let logLow = Darwin.log(range.lowerBound)
+            let logHigh = Darwin.log(range.upperBound)
+            value = Darwin.exp(logLow + f * (logHigh - logLow))
+            return
+        }
         let span = range.upperBound - range.lowerBound
         value = range.lowerBound + f * span
     }
