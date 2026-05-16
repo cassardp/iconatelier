@@ -47,9 +47,6 @@ final class IconProject {
     @Relationship(deleteRule: .cascade, inverse: \Layer.project)
     var rawLayers: [Layer] = []
 
-    @Transient var isGenerating: Bool = false
-    @Transient var lastError: String? = nil
-
     @Transient private var undoStack: [IconProjectSnapshot] = []
     @Transient private var redoStack: [IconProjectSnapshot] = []
     @Transient private var lastRecordedAt: Date?

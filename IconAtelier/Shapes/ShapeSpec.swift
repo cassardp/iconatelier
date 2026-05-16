@@ -130,7 +130,7 @@ struct RadialRepeatParams: Hashable, Sendable {
 // The legacy `.squircle(cornerRadiusFraction)` payload is also accepted and
 // mapped to the parameterless `.squircle` case (its corner radius is now
 // intrinsic — locked to the iPhone app-icon ratio).
-extension ShapeSpec: Codable {
+nonisolated extension ShapeSpec: Codable {
     private enum CaseKey: String, CodingKey {
         case polygon, star, squircle, radialRepeat
     }

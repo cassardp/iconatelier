@@ -216,14 +216,12 @@ enum BackgroundPresets {
 extension MeshPreset {
     @MainActor
     var meshColors: [Color] {
-        let tl = topLeft, tr = topRight, bl = bottomLeft, br = bottomRight
-        return [
-            tl,                       Color.mix(tl, tr, 0.5), tr,
-            Color.mix(tl, bl, 0.5),   Color.mix(Color.mix(tl, tr, 0.5),
-                                                Color.mix(bl, br, 0.5), 0.5),
-                                                                        Color.mix(tr, br, 0.5),
-            bl,                       Color.mix(bl, br, 0.5), br
-        ]
+        Color.mesh3x3(
+            topLeft: topLeft,
+            topRight: topRight,
+            bottomLeft: bottomLeft,
+            bottomRight: bottomRight
+        )
     }
 }
 

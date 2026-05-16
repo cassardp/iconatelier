@@ -87,17 +87,12 @@ final class Background {
     // MARK: - Defaults
 
     nonisolated static var defaultMeshColors: [Color] {
-        let tl: Color = .iaPurple
-        let tr: Color = .iaBlue
-        let bl: Color = .iaPink
-        let br: Color = .iaOrange
-        return [
-            tl,                            Color.mix(tl, tr, 0.5), tr,
-            Color.mix(tl, bl, 0.5), Color.mix(Color.mix(tl, tr, 0.5),
-                                              Color.mix(bl, br, 0.5), 0.5),
-                                                                    Color.mix(tr, br, 0.5),
-            bl,                            Color.mix(bl, br, 0.5), br
-        ]
+        Color.mesh3x3(
+            topLeft: .iaPurple,
+            topRight: .iaBlue,
+            bottomLeft: .iaPink,
+            bottomRight: .iaOrange
+        )
     }
 }
 
@@ -170,5 +165,25 @@ extension Color {
             blue: Double(ba + (bb - ba) * tt),
             opacity: Double(aa + (ab - aa) * tt)
         )
+    }
+
+    /// Builds a 9-cell 3×3 mesh gradient by linearly interpolating the 5
+    /// non-corner cells between the 4 corners. Row-major order.
+    nonisolated static func mesh3x3(
+        topLeft tl: Color,
+        topRight tr: Color,
+        bottomLeft bl: Color,
+        bottomRight br: Color
+    ) -> [Color] {
+        let top = mix(tl, tr, 0.5)
+        let left = mix(tl, bl, 0.5)
+        let right = mix(tr, br, 0.5)
+        let bottom = mix(bl, br, 0.5)
+        let center = mix(top, bottom, 0.5)
+        return [
+            tl,   top,    tr,
+            left, center, right,
+            bl,   bottom, br
+        ]
     }
 }

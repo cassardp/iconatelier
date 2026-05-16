@@ -93,6 +93,14 @@ struct LayerExport: Codable {
     let isLocked: Bool
     let isFlippedHorizontally: Bool
     let isFlippedVertically: Bool
+
+    // Optional for backwards compat with bundles exported before parametric
+    // shape styling (corner radius, border, shape spec) was per-layer state.
+    let cornerRadius: Double?
+    let borderWidth: Double?
+    let borderColor: StoredColor?
+    let borderPosition: String?
+    let shapeSpecJSON: Data?
 }
 
 // MARK: - Exporter service
@@ -170,7 +178,12 @@ enum LibraryExporter {
                     isHidden: layer.isHidden,
                     isLocked: layer.isLocked,
                     isFlippedHorizontally: layer.isFlippedHorizontally,
-                    isFlippedVertically: layer.isFlippedVertically
+                    isFlippedVertically: layer.isFlippedVertically,
+                    cornerRadius: layer.cornerRadius,
+                    borderWidth: layer.borderWidth,
+                    borderColor: layer.storedBorderColor,
+                    borderPosition: layer.borderPositionRaw,
+                    shapeSpecJSON: layer.shapeSpecJSON
                 ))
             }
 

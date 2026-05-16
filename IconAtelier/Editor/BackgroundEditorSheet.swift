@@ -272,19 +272,11 @@ struct BackgroundEditorContent: View {
             set: { newColor in
                 project.recordUndo()
                 background.meshColors[index] = newColor
-                // Re-interpolate the 5 non-corner cells from the 4 corners.
-                let tl = background.meshColors[0]
-                let tr = background.meshColors[2]
-                let bl = background.meshColors[6]
-                let br = background.meshColors[8]
-                background.meshColors[1] = Color.mix(tl, tr, 0.5)
-                background.meshColors[3] = Color.mix(tl, bl, 0.5)
-                background.meshColors[5] = Color.mix(tr, br, 0.5)
-                background.meshColors[7] = Color.mix(bl, br, 0.5)
-                background.meshColors[4] = Color.mix(
-                    Color.mix(tl, tr, 0.5),
-                    Color.mix(bl, br, 0.5),
-                    0.5
+                background.meshColors = Color.mesh3x3(
+                    topLeft: background.meshColors[0],
+                    topRight: background.meshColors[2],
+                    bottomLeft: background.meshColors[6],
+                    bottomRight: background.meshColors[8]
                 )
             }
         )

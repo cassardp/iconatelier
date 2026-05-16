@@ -180,6 +180,11 @@ enum LibraryImporter {
         layer.isLocked = dto.isLocked
         layer.isFlippedHorizontally = dto.isFlippedHorizontally
         layer.isFlippedVertically = dto.isFlippedVertically
+        if let cornerRadius = dto.cornerRadius { layer.cornerRadius = cornerRadius }
+        if let borderWidth = dto.borderWidth { layer.borderWidth = borderWidth }
+        if let borderColor = dto.borderColor { layer.storedBorderColor = borderColor }
+        if let borderPosition = dto.borderPosition { layer.borderPositionRaw = borderPosition }
+        layer.shapeSpecJSON = dto.shapeSpecJSON
         return layer
     }
 }
