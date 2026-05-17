@@ -336,14 +336,14 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     var hasIntrinsicCornerRadius: Bool { true }
 }
 
-struct RadialRepeatParams: Hashable, Sendable {
+nonisolated struct RadialRepeatParams: Hashable, Sendable {
     var count: Int
     var centerHole: Double
     var phaseDegrees: Double
     var alternateScale: Double
 }
 
-struct TransformParams: Hashable, Sendable {
+nonisolated struct TransformParams: Hashable, Sendable {
     var stretchX: Double
     var stretchY: Double
     var rotation: Double
