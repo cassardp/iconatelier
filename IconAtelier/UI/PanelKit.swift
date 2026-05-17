@@ -70,6 +70,7 @@ struct CompactActionButton: View {
     let title: String
     let systemImage: String
     var role: Role = .standard
+    var enabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -90,6 +91,8 @@ struct CompactActionButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
         .accessibilityLabel(title)
     }
 

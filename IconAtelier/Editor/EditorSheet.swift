@@ -98,7 +98,6 @@ struct BackgroundActionsRow: View {
     var body: some View {
         let background = project.safeBackground
         HStack(spacing: 8) {
-            Spacer(minLength: 0)
             CompactActionButton(
                 title: background.isHidden ? "Show" : "Hide",
                 systemImage: background.isHidden ? "eye" : "eye.slash"
@@ -106,6 +105,17 @@ struct BackgroundActionsRow: View {
                 project.recordUndo()
                 background.isHidden.toggle()
             }
+            CompactActionButton(
+                title: "Duplicate",
+                systemImage: "square.on.square",
+                enabled: false
+            ) {}
+            Spacer(minLength: 0)
+            CompactActionButton(
+                title: "Delete",
+                systemImage: "trash",
+                enabled: false
+            ) {}
         }
     }
 }
