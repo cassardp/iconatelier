@@ -4,12 +4,10 @@ import UIKit
 // MARK: - Style tokens
 
 enum PanelStyle {
-    static let rowFill: Color = .primary.opacity(0.06)
+    static let rowFill: Color = .primary.opacity(0.08)
     static let rowFillActive: Color = .primary.opacity(0.14)
-    static let rowFillSelected: Color = .primary.opacity(0.28)
     static let cornerRadius: CGFloat = 12
     static let rowHeight: CGFloat = 52
-    static let sliderHeight: CGFloat = 48
     static let rowInsetH: CGFloat = 16
 }
 
@@ -28,7 +26,7 @@ extension Color {
 struct SectionDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color.primary.opacity(0.08))
+            .fill(Color.primary.opacity(0.1))
             .frame(height: 1)
             .padding(.horizontal, 4)
     }
@@ -38,55 +36,22 @@ struct SectionDivider: View {
 
 struct PanelSection<Content: View>: View {
     let title: String
-    var defaultExpanded: Bool = true
     @ViewBuilder var content: () -> Content
-
-    @State private var isExpanded: Bool
-
-    init(
-        title: String,
-        defaultExpanded: Bool = true,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.title = title
-        self.defaultExpanded = defaultExpanded
-        self.content = content
-        _isExpanded = State(initialValue: defaultExpanded)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.smooth(duration: 0.28)) { isExpanded.toggle() }
-            } label: {
-                HStack {
-                    Text(title)
-                        .font(.footnote.weight(.semibold))
-                        .textCase(.uppercase)
-                        .tracking(0.6)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                }
-                .contentShape(Rectangle())
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .foregroundStyle(.secondary.opacity(0.8))
                 .padding(.horizontal, 4)
-            }
-            .buttonStyle(.plain)
 
-            if isExpanded {
-                VStack(spacing: 6) {
-                    content()
-                }
-                .padding(.top, 6)
-                .transition(
-                    .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
-                )
+            VStack(spacing: 7) {
+                content()
             }
+            .padding(.top, 6)
         }
-        .clipped()
     }
 }
 
@@ -172,6 +137,272 @@ struct ActionRow: View {
     }
 }
 
+// MARK: - Toggle
+
+/// Custom on/off switch matched to PanelKit tokens. Sits in a single row pill
+/// so it visually belongs with `DialSliderRow` and `PanelSegmentedRow`.
+struct PanelToggle: View {
+    @Binding var isOn: Bool
+
+    private let trackWidth: CGFloat = 46
+    private let trackHeight: CGFloat = 28
+    private let knobInset: CGFloat = 3
+
+    var body: some View {
+        let knobSize = trackHeight - knobInset * 2
+        Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                isOn.toggle()
+            }
+        } label: {
+            ZStack(alignment: isOn ? .trailing : .leading) {
+                Capsule(style: .continuous)
+                    .fill(isOn ? PanelStyle.rowFillActive : PanelStyle.rowFill)
+                    .frame(width: trackWidth, height: trackHeight)
+
+                Circle()
+                    .fill(Color.primary.opacity(isOn ? 0.9 : 0.4))
+                    .frame(width: knobSize, height: knobSize)
+                    .padding(.horizontal, knobInset)
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityValue(isOn ? Text("On") : Text("Off"))
+    }
+}
+
+/// Labeled row that hosts a `PanelToggle`. Mirrors the chrome of
+/// `DialSliderRow` so toggle parameters slot into the same vertical rhythm.
+struct PanelToggleRow: View {
+    let label: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .foregroundStyle(.primary)
+            Spacer()
+            PanelToggle(isOn: $isOn)
+        }
+        .padding(.horizontal, PanelStyle.rowInsetH)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Segmented control
+
+/// Generic segmented control with an animated selection pill. Use when the
+/// option set is small (2–5 items) and equally weighted. For longer lists,
+/// prefer `PanelMenuRow`.
+struct PanelSegmentedControl<Value: Hashable>: View {
+    let options: [Value]
+    @Binding var selection: Value
+    let label: (Value) -> String
+    var onChange: (() -> Void)? = nil
+
+    @Namespace private var pill
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.self) { value in
+                segment(for: value)
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+
+    @ViewBuilder
+    private func segment(for value: Value) -> some View {
+        let isSelected = selection == value
+        let innerRadius = PanelStyle.cornerRadius - 3
+
+        Button {
+            guard selection != value else { return }
+            UISelectionFeedbackGenerator().selectionChanged()
+            onChange?()
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                selection = value
+            }
+        } label: {
+            Text(label(value))
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
+                .frame(maxWidth: .infinity)
+                .frame(height: PanelStyle.rowHeight - 6)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
+                            .fill(PanelStyle.rowFillActive)
+                            .matchedGeometryEffect(id: "pill", in: pill)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Menu (standalone, full-width)
+
+/// Standalone pop-up menu shaped as a full-width row, without a separate
+/// left-side label. Use when the current value is self-evident (a font
+/// family showing "Serif" speaks for itself) and an extra label would
+/// just take vertical space.
+struct PanelMenu<Value: Hashable>: View {
+    let options: [Value]
+    @Binding var selection: Value
+    let optionLabel: (Value) -> String
+    var onChange: (() -> Void)? = nil
+
+    var body: some View {
+        Menu {
+            ForEach(options, id: \.self) { value in
+                Button {
+                    guard selection != value else { return }
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    onChange?()
+                    selection = value
+                } label: {
+                    if value == selection {
+                        Label(optionLabel(value), systemImage: "checkmark")
+                    } else {
+                        Text(optionLabel(value))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text(optionLabel(selection))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, PanelStyle.rowInsetH)
+            .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                    .fill(PanelStyle.rowFill)
+            )
+            .contentShape(
+                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+            )
+        }
+        .menuOrder(.fixed)
+        .tint(.primary)
+    }
+}
+
+// MARK: - Menu row
+
+/// Labeled row hosting a native pop-up menu. Use when the choice list is too
+/// long for a segmented control (5+ items) or when the values benefit from
+/// being shown one-per-line.
+struct PanelMenuRow<Value: Hashable>: View {
+    let label: String
+    let options: [Value]
+    @Binding var selection: Value
+    let optionLabel: (Value) -> String
+    var onChange: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .foregroundStyle(.primary)
+            Spacer()
+            Menu {
+                ForEach(options, id: \.self) { value in
+                    Button {
+                        guard selection != value else { return }
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        onChange?()
+                        selection = value
+                    } label: {
+                        if value == selection {
+                            Label(optionLabel(value), systemImage: "checkmark")
+                        } else {
+                            Text(optionLabel(value))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(optionLabel(selection))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .frame(height: PanelStyle.rowHeight - 16)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius - 3, style: .continuous)
+                        .fill(PanelStyle.rowFillActive)
+                )
+            }
+            .menuOrder(.fixed)
+            .tint(.primary)
+        }
+        .padding(.horizontal, PanelStyle.rowInsetH)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+}
+
+// MARK: - Color picker row
+
+/// Labeled row wrapping a native `ColorPicker`. Mirrors the chrome of
+/// the other panel rows so color editing slots into the same vertical rhythm.
+struct ColorPickerRow: View {
+    let title: String
+    @Binding var color: Color
+    var supportsOpacity: Bool = false
+    var onChange: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .foregroundStyle(.primary)
+            Spacer()
+            ColorPicker(
+                "",
+                selection: Binding(
+                    get: { color },
+                    set: { newColor in
+                        onChange?()
+                        color = newColor
+                    }
+                ),
+                supportsOpacity: supportsOpacity
+            )
+            .labelsHidden()
+        }
+        .padding(.horizontal, PanelStyle.rowInsetH)
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+    }
+}
+
 // MARK: - DialKit-style slider row with inline fill
 
 struct DialSliderRow: View {
@@ -254,8 +485,8 @@ struct DialSliderRow: View {
 
                 HStack(spacing: 8) {
                     Text(label)
-                        .foregroundStyle(.primary.opacity(0.72))
-                    if defaultValue != nil {
+                        .foregroundStyle(.primary)
+                    if defaultValue != nil, canReset {
                         Button(action: performReset) {
                             Image(systemName: "arrow.counterclockwise")
                                 .font(.footnote.weight(.semibold))
@@ -264,9 +495,8 @@ struct DialSliderRow: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .opacity(canReset ? 1 : 0.25)
-                        .disabled(!canReset)
                         .accessibilityLabel("Reset \(label)")
+                        .transition(.opacity)
                     }
                     Spacer()
                     Text(valueText(safeValue))
@@ -291,7 +521,7 @@ struct DialSliderRow: View {
                 )
             )
         }
-        .frame(height: PanelStyle.sliderHeight)
+        .frame(height: PanelStyle.rowHeight)
     }
 }
 

@@ -134,7 +134,7 @@ private struct PeekActionButton: View {
                 .font(.system(size: 19, weight: .regular))
                 .foregroundStyle(.primary)
                 .frame(width: 46, height: 46)
-                .background(Color(uiColor: .systemGray5), in: .circle)
+                .background(PanelStyle.rowFillActive, in: .circle)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
@@ -146,19 +146,22 @@ private struct PeekActionButton: View {
 
 private struct EmptySelectionContent: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Image(systemName: "square.dashed")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
-            Text("No layer selected")
-                .font(.headline)
-                .foregroundStyle(.primary)
-            Text("Tap + to add a shape, text, or image.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 38, weight: .light))
+                .foregroundStyle(.secondary.opacity(0.7))
+            VStack(spacing: 4) {
+                Text("Nothing selected")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text("Tap a layer on the canvas, or add a shape, text, or image.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 32)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 40)
     }
 }

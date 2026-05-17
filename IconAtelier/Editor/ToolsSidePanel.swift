@@ -44,63 +44,8 @@ struct EditTabContent: View {
 
     @ViewBuilder
     private func shadowSection(for layer: Layer) -> some View {
-        PanelSection(title: "Shadow", defaultExpanded: false) {
-            ColorPickerRow(
-                title: "Color",
-                color: Binding(
-                    get: { layer.shadowColor },
-                    set: { layer.shadowColor = $0 }
-                ),
-                project: project
-            )
-
-            DialSliderRow(
-                label: "Opacity",
-                value: Binding(
-                    get: { layer.shadowOpacity },
-                    set: { layer.shadowOpacity = $0 }
-                ),
-                range: 0 ... 1,
-                valueText: { String(format: "%.0f%%", $0 * 100) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-            DialSliderRow(
-                label: "Blur",
-                value: Binding(
-                    get: { layer.shadowRadius },
-                    set: { layer.shadowRadius = $0 }
-                ),
-                range: 0 ... 0.2,
-                valueText: { String(format: "%.0f%%", $0 * 100) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-            DialSliderRow(
-                label: "Offset X",
-                value: Binding(
-                    get: { layer.shadowOffsetX },
-                    set: { layer.shadowOffsetX = $0 }
-                ),
-                range: -0.2 ... 0.2,
-                valueText: { String(format: "%+.2f", $0) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-
-            DialSliderRow(
-                label: "Offset Y",
-                value: Binding(
-                    get: { layer.shadowOffsetY },
-                    set: { layer.shadowOffsetY = $0 }
-                ),
-                range: -0.2 ... 0.2,
-                valueText: { String(format: "%+.2f", $0) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
+        PanelSection(title: "Shadow") {
+            ShadowPanelContent(layer: layer, project: project)
         }
     }
 }

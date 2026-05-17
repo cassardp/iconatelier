@@ -29,22 +29,15 @@ struct BackgroundEditorContent: View {
     @ViewBuilder
     private func kindPicker(for background: Background) -> some View {
         PanelSection(title: "Background type") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Self.pickerKinds) { kind in
-                        BackgroundKindButton(
-                            label: kind.label,
-                            isSelected: background.kind == kind,
-                            action: {
-                                guard background.kind != kind else { return }
-                                project.recordUndo()
-                                background.kind = kind
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal, 2)
-            }
+            PanelSegmentedControl(
+                options: Self.pickerKinds,
+                selection: Binding(
+                    get: { background.kind },
+                    set: { background.kind = $0 }
+                ),
+                label: { $0.label },
+                onChange: { project.recordUndo() }
+            )
         }
     }
 
@@ -55,7 +48,7 @@ struct BackgroundEditorContent: View {
         switch background.kind {
         case .solid:
             PanelSection(title: "Color") {
-                BackgroundColorRow(
+                ColorPickerRow(
                     title: "Fill",
                     color: Binding(
                         get: { background.solidColor },
@@ -63,8 +56,7 @@ struct BackgroundEditorContent: View {
                             project.recordUndo()
                             background.solidColor = $0
                         }
-                    ),
-                    project: project
+                    )
                 )
             }
         case .linearGradient:
@@ -169,7 +161,7 @@ struct BackgroundEditorContent: View {
     private func gradientStopsSection(for background: Background) -> some View {
         PanelSection(title: "Colors") {
             ForEach(background.gradientColors.indices, id: \.self) { idx in
-                BackgroundColorRow(
+                ColorPickerRow(
                     title: "Stop \(idx + 1)",
                     color: Binding(
                         get: { background.gradientColors[idx] },
@@ -177,8 +169,7 @@ struct BackgroundEditorContent: View {
                             project.recordUndo()
                             background.gradientColors[idx] = $0
                         }
-                    ),
-                    project: project
+                    )
                 )
             }
         }
@@ -243,25 +234,21 @@ struct BackgroundEditorContent: View {
 
     private func meshCornersSection(for background: Background) -> some View {
         PanelSection(title: "Corners") {
-            BackgroundColorRow(
+            ColorPickerRow(
                 title: "Top-left",
-                color: meshBinding(for: background, index: 0),
-                project: project
+                color: meshBinding(for: background, index: 0)
             )
-            BackgroundColorRow(
+            ColorPickerRow(
                 title: "Top-right",
-                color: meshBinding(for: background, index: 2),
-                project: project
+                color: meshBinding(for: background, index: 2)
             )
-            BackgroundColorRow(
+            ColorPickerRow(
                 title: "Bottom-left",
-                color: meshBinding(for: background, index: 6),
-                project: project
+                color: meshBinding(for: background, index: 6)
             )
-            BackgroundColorRow(
+            ColorPickerRow(
                 title: "Bottom-right",
-                color: meshBinding(for: background, index: 8),
-                project: project
+                color: meshBinding(for: background, index: 8)
             )
         }
     }
@@ -284,29 +271,6 @@ struct BackgroundEditorContent: View {
 
 }
 
-// MARK: - Kind button
-
-private struct BackgroundKindButton: View {
-    let label: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
-                .padding(.horizontal, 16)
-                .frame(height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                        .fill(isSelected ? PanelStyle.rowFillSelected : PanelStyle.rowFill)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 private extension BackgroundKind {
     var label: String {
         switch self {
@@ -318,26 +282,3 @@ private extension BackgroundKind {
     }
 }
 
-// MARK: - Color row (background-flavored copy with bigger swatch)
-
-private struct BackgroundColorRow: View {
-    let title: String
-    @Binding var color: Color
-    let project: IconProject
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(title)
-                .foregroundStyle(.primary.opacity(0.72))
-            Spacer()
-            ColorPicker("", selection: $color, supportsOpacity: false)
-                .labelsHidden()
-        }
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                .fill(PanelStyle.rowFill)
-        )
-    }
-}
