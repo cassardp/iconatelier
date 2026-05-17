@@ -27,7 +27,7 @@ struct IconCanvasView: View {
         var isSnapped: Bool = false
     }
 
-    private static let snapThreshold: CGFloat = 8
+    private static let snapThreshold: CGFloat = 4
     private static let rotationSnapThreshold: Double = 5
 
     static func normalized(_ angle: Angle) -> Angle {
