@@ -75,6 +75,17 @@ struct SuperellipseShape: InsettableShape, Equatable {
     /// squircle-style continuum (n ≈ 5.2 sits around roundness ≈ 0.4).
     var roundness: Double
 
+    /// Starting angle of the arc, in degrees. 0 = right (3 o'clock),
+    /// -90 = top, 90 = bottom. Ignored when `arcSweep >= 1`.
+    var arcStart: Double = -90
+
+    /// Fraction of the full revolution to trace, 0...1. 1 produces a
+    /// closed loop (default). Anything less produces an OPEN arc — the
+    /// path is not closed, so a fill will look like a pie slice
+    /// (CGPath closes implicitly between endpoints) while a stroke
+    /// shows only the arc itself.
+    var arcSweep: Double = 1.0
+
     private static let sampleCount = 360
     private static let minExponent: Double = 2.0
     private static let maxExponent: Double = 10.0
@@ -96,9 +107,16 @@ struct SuperellipseShape: InsettableShape, Equatable {
         let cy = rect.midY
         let invN = 2.0 / exponent
 
+        // arcSweep < 1 → open arc; >= 1 → full closed loop.
+        let sweepFrac = max(0, min(1, arcSweep))
+        let isClosed = sweepFrac >= 1.0 - 1e-6
+        let startRad = arcStart * .pi / 180
+        let totalRad = (isClosed ? 2 : sweepFrac * 2) * .pi
+        let segments = isClosed ? Self.sampleCount : max(2, Int((Double(Self.sampleCount) * sweepFrac).rounded()))
+
         var path = Path()
-        for i in 0...Self.sampleCount {
-            let t = (Double(i) / Double(Self.sampleCount)) * 2 * .pi
+        for i in 0...segments {
+            let t = startRad + (Double(i) / Double(segments)) * totalRad
             let c = Darwin.cos(t)
             let s = Darwin.sin(t)
             let x = (c >= 0 ? 1.0 : -1.0) * pow(abs(c), invN)
@@ -110,7 +128,9 @@ struct SuperellipseShape: InsettableShape, Equatable {
                 path.addLine(to: p)
             }
         }
-        path.closeSubpath()
+        if isClosed {
+            path.closeSubpath()
+        }
         return path
     }
 

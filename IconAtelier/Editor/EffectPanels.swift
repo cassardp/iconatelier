@@ -39,6 +39,7 @@ struct BorderPanelContent: View {
                 onBeginEditing: { project.recordUndo() }
             )
             BorderPositionRow(position: $layer.borderPosition, project: project)
+            LineCapRow(layer: layer, project: project)
             ColorPickerRow(
                 title: "Color",
                 color: $layer.borderColor,
@@ -69,6 +70,23 @@ private struct BorderPositionRow: View {
             selection: Binding(
                 get: { position },
                 set: { position = $0 }
+            ),
+            label: { $0.displayName },
+            onChange: { project.recordUndo() }
+        )
+    }
+}
+
+private struct LineCapRow: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    var body: some View {
+        PanelSegmentedControl(
+            options: LayerLineCap.allCases,
+            selection: Binding(
+                get: { layer.lineCap },
+                set: { layer.lineCap = $0 }
             ),
             label: { $0.displayName },
             onChange: { project.recordUndo() }

@@ -50,8 +50,12 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     // circle/ellipse, 0 = very square corners. Aspect ratio (oval vs round)
     // is layered on via the outer `.transform` wrapper, same as every other
     // parametric family.
+    // `arcSweep` < 1 produces an OPEN path (an arc) — combined with a
+    // stroke this draws partial rings (half-moon, three-quarter, etc.).
     case ellipse(
-        roundness: Double   // 0...1 — 1 = pure circle, 0 = near-rectangle
+        roundness: Double,  // 0...1 — 1 = pure circle, 0 = near-rectangle
+        arcStart: Double,   // degrees, -180...180. 0 = right (3 o'clock), -90 = top.
+        arcSweep: Double    // 0...1 — fraction of the full revolution to draw. 1 = closed loop.
     )
     // The true Apple icon squircle (Lamé curve, n ≈ 5.2). Parameter-less by
     // design — it must stay pixel-identical to the iOS-icon mask used by
@@ -121,7 +125,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 roundness: c.roundness
             )
         case .ellipse:
-            return .ellipse(roundness: 1.0)
+            return .ellipse(roundness: 1.0, arcStart: -90, arcSweep: 1.0)
         case .polygon:
             let c = p.canonical
             return .polygon(
@@ -281,8 +285,12 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 tailOffset: tailOffset,
                 bend: bend
             ))
-        case let .ellipse(roundness):
-            return AnyShape(SuperellipseShape(roundness: roundness))
+        case let .ellipse(roundness, arcStart, arcSweep):
+            return AnyShape(SuperellipseShape(
+                roundness: roundness,
+                arcStart: arcStart,
+                arcSweep: arcSweep
+            ))
         case .iosSquircle:
             return AnyShape(SquircleShape())
         case .customPath(let primitive):
@@ -334,6 +342,22 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     /// Parametric shapes carry their own corner curvature (`roundness`) —
     /// the Layer-level cornerRadius slider is therefore hidden for them.
     var hasIntrinsicCornerRadius: Bool { true }
+
+    /// True when the rendered path is open (an arc, not a closed loop).
+    /// Open paths can't be reliably hit-tested via `Path.contains`, so the
+    /// renderer falls back to a Rectangle content shape for these.
+    var isOpenPath: Bool {
+        switch self {
+        case let .ellipse(_, _, arcSweep):
+            return arcSweep < 1.0 - 1e-6
+        case .transform(let base, _, _, _):
+            return base.isOpenPath
+        case .radialRepeat(let base, _, _, _, _):
+            return base.isOpenPath
+        default:
+            return false
+        }
+    }
 }
 
 nonisolated struct RadialRepeatParams: Hashable, Sendable {
@@ -462,7 +486,7 @@ nonisolated extension ShapeSpec: Codable {
         case pointiness, bulbSize, tailOffset, bend
     }
     private enum EllipseKeys: String, CodingKey {
-        case roundness
+        case roundness, arcStart, arcSweep
     }
     private enum RadialKeys: String, CodingKey {
         case base, count, centerHole, phaseDegrees, alternateScale
@@ -513,7 +537,11 @@ nonisolated extension ShapeSpec: Codable {
         if container.contains(.ellipse) {
             let nested = try container.nestedContainer(keyedBy: EllipseKeys.self, forKey: .ellipse)
             let roundness = try nested.decode(Double.self, forKey: .roundness)
-            self = .ellipse(roundness: roundness)
+            // Arc params added later — default to a full closed ellipse so
+            // pre-arc projects decode unchanged.
+            let arcStart = try nested.decodeIfPresent(Double.self, forKey: .arcStart) ?? -90
+            let arcSweep = try nested.decodeIfPresent(Double.self, forKey: .arcSweep) ?? 1.0
+            self = .ellipse(roundness: roundness, arcStart: arcStart, arcSweep: arcSweep)
             return
         }
         if container.contains(.customPath) {
@@ -576,9 +604,11 @@ nonisolated extension ShapeSpec: Codable {
             try nested.encode(bulbSize, forKey: .bulbSize)
             try nested.encode(tailOffset, forKey: .tailOffset)
             try nested.encode(bend, forKey: .bend)
-        case let .ellipse(roundness):
+        case let .ellipse(roundness, arcStart, arcSweep):
             var nested = container.nestedContainer(keyedBy: EllipseKeys.self, forKey: .ellipse)
             try nested.encode(roundness, forKey: .roundness)
+            try nested.encode(arcStart, forKey: .arcStart)
+            try nested.encode(arcSweep, forKey: .arcSweep)
         case let .transform(base, sx, sy, rot):
             var nested = container.nestedContainer(keyedBy: TransformKeys.self, forKey: .transform)
             try nested.encode(base, forKey: .base)

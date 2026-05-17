@@ -7,6 +7,16 @@ struct ParametricShapeContentSection: View {
     var body: some View {
         PanelSection(title: "Shape") {
             ColorPickerRow(title: "Color", color: $layer.tintColor, onChange: { project.recordUndo() })
+            PanelToggleRow(
+                label: "Fill",
+                isOn: Binding(
+                    get: { layer.fillEnabled },
+                    set: { newVal in
+                        project.recordUndo()
+                        layer.fillEnabled = newVal
+                    }
+                )
+            )
             if isPolygonFamily {
                 polygonSliders
             } else if isStarFamily {
@@ -141,6 +151,26 @@ struct ParametricShapeContentSection: View {
             defaultValue: 100,
             onBeginEditing: { project.recordUndo() }
         )
+        DialSliderRow(
+            label: "Arc Sweep",
+            value: ellipseArcSweepBinding,
+            range: 0 ... 100,
+            valueText: { "\(Int($0.rounded()))%" },
+            defaultValue: 100,
+            onBeginEditing: { project.recordUndo() }
+        )
+        // Start angle is only meaningful when the arc is partial — a full
+        // ring looks identical at any start angle.
+        if currentEllipseParams.arcSweep < 1.0 - 1e-6 {
+            DialSliderRow(
+                label: "Arc Start",
+                value: ellipseArcStartBinding,
+                range: -180 ... 180,
+                valueText: { String(format: "%.0f°", $0) },
+                defaultValue: -90,
+                onBeginEditing: { project.recordUndo() }
+            )
+        }
     }
 
     @ViewBuilder
@@ -322,25 +352,58 @@ struct ParametricShapeContentSection: View {
 
     // MARK: - Ellipse parameter plumbing
 
-    private var currentEllipseRoundness: Double {
-        if case let .ellipse(roundness) = layer.shapeSpec?.deepestBase {
-            return roundness
-        }
-        return 1.0
+    private struct EllipseParams: Equatable {
+        var roundness: Double
+        var arcStart: Double
+        var arcSweep: Double
+
+        static let fallback = EllipseParams(roundness: 1.0, arcStart: -90, arcSweep: 1.0)
     }
 
-    private func applyEllipseRoundness(_ r: Double) {
-        let newBase = ShapeSpec.ellipse(roundness: r)
+    private var currentEllipseParams: EllipseParams {
+        if case let .ellipse(roundness, arcStart, arcSweep) = layer.shapeSpec?.deepestBase {
+            return EllipseParams(roundness: roundness, arcStart: arcStart, arcSweep: arcSweep)
+        }
+        return .fallback
+    }
+
+    private func applyEllipseParams(_ p: EllipseParams) {
+        let newBase = ShapeSpec.ellipse(
+            roundness: p.roundness, arcStart: p.arcStart, arcSweep: p.arcSweep
+        )
         layer.shapeSpec = (layer.shapeSpec ?? .defaultShape)
             .replacingBase(with: newBase)
     }
 
     private var ellipseRoundnessBinding: Binding<Double> {
         Binding(
-            get: { currentEllipseRoundness * 100 },
+            get: { currentEllipseParams.roundness * 100 },
             set: { newPercent in
-                let clamped = min(1, max(0, newPercent / 100))
-                applyEllipseRoundness(clamped)
+                var p = currentEllipseParams
+                p.roundness = min(1, max(0, newPercent / 100))
+                applyEllipseParams(p)
+            }
+        )
+    }
+
+    private var ellipseArcSweepBinding: Binding<Double> {
+        Binding(
+            get: { currentEllipseParams.arcSweep * 100 },
+            set: { newPercent in
+                var p = currentEllipseParams
+                p.arcSweep = min(1, max(0, newPercent / 100))
+                applyEllipseParams(p)
+            }
+        )
+    }
+
+    private var ellipseArcStartBinding: Binding<Double> {
+        Binding(
+            get: { currentEllipseParams.arcStart },
+            set: { newDeg in
+                var p = currentEllipseParams
+                p.arcStart = max(-180, min(180, newDeg))
+                applyEllipseParams(p)
             }
         )
     }

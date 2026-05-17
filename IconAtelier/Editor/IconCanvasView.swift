@@ -419,13 +419,16 @@ struct LayerContentView: View {
             }()
             let strokeWidth = textSide * CGFloat(layer.borderWidth)
             ZStack {
-                renderShape.fill(layer.tintColor)
+                if layer.fillEnabled {
+                    renderShape.fill(layer.tintColor)
+                }
                 if strokeWidth > 0 {
                     borderView(
                         shape: renderShape,
                         width: strokeWidth,
                         color: layer.borderColor,
-                        position: layer.borderPosition
+                        position: layer.borderPosition,
+                        lineCap: layer.lineCap.cgLineCap
                     )
                 }
             }
@@ -440,21 +443,29 @@ struct LayerContentView: View {
                 let shape = spec.anyShape()
                 let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
                 ZStack {
-                    shape.fill(layer.tintColor)
+                    if layer.fillEnabled {
+                        shape.fill(layer.tintColor)
+                    }
                     if strokeWidth > 0 {
                         borderView(
                             shape: shape,
                             width: strokeWidth,
+                            // Open paths can't use .inner / .outer — those
+                            // clip / punch-out via the shape's fill, which
+                            // implicitly closes the arc and chops off the
+                            // stroke endpoints. Force .center so caps stay
+                            // intact.
                             color: layer.borderColor,
-                            position: layer.borderPosition
+                            position: spec.isOpenPath ? .center : layer.borderPosition,
+                            lineCap: layer.lineCap.cgLineCap
                         )
                     }
                 }
                 .frame(width: shapeSide, height: shapeSide)
-                // Precise hit-testing via Path.contains: taps in the negative
-                // space of a star or radial-repeat pattern don't select the
-                // layer anymore — they fall through to whatever is below.
-                .contentShape(shape)
+                // Precise hit-testing via Path.contains for closed paths.
+                // Open paths (e.g. partial-arc ellipse) can't be hit-tested
+                // that way, so fall back to a Rectangle content shape.
+                .contentShape(spec.isOpenPath ? AnyShape(Rectangle()) : shape)
             } else {
                 Color.clear
                     .frame(width: shapeSide, height: shapeSide)
@@ -470,20 +481,24 @@ struct LayerContentView: View {
     //    width = `width`, fully inside, no overflow.
     //  - .outer:  doubled stroke with the shape's interior punched out via
     //    `destinationOut`. Effective width = `width`, fully outside.
+    //
+    // `lineCap` is the user-selected cap — visible only on open paths
+    // (partial arcs). Closed loops join back into themselves so cap style
+    // is invisible there.
     @ViewBuilder
-    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition) -> some View {
-        // Use rounded joins/caps everywhere — at large render sizes the default
+    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition, lineCap: CGLineCap) -> some View {
+        // Use rounded joins everywhere — at large render sizes the default
         // .miter join produces long spikes wherever a glyph or path has an
         // acute angle. Invisible on a 56pt thumbnail, very visible at full
         // canvas size as a stray "tail" outside the shape.
         switch position {
         case .center:
-            shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: lineCap, lineJoin: .round))
         case .inner:
-            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: .round))
                 .clipShape(shape)
         case .outer:
-            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: .round))
                 .overlay(shape.fill(.black).blendMode(.destinationOut))
                 .compositingGroup()
         }

@@ -41,6 +41,28 @@ enum BorderPosition: String, CaseIterable {
     }
 }
 
+enum LayerLineCap: String, CaseIterable {
+    case butt
+    case round
+    case square
+
+    var displayName: String {
+        switch self {
+        case .butt:   return "Butt"
+        case .round:  return "Round"
+        case .square: return "Square"
+        }
+    }
+
+    var cgLineCap: CGLineCap {
+        switch self {
+        case .butt:   return .butt
+        case .round:  return .round
+        case .square: return .square
+        }
+    }
+}
+
 enum LayerFontDesign: String, CaseIterable {
     case `default`
     case serif
@@ -89,6 +111,8 @@ final class Layer {
     var borderWidth: Double = 0
     var storedBorderColor: StoredColor = StoredColor.black
     var borderPositionRaw: String = BorderPosition.center.rawValue
+    var fillEnabled: Bool = true
+    var lineCapRaw: String = LayerLineCap.round.rawValue
 
     var offsetW: Double = 0
     var offsetH: Double = 0
@@ -190,6 +214,11 @@ final class Layer {
         set { borderPositionRaw = newValue.rawValue }
     }
 
+    var lineCap: LayerLineCap {
+        get { LayerLineCap(rawValue: lineCapRaw) ?? .round }
+        set { lineCapRaw = newValue.rawValue }
+    }
+
     var shapeSpec: ShapeSpec? {
         get {
             guard let data = shapeSpecJSON else { return nil }
@@ -218,6 +247,8 @@ struct LayerSnapshot {
     let borderWidth: Double
     let borderColor: StoredColor
     let borderPosition: BorderPosition
+    let fillEnabled: Bool
+    let lineCap: LayerLineCap
     let offsetW: Double
     let offsetH: Double
     let scaleValue: Double
@@ -252,6 +283,8 @@ extension Layer {
             borderWidth: borderWidth,
             borderColor: storedBorderColor,
             borderPosition: borderPosition,
+            fillEnabled: fillEnabled,
+            lineCap: lineCap,
             offsetW: offsetW,
             offsetH: offsetH,
             scaleValue: scaleValue,
@@ -284,6 +317,8 @@ extension Layer {
         borderWidth = s.borderWidth
         storedBorderColor = s.borderColor
         borderPositionRaw = s.borderPosition.rawValue
+        fillEnabled = s.fillEnabled
+        lineCapRaw = s.lineCap.rawValue
         offsetW = s.offsetW
         offsetH = s.offsetH
         scaleValue = s.scaleValue

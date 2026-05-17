@@ -174,6 +174,8 @@ enum LibraryImporter {
         layer.storedBorderColor = dto.borderColor
         layer.borderPositionRaw = dto.borderPosition
         layer.shapeSpecJSON = dto.shapeSpecJSON
+        layer.fillEnabled = dto.fillEnabled ?? true
+        layer.lineCapRaw = dto.lineCap ?? LayerLineCap.round.rawValue
         return layer
     }
 }

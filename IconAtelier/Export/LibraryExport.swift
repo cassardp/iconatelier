@@ -93,6 +93,9 @@ struct LayerExport: Codable {
     let borderColor: StoredColor
     let borderPosition: String
     let shapeSpecJSON: Data?
+    // Added after v1 — optional to keep older bundles decodable.
+    let fillEnabled: Bool?
+    let lineCap: String?
 }
 
 // MARK: - Exporter service
@@ -175,7 +178,9 @@ enum LibraryExporter {
                     borderWidth: layer.borderWidth,
                     borderColor: layer.storedBorderColor,
                     borderPosition: layer.borderPositionRaw,
-                    shapeSpecJSON: layer.shapeSpecJSON
+                    shapeSpecJSON: layer.shapeSpecJSON,
+                    fillEnabled: layer.fillEnabled,
+                    lineCap: layer.lineCapRaw
                 ))
             }
 
