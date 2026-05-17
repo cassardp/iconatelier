@@ -559,7 +559,7 @@ struct LayerContentView: View {
             let strokeWidth = textSide * CGFloat(layer.borderWidth)
             ZStack {
                 if layer.fillEnabled {
-                    renderShape.fill(layer.tintColor)
+                    PaintFill(renderShape, paint: layer.fillPaint, side: textSide)
                 }
                 if strokeWidth > 0 {
                     borderView(
@@ -583,7 +583,7 @@ struct LayerContentView: View {
                 let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
                 ZStack {
                     if layer.fillEnabled {
-                        shape.fill(layer.tintColor)
+                        PaintFill(shape, paint: layer.fillPaint, side: shapeSide)
                     }
                     if strokeWidth > 0 {
                         borderView(

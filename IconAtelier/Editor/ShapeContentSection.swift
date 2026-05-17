@@ -5,31 +5,51 @@ struct ShapeContentSection: View {
     let project: IconProject
 
     var body: some View {
-        // Title is the live shape family (Square, Pentagon, Star 5, Circle,
-        // Drop, Squircle, Custom…) so the panel header always tells the
-        // user which family they're editing.
-        PanelSection(title: shapeFamilyTitle) {
-            ColorPickerRow(title: "Color", color: $layer.tintColor, onChange: { project.recordUndo() })
-            PanelToggleRow(
-                label: "Fill",
-                isOn: Binding(
-                    get: { layer.fillEnabled },
-                    set: { newVal in
-                        project.recordUndo()
-                        layer.fillEnabled = newVal
-                    }
-                )
-            )
-            if isPolygonFamily {
-                polygonSliders
-            } else if isStarFamily {
-                starSliders
-            } else if isEllipseFamily {
-                ellipseSliders
-            } else if isDropFamily {
-                dropSliders
+        // Family section — title is the live shape family (Square,
+        // Pentagon, Star 5, Circle, Drop, Squircle, Custom…) so the
+        // panel header always tells the user which family they're
+        // editing. Holds only the shape-parameter sliders; the fill UI
+        // lives in its own section below.
+        if hasFamilySliders {
+            PanelSection(title: shapeFamilyTitle) {
+                if isPolygonFamily {
+                    polygonSliders
+                } else if isStarFamily {
+                    starSliders
+                } else if isEllipseFamily {
+                    ellipseSliders
+                } else if isDropFamily {
+                    dropSliders
+                }
             }
+            SectionDivider()
         }
+        PanelSection(
+            title: "Fill",
+            isOn: Binding(
+                get: { layer.fillEnabled },
+                set: { newVal in
+                    project.recordUndo()
+                    layer.fillEnabled = newVal
+                }
+            )
+        ) {
+            PaintEditor(
+                paint: Binding(
+                    get: { layer.fillPaint },
+                    set: { layer.fillPaint = $0 }
+                ),
+                onBeginEditing: { project.recordUndo() },
+                sectioned: false
+            )
+        }
+    }
+
+    /// True when the family has its own parameter sliders to render
+    /// (polygon/star/ellipse/drop). Squircle and custom-path shapes
+    /// don't, so we skip the empty family section for them.
+    private var hasFamilySliders: Bool {
+        isPolygonFamily || isStarFamily || isEllipseFamily || isDropFamily
     }
 
     /// Title shown on the main section header — name of the live family

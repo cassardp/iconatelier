@@ -102,6 +102,12 @@ final class Layer {
 
     var storedTintColor: StoredColor = StoredColor.white
 
+    /// JSON-encoded `Paint` used as the fill for shape and text layers.
+    /// `nil` means "fall back to a solid Paint built from `tintColor`" —
+    /// keeps freshly-added layers (and pre-Paint records) rendering as
+    /// before without forcing a migration step.
+    var fillPaintJSON: Data?
+
     var shapeSpecJSON: Data?
 
     // Shape-level styling (applies to .parametricShape layers).
@@ -227,6 +233,30 @@ final class Layer {
             shapeSpecJSON = newValue.flatMap { try? JSONEncoder().encode($0) }
         }
     }
+
+    /// Shape/text fill description. When no Paint has been stored yet,
+    /// falls back to a solid Paint built from `tintColor` so the layer
+    /// renders identically to its pre-Paint state. The setter clears the
+    /// JSON when assigned the "tintColor-equivalent" solid so we don't
+    /// drift from the simple-color UI for image layers.
+    var fillPaint: Paint {
+        get {
+            if let data = fillPaintJSON,
+               let p = try? JSONDecoder().decode(Paint.self, from: data) {
+                return p
+            }
+            return .solid(tintColor)
+        }
+        set {
+            fillPaintJSON = try? JSONEncoder().encode(newValue)
+            // Keep tintColor in sync with the solid case so any code path
+            // still reading `tintColor` (image colorMultiply, snapshot
+            // hashing, …) reflects the active fill.
+            if newValue.kind == .solid {
+                storedTintColor = newValue.solidColor
+            }
+        }
+    }
 }
 
 // MARK: - Snapshot for undo
@@ -240,6 +270,7 @@ struct LayerSnapshot {
     let fontWeight: LayerFontWeight
     let fontDesign: LayerFontDesign
     let tintColor: StoredColor
+    let fillPaintJSON: Data?
     let shapeSpecJSON: Data?
     let cornerRadius: Double
     let borderWidth: Double
@@ -275,6 +306,7 @@ extension Layer {
             fontWeight: fontWeight,
             fontDesign: fontDesign,
             tintColor: storedTintColor,
+            fillPaintJSON: fillPaintJSON,
             shapeSpecJSON: shapeSpecJSON,
             cornerRadius: cornerRadius,
             borderWidth: borderWidth,
@@ -308,6 +340,7 @@ extension Layer {
         fontWeightRaw = s.fontWeight.rawValue
         fontDesignRaw = s.fontDesign.rawValue
         storedTintColor = s.tintColor
+        fillPaintJSON = s.fillPaintJSON
         shapeSpecJSON = s.shapeSpecJSON
         cornerRadius = s.cornerRadius
         borderWidth = s.borderWidth

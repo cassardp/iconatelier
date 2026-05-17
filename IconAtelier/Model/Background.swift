@@ -2,14 +2,11 @@ import SwiftUI
 import SwiftData
 import UIKit
 
-enum BackgroundKind: String, CaseIterable, Identifiable {
-    case solid
-    case meshGradient
-    case linearGradient
-    case radialGradient
-
-    var id: String { rawValue }
-}
+// Legacy alias — `Background` and the rest of the codebase were written
+// around `BackgroundKind` before the shared `Paint` model existed. The two
+// enums are intentionally one-to-one (same raw values), so we just route
+// every reference through `PaintKind`.
+typealias BackgroundKind = PaintKind
 
 @Model
 final class Background {
@@ -82,6 +79,39 @@ final class Background {
     var meshColors: [Color] {
         get { storedMeshColors.map { $0.color } }
         set { storedMeshColors = newValue.map { StoredColor($0) } }
+    }
+
+    // MARK: - Paint bridge
+    //
+    // Snapshot the Background's flat columns into a `Paint` value so the
+    // shared `PaintEditor` (also used by shape/text fill) can drive the
+    // Background through a single `Binding<Paint>`. The setter splats the
+    // value back into the same columns — round-trip is lossless.
+    var paint: Paint {
+        get {
+            Paint(
+                kind: kind,
+                solidColor: storedSolidColor,
+                gradientColors: storedGradientColors,
+                linearStart: storedLinearStart,
+                linearEnd: storedLinearEnd,
+                gradientCenter: storedGradientCenter,
+                radialSpread: radialSpread,
+                meshColors: storedMeshColors,
+                meshRotationDegrees: meshRotationDegrees
+            )
+        }
+        set {
+            kindRaw = newValue.kind.rawValue
+            storedSolidColor = newValue.solidColor
+            storedGradientColors = newValue.gradientColors
+            storedLinearStart = newValue.linearStart
+            storedLinearEnd = newValue.linearEnd
+            storedGradientCenter = newValue.gradientCenter
+            radialSpread = newValue.radialSpread
+            storedMeshColors = newValue.meshColors
+            meshRotationDegrees = newValue.meshRotationDegrees
+        }
     }
 
     // MARK: - Defaults

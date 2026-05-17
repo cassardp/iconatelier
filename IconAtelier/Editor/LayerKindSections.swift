@@ -27,9 +27,19 @@ struct TextContentSection: View {
                 focused: $textFocused,
                 project: project
             )
-            ColorPickerRow(title: "Color", color: $layer.tintColor, onChange: { project.recordUndo() })
             FontDesignRow(design: $layer.fontDesign, project: project)
             FontWeightRow(weight: $layer.fontWeight, project: project)
+        }
+        SectionDivider()
+        PanelSection(title: "Fill") {
+            PaintEditor(
+                paint: Binding(
+                    get: { layer.fillPaint },
+                    set: { layer.fillPaint = $0 }
+                ),
+                onBeginEditing: { project.recordUndo() },
+                sectioned: false
+            )
         }
     }
 }

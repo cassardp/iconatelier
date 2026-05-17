@@ -178,6 +178,7 @@ enum LibraryImporter {
         layer.shapeSpecJSON = dto.shapeSpecJSON
         layer.fillEnabled = dto.fillEnabled ?? true
         layer.lineCapRaw = dto.lineCap ?? LayerLineCap.round.rawValue
+        layer.fillPaintJSON = dto.fillPaintJSON
         return layer
     }
 }

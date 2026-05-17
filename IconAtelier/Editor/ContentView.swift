@@ -550,6 +550,7 @@ struct ContentView: View {
             hasher.combine(layer.storedBorderColor)
             hasher.combine(layer.borderPositionRaw)
             hasher.combine(layer.storedTintColor)
+            hasher.combine(layer.fillPaintJSON?.hashValue ?? 0)
             hasher.combine(layer.scaleValue)
             hasher.combine(layer.rotationRadians)
             hasher.combine(layer.offsetW)

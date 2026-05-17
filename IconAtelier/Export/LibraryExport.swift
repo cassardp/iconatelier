@@ -98,6 +98,10 @@ struct LayerExport: Codable {
     // Added after v1 — optional to keep older bundles decodable.
     let fillEnabled: Bool?
     let lineCap: String?
+    /// JSON-encoded `Paint` for shape/text fills. Optional so bundles
+    /// produced before the Paint refactor still decode — those layers
+    /// fall back to a solid Paint built from `tintColor` on read.
+    let fillPaintJSON: Data?
 }
 
 // MARK: - Exporter service
@@ -182,7 +186,8 @@ enum LibraryExporter {
                     borderPosition: layer.borderPositionRaw,
                     shapeSpecJSON: layer.shapeSpecJSON,
                     fillEnabled: layer.fillEnabled,
-                    lineCap: layer.lineCapRaw
+                    lineCap: layer.lineCapRaw,
+                    fillPaintJSON: layer.fillPaintJSON
                 ))
             }
 
