@@ -16,7 +16,7 @@ struct EditSheet: View {
         if session.isBackgroundSelected {
             BackgroundEditorContent(project: project, session: session)
         } else if project.layer(withID: session.selectedLayerUUID) != nil {
-            EditTabContent(project: project, session: session)
+            LayerEditorContent(project: project, session: session)
         } else {
             EmptySelectionContent()
         }
@@ -71,6 +71,8 @@ struct LayerActionsRow: View {
     }
 }
 
+/// Background-context actions. The background is unique to the project,
+/// so only visibility is meaningful — no Duplicate or Delete.
 struct BackgroundActionsRow: View {
     @Bindable var project: IconProject
 
@@ -84,17 +86,7 @@ struct BackgroundActionsRow: View {
                 project.recordUndo()
                 background.isHidden.toggle()
             }
-            CompactActionButton(
-                title: "Duplicate",
-                systemImage: "square.on.square",
-                enabled: false
-            ) {}
             Spacer(minLength: 0)
-            CompactActionButton(
-                title: "Delete",
-                systemImage: "trash",
-                enabled: false
-            ) {}
         }
     }
 }

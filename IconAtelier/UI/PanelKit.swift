@@ -37,11 +37,15 @@ struct SectionDivider: View {
 struct PanelSection<Content: View>: View {
     let title: String
     /// Optional on/off toggle pinned to the trailing edge of the header. Used
-    /// for "feature" sections (Border, Shadow, Repeat) where the section's
-    /// rows only make sense when the feature is enabled — the toggle replaces
-    /// a dedicated "Apply" row inside the section.
+    /// for "feature" sections (Border, Shadow, Transform, Radial repeat) where
+    /// the section's rows only make sense when the feature is enabled — the
+    /// toggle replaces a dedicated "Apply" row inside the section.
     var isOn: Binding<Bool>? = nil
     @ViewBuilder var content: () -> Content
+
+    /// True when the section is expanded. Sections without a toggle are
+    /// always expanded; sections with a toggle expand only when on.
+    private var isExpanded: Bool { isOn?.wrappedValue ?? true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -58,10 +62,16 @@ struct PanelSection<Content: View>: View {
             }
             .padding(.horizontal, 4)
 
-            VStack(spacing: 7) {
-                content()
+            // When the section is collapsed (toggle off), the content block
+            // is removed entirely so the parent VStack's spacing settles
+            // around the header alone — no phantom bottom padding from a
+            // padded-but-empty VStack.
+            if isExpanded {
+                VStack(spacing: 7) {
+                    content()
+                }
+                .padding(.top, 6)
             }
-            .padding(.top, 6)
         }
     }
 }

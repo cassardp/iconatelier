@@ -195,6 +195,96 @@ struct ShadowPanelContent: View {
     }
 }
 
+// MARK: - Transform (apply toggle + Stretch X/Y sliders)
+
+/// Tuned defaults applied the first time the user enables Transform. Picks
+/// a clearly visible (but not extreme) horizontal stretch so the section's
+/// activation is immediately obvious — mirrors the "enable = visible
+/// default" pattern shared by Border and Shadow.
+enum TransformDefaults {
+    static let stretchX: Double = 1.5
+    static let stretchY: Double = 1.0
+}
+
+/// Stretch X/Y sliders for the parametric `.transform` wrapper. The wrapper
+/// is only visible when the deepest family supports it (polygon/star/
+/// ellipse/drop) — see `ShapeSpec.supportsTransform`.
+///
+/// Note: bringing both sliders back to 1.0 manually collapses the wrapper
+/// (identity is stripped by `applyingTransform`), which auto-disables the
+/// section. Toggling the section back on restores the tuned defaults.
+struct TransformPanelContent: View {
+    @Bindable var layer: Layer
+    let project: IconProject
+
+    var body: some View {
+        if layer.shapeSpec?.transformParams != nil {
+            sliders
+        }
+    }
+
+    /// Binding driving the section-header toggle. Enabling wraps the live
+    /// base spec in a `.transform` carrying the tuned defaults; disabling
+    /// strips the wrapper by applying identity (which `applyingTransform`
+    /// collapses away).
+    static func enabledBinding(layer: Layer, project: IconProject) -> Binding<Bool> {
+        Binding(
+            get: { layer.shapeSpec?.transformParams != nil },
+            set: { newVal in
+                project.recordUndo()
+                let spec = layer.shapeSpec ?? .defaultShape
+                if newVal {
+                    layer.shapeSpec = spec.applyingTransform(TransformParams(
+                        stretchX: TransformDefaults.stretchX,
+                        stretchY: TransformDefaults.stretchY,
+                        rotation: 0
+                    ))
+                } else {
+                    layer.shapeSpec = spec.applyingTransform(ShapeSpec.identityTransform)
+                }
+            }
+        )
+    }
+
+    private var currentTransform: TransformParams {
+        layer.shapeSpec?.transformParams ?? ShapeSpec.identityTransform
+    }
+
+    private func stretchBinding(
+        _ keyPath: WritableKeyPath<TransformParams, Double>
+    ) -> Binding<Double> {
+        Binding(
+            get: { currentTransform[keyPath: keyPath] },
+            set: { newVal in
+                var t = currentTransform
+                t[keyPath: keyPath] = max(0.3, min(3, newVal))
+                let spec = layer.shapeSpec ?? .defaultShape
+                layer.shapeSpec = spec.applyingTransform(t)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var sliders: some View {
+        DialSliderRow(
+            label: "Stretch X",
+            value: stretchBinding(\.stretchX),
+            range: 0.3 ... 3,
+            valueText: { String(format: "%.2f×", $0) },
+            defaultValue: 1,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Stretch Y",
+            value: stretchBinding(\.stretchY),
+            range: 0.3 ... 3,
+            valueText: { String(format: "%.2f×", $0) },
+            defaultValue: 1,
+            onBeginEditing: { project.recordUndo() }
+        )
+    }
+}
+
 // MARK: - Radial repeat (apply toggle + conditional sliders)
 
 /// Toggle + 4 sliders for the radial-repeat wrap, driven through

@@ -332,6 +332,17 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     /// the Layer-level cornerRadius slider is therefore hidden for them.
     var hasIntrinsicCornerRadius: Bool { true }
 
+    /// True when the deepest family supports per-axis Stretch (and the
+    /// `.transform` wrapper). Parameter-less primitives (Squircle, Custom
+    /// path) don't expose stretch in the editor.
+    var supportsTransform: Bool {
+        switch deepestBase {
+        case .polygon, .star, .ellipse, .drop: return true
+        case .iosSquircle, .customPath: return false
+        case .transform, .radialRepeat: return false // unreachable via deepestBase
+        }
+    }
+
     /// True when the rendered path is open (an arc, not a closed loop).
     /// Open paths can't be reliably hit-tested via `Path.contains`, so the
     /// renderer falls back to a Rectangle content shape for these.

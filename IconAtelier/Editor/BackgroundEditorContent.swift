@@ -30,7 +30,7 @@ struct BackgroundEditorContent: View {
 
     @ViewBuilder
     private func kindPicker(for background: Background) -> some View {
-        PanelSection(title: "Background type") {
+        PanelSection(title: "Type") {
             PanelSegmentedControl(
                 options: Self.pickerKinds,
                 selection: Binding(
@@ -64,21 +64,21 @@ struct BackgroundEditorContent: View {
         case .linearGradient:
             linearPresetsSection(for: background)
             SectionDivider()
-            linearDirectionSection(for: background)
+            gradientStopsSection(for: background, kind: .linearGradient)
             SectionDivider()
-            gradientStopsSection(for: background)
+            linearAngleSlider(for: background)
         case .radialGradient:
             radialPresetsSection(for: background)
             SectionDivider()
-            radialSpreadSection(for: background)
+            gradientStopsSection(for: background, kind: .radialGradient)
             SectionDivider()
-            gradientStopsSection(for: background)
+            radialSpreadSlider(for: background)
         case .meshGradient:
             meshPresetsSection(for: background)
             SectionDivider()
-            meshDirectionSection(for: background)
-            SectionDivider()
             meshCornersSection(for: background)
+            SectionDivider()
+            meshAngleSlider(for: background)
         }
     }
 
@@ -102,20 +102,18 @@ struct BackgroundEditorContent: View {
     }
 
     @ViewBuilder
-    private func radialSpreadSection(for background: Background) -> some View {
-        PanelSection(title: "Spread") {
-            DialSliderRow(
-                label: "Size",
-                value: Binding(
-                    get: { background.radialSpread },
-                    set: { background.radialSpread = $0 }
-                ),
-                range: 0.2 ... 1.5,
-                valueText: { String(format: "%.0f%%", $0 * 100) },
-                defaultValue: 0.75,
-                onBeginEditing: { project.recordUndo() }
-            )
-        }
+    private func radialSpreadSlider(for background: Background) -> some View {
+        DialSliderRow(
+            label: "Spread",
+            value: Binding(
+                get: { background.radialSpread },
+                set: { background.radialSpread = $0 }
+            ),
+            range: 0.2 ... 1.5,
+            valueText: { String(format: "%.0f%%", $0 * 100) },
+            defaultValue: 0.75,
+            onBeginEditing: { project.recordUndo() }
+        )
     }
 
     private func radialPresetsSection(for background: Background) -> some View {
@@ -160,11 +158,14 @@ struct BackgroundEditorContent: View {
         }
     }
 
-    private func gradientStopsSection(for background: Background) -> some View {
+    /// Linear stops read as "Start / End"; radial reads as "Center / Edge"
+    /// (more meaningful than the generic "Stop 1 / Stop 2"). Extra stops
+    /// past the 2 ends fall back to a numbered "Mid N" label.
+    private func gradientStopsSection(for background: Background, kind: BackgroundKind) -> some View {
         PanelSection(title: "Colors") {
             ForEach(background.gradientColors.indices, id: \.self) { idx in
                 ColorPickerRow(
-                    title: "Stop \(idx + 1)",
+                    title: stopLabel(at: idx, total: background.gradientColors.count, kind: kind),
                     color: Binding(
                         get: { background.gradientColors[idx] },
                         set: {
@@ -177,25 +178,40 @@ struct BackgroundEditorContent: View {
         }
     }
 
-    @ViewBuilder
-    private func linearDirectionSection(for background: Background) -> some View {
-        PanelSection(title: "Direction") {
-            DialSliderRow(
-                label: "Angle",
-                value: Binding(
-                    get: { Self.angle(from: background.linearStart, to: background.linearEnd) },
-                    set: { newAngle in
-                        let (s, e) = Self.unitPoints(forAngle: newAngle)
-                        background.linearStart = s
-                        background.linearEnd = e
-                    }
-                ),
-                range: 0 ... 360,
-                valueText: { String(format: "%.0f°", $0) },
-                defaultValue: 90,
-                onBeginEditing: { project.recordUndo() }
-            )
+    private func stopLabel(at idx: Int, total: Int, kind: BackgroundKind) -> String {
+        let isFirst = idx == 0
+        let isLast = idx == total - 1
+        switch kind {
+        case .linearGradient:
+            if isFirst { return "Start" }
+            if isLast  { return "End" }
+            return "Mid \(idx)"
+        case .radialGradient:
+            if isFirst { return "Center" }
+            if isLast  { return "Edge" }
+            return "Mid \(idx)"
+        default:
+            return "Stop \(idx + 1)"
         }
+    }
+
+    @ViewBuilder
+    private func linearAngleSlider(for background: Background) -> some View {
+        DialSliderRow(
+            label: "Angle",
+            value: Binding(
+                get: { Self.angle(from: background.linearStart, to: background.linearEnd) },
+                set: { newAngle in
+                    let (s, e) = Self.unitPoints(forAngle: newAngle)
+                    background.linearStart = s
+                    background.linearEnd = e
+                }
+            ),
+            range: 0 ... 360,
+            valueText: { String(format: "%.0f°", $0) },
+            defaultValue: 90,
+            onBeginEditing: { project.recordUndo() }
+        )
     }
 
     fileprivate static func angle(from start: UnitPoint, to end: UnitPoint) -> Double {
@@ -218,20 +234,18 @@ struct BackgroundEditorContent: View {
     }
 
     @ViewBuilder
-    private func meshDirectionSection(for background: Background) -> some View {
-        PanelSection(title: "Direction") {
-            DialSliderRow(
-                label: "Angle",
-                value: Binding(
-                    get: { background.meshRotationDegrees },
-                    set: { background.meshRotationDegrees = $0 }
-                ),
-                range: 0 ... 360,
-                valueText: { String(format: "%.0f°", $0) },
-                defaultValue: 0,
-                onBeginEditing: { project.recordUndo() }
-            )
-        }
+    private func meshAngleSlider(for background: Background) -> some View {
+        DialSliderRow(
+            label: "Angle",
+            value: Binding(
+                get: { background.meshRotationDegrees },
+                set: { background.meshRotationDegrees = $0 }
+            ),
+            range: 0 ... 360,
+            valueText: { String(format: "%.0f°", $0) },
+            defaultValue: 0,
+            onBeginEditing: { project.recordUndo() }
+        )
     }
 
     private func meshCornersSection(for background: Background) -> some View {

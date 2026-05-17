@@ -1,11 +1,14 @@
 import SwiftUI
 
-struct ParametricShapeContentSection: View {
+struct ShapeContentSection: View {
     @Bindable var layer: Layer
     let project: IconProject
 
     var body: some View {
-        PanelSection(title: "Shape") {
+        // Title is the live shape family (Square, Pentagon, Star 5, Circle,
+        // Drop, Squircle, Custom…) so the panel header always tells the
+        // user which family they're editing.
+        PanelSection(title: shapeFamilyTitle) {
             ColorPickerRow(title: "Color", color: $layer.tintColor, onChange: { project.recordUndo() })
             PanelToggleRow(
                 label: "Fill",
@@ -26,44 +29,14 @@ struct ParametricShapeContentSection: View {
             } else if isDropFamily {
                 dropSliders
             }
-            if isPolygonFamily || isStarFamily || isEllipseFamily || isDropFamily {
-                stretchSliders
-            }
-            OpacitySlider(layer: layer, project: project)
         }
+    }
 
-        SectionDivider()
-        PanelSection(
-            title: "Border",
-            isOn: BorderPanelContent.enabledBinding(
-                layer: layer,
-                project: project,
-                widthDefault: BorderDefaults.shapeWidth
-            )
-        ) {
-            BorderPanelContent(
-                layer: layer,
-                project: project,
-                widthRange: 0 ... 0.5,
-                widthDefault: BorderDefaults.shapeWidth,
-                widthValueText: { String(format: "%.0f%%", $0 * 200) }
-            )
-        }
-
-        SectionDivider()
-        PanelSection(
-            title: "Repeat",
-            // Wrap the live parametric base when enabling, and unwrap back
-            // to it (preserving the polygon) when disabling.
-            isOn: RadialRepeatPanelContent.enabledBinding(
-                layer: layer,
-                project: project,
-                wrapBase: { layer.shapeSpec ?? .defaultShape },
-                disabledShapeSpec: { layer.shapeSpec?.unwrapped }
-            )
-        ) {
-            RadialRepeatPanelContent(layer: layer, project: project)
-        }
+    /// Title shown on the main section header — name of the live family
+    /// (e.g. "Square", "Pentagon", "Star 5", "Circle", "Drop", "Squircle",
+    /// "Custom"). Falls back to "Shape" if the spec is somehow missing.
+    private var shapeFamilyTitle: String {
+        layer.shapeSpec?.displayName ?? "Shape"
     }
 
     // True iOS-icon squircle is parameter-less by design — polygon sliders
@@ -215,26 +188,6 @@ struct ParametricShapeContentSection: View {
             range: -100 ... 100,
             valueText: { "\(Int($0.rounded()))" },
             defaultValue: DropShape.canonical.bend * 100,
-            onBeginEditing: { project.recordUndo() }
-        )
-    }
-
-    @ViewBuilder
-    private var stretchSliders: some View {
-        DialSliderRow(
-            label: "Stretch X",
-            value: stretchBinding(\.stretchX),
-            range: 0.3 ... 3,
-            valueText: { String(format: "%.2f×", $0) },
-            defaultValue: 1,
-            onBeginEditing: { project.recordUndo() }
-        )
-        DialSliderRow(
-            label: "Stretch Y",
-            value: stretchBinding(\.stretchY),
-            range: 0.3 ... 3,
-            valueText: { String(format: "%.2f×", $0) },
-            defaultValue: 1,
             onBeginEditing: { project.recordUndo() }
         )
     }
@@ -467,34 +420,5 @@ struct ParametricShapeContentSection: View {
         )
     }
 
-    // MARK: - Transform plumbing (shared between polygon, star, and drop)
-
-    /// Live transform params from the layer's `.transform` wrapper. Returns
-    /// identity when no wrapper is present — slider getters read this and
-    /// setters wrap/unwrap the spec via `applyingTransform`.
-    private var currentTransform: TransformParams {
-        layer.shapeSpec?.transformParams ?? ShapeSpec.identityTransform
-    }
-
-    private func applyTransform(_ t: TransformParams) {
-        let spec = layer.shapeSpec ?? .defaultShape
-        layer.shapeSpec = spec.applyingTransform(t)
-    }
-
-    // StretchX/StretchY live on the `.transform` wrapper, which is added
-    // on the fly when a slider first leaves identity and stripped back
-    // when both axes return to 1 (handled by `applyingTransform`).
-    private func stretchBinding(
-        _ keyPath: WritableKeyPath<TransformParams, Double>
-    ) -> Binding<Double> {
-        Binding(
-            get: { currentTransform[keyPath: keyPath] },
-            set: { newVal in
-                var t = currentTransform
-                t[keyPath: keyPath] = max(0.3, min(3, newVal))
-                applyTransform(t)
-            }
-        )
-    }
 }
 
