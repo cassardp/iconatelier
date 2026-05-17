@@ -198,6 +198,16 @@ final class IconProject {
     }
 
     @discardableResult
+    func addGeneratedImage(image: UIImage) -> Layer {
+        recordUndo()
+        return append(Layer(
+            kind: .image,
+            name: nextName(for: .image, baseFallback: "Generated"),
+            image: image
+        ))
+    }
+
+    @discardableResult
     func addShapeLayer(spec: ShapeSpec) -> Layer {
         recordUndo()
         return append(Layer(

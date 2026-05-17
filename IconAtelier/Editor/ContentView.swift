@@ -17,6 +17,10 @@ struct ContentView: View {
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
     @State private var showImportPicker: Bool = false
+    @State private var showPromptSheet: Bool = false
+    @State private var isGenerating: Bool = false
+    @State private var generationError: String?
+    @State private var showNoAPIKeyAlert: Bool = false
     @State private var wasEditSheetOpenBeforeExport = false
 
     // Lasso multi-selection (Phase 1)
@@ -44,6 +48,9 @@ struct ContentView: View {
             },
             ShapeFanItem(id: "text", symbol: "textformat", label: "Text") {
                 addTextLayer(presentSheet: false)
+            },
+            ShapeFanItem(id: "generate", symbol: "wand.and.stars", label: "Generate") {
+                showPromptSheet = true
             }
         ]
     }
@@ -229,6 +236,36 @@ struct ContentView: View {
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
         }
+        .sheet(isPresented: $showPromptSheet) {
+            AIPromptSheet { subject, style in
+                handlePromptSubmitted(subject: subject, style: style)
+            }
+        }
+        .alert(
+            "Add OpenAI API key",
+            isPresented: $showNoAPIKeyAlert
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Open the gallery settings to add your OpenAI API key, then try again.")
+        }
+        .alert(
+            "Generation failed",
+            isPresented: Binding(
+                get: { generationError != nil },
+                set: { if !$0 { generationError = nil } }
+            ),
+            presenting: generationError
+        ) { _ in
+            Button("OK", role: .cancel) { generationError = nil }
+        } message: { error in
+            Text(error)
+        }
+        .overlay {
+            if isGenerating {
+                generatingOverlay
+            }
+        }
         .fileImporter(
             isPresented: $showImportPicker,
             allowedContentTypes: [.png],
@@ -403,6 +440,50 @@ struct ContentView: View {
         guard !showEditSheet else { return }
         sheetDetent = .fraction(0.5)
         showEditSheet = true
+    }
+
+    private func handlePromptSubmitted(subject: String, style: AIStyle?) {
+        Task { @MainActor in
+            guard let key = await APIKeyStore.shared.load(), !key.isEmpty else {
+                showNoAPIKeyAlert = true
+                return
+            }
+            isGenerating = true
+            defer { isGenerating = false }
+            let finalPrompt: String
+            if let style {
+                finalPrompt = "\(subject), isolated on transparent background, rendered as \(style.promptFragment)"
+            } else {
+                finalPrompt = subject
+            }
+            do {
+                let image = try await OpenAIImageService().generateOverlay(prompt: finalPrompt)
+                withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
+                    let layer = project.addGeneratedImage(image: image)
+                    session.selectLayer(layer.uuid)
+                }
+                presentEditSheet()
+            } catch {
+                generationError = error.localizedDescription
+            }
+        }
+    }
+
+    private var generatingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 12) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                Text("Generating…")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+            }
+            .padding(24)
+            .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+        }
+        .transition(.opacity)
     }
 
     private func handleImportResult(_ result: Result<[URL], Error>) {

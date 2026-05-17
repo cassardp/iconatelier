@@ -6,6 +6,11 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    @State private var apiKey: String = ""
+    @State private var didLoadKey: Bool = false
+    @State private var isSavingKey: Bool = false
+    @State private var isKeyRevealed: Bool = false
+
     @State private var isExporting: Bool = false
     @State private var exportFile: ExportFile?
     @State private var exportError: String?
@@ -18,6 +23,41 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack {
+                        Group {
+                            if isKeyRevealed {
+                                TextField("sk-...", text: $apiKey)
+                            } else {
+                                SecureField("sk-...", text: $apiKey)
+                            }
+                        }
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.done)
+                        .onSubmit(saveAPIKey)
+
+                        Button {
+                            isKeyRevealed.toggle()
+                        } label: {
+                            Image(systemName: isKeyRevealed ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isKeyRevealed ? "Hide API key" : "Show API key")
+
+                        Button("Save", action: saveAPIKey)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(!didLoadKey || isSavingKey)
+                    }
+                } header: {
+                    Text("OpenAI API Key")
+                } footer: {
+                    Text("Stored securely in the iOS Keychain on this device. Used to generate icons via OpenAI.")
+                }
+
                 Section {
                     Button(action: exportLibrary) {
                         backupRow(
@@ -50,6 +90,11 @@ struct SettingsSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .task {
+                guard !didLoadKey else { return }
+                apiKey = await APIKeyStore.shared.load() ?? ""
+                didLoadKey = true
             }
             .sheet(item: $exportFile) { file in
                 ExportShareView(file: file)
@@ -113,6 +158,15 @@ struct SettingsSheet: View {
             if busy {
                 ProgressView().controlSize(.small)
             }
+        }
+    }
+
+    private func saveAPIKey() {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        isSavingKey = true
+        Task {
+            await APIKeyStore.shared.save(trimmed)
+            await MainActor.run { isSavingKey = false }
         }
     }
 
