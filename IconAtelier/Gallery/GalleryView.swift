@@ -283,9 +283,14 @@ struct GalleryView: View {
 
     private func createNewProject() {
         let project = IconProject(title: "Untitled")
-        project.background = Background(kind: .solid)
-        let textLayer = project.addTextOverlay(text: "New")
-        textLayer.fontWeight = .heavy
+        let tropical = BackgroundPresets.mesh[8]
+        project.background = Background(
+            kind: .meshGradient,
+            meshColors: tropical.meshColors
+        )
+        let silhouette = project.addShapeLayer(spec: .iosSquircle)
+        silhouette.scale = 1.8
+        silhouette.opacity = 0.4
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         modelContext.insert(project)
