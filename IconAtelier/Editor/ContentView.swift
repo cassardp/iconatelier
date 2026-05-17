@@ -12,6 +12,7 @@ struct ContentView: View {
 
     @State private var session = ProjectSession()
     @State private var showEditSheet = false
+    @State private var fanIsOpen = false
     @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
@@ -24,9 +25,36 @@ struct ContentView: View {
     @State private var lassoRect: CGRect? = nil
     private static let editorSpaceName = "iconAtelierEditor"
 
+    private var fanItems: [ShapeFanItem] {
+        [
+            ShapeFanItem(id: "square", symbol: "square", label: "Square") {
+                addShapeLayer(spec: .preset(.square), presentSheet: false)
+            },
+            ShapeFanItem(id: "circle", symbol: "circle", label: "Circle") {
+                addShapeLayer(spec: .preset(.circle), presentSheet: false)
+            },
+            ShapeFanItem(id: "drop", symbol: "drop", label: "Drop") {
+                addShapeLayer(spec: .preset(.drop), presentSheet: false)
+            },
+            ShapeFanItem(id: "flower", symbol: "star", label: "Flower") {
+                addShapeLayer(spec: .preset(.flower6), presentSheet: false)
+            },
+            ShapeFanItem(id: "squircle", symbol: "app", label: "Squircle") {
+                addShapeLayer(spec: .preset(.squircle), presentSheet: false)
+            },
+            ShapeFanItem(id: "text", symbol: "textformat", label: "Text") {
+                addTextLayer(presentSheet: false)
+            }
+        ]
+    }
+
     var body: some View {
         GeometryReader { geo in
             let layersBarHeight: CGFloat = 48
+            // Reserve space below the layers bar for the floating + button
+            // only when it's actually visible. When the edit sheet is open
+            // the button hides, so the bar can sit closer to the sheet edge.
+            let fanButtonRowHeight: CGFloat = showEditSheet ? 0 : 76
             // Minimum air above the icon so it never sticks to the top of the
             // visible band (status bar / nav title).
             let topPadding: CGFloat = 16
@@ -42,9 +70,9 @@ struct ContentView: View {
             let sheetCoverFromScreenBottom = sheetCoverHeight(totalHeight: totalScreenHeight)
             let sheetCoverInGeo = max(0, sheetCoverFromScreenBottom - geo.safeAreaInsets.bottom)
             let visibleHeight = max(0, geo.size.height - sheetCoverInGeo)
-            let iconHeight = max(0, visibleHeight - layersBarHeight - topPadding)
+            let iconHeight = max(0, visibleHeight - layersBarHeight - topPadding - fanButtonRowHeight)
             let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-            let leftover = max(0, visibleHeight - iconSide - layersBarHeight)
+            let leftover = max(0, visibleHeight - iconSide - layersBarHeight - fanButtonRowHeight)
             let topSpacer = max(topPadding, leftover / 2)
             let bottomSpacer = max(0, leftover - topSpacer)
             ZStack {
@@ -60,9 +88,6 @@ struct ContentView: View {
                     LayersBar(
                         project: project,
                         session: session,
-                        onAddShape: { addShapeLayer(spec: .defaultShape) },
-                        onAddText: addTextLayer,
-                        onImportImage: { showImportPicker = true },
                         onItemSelected: presentEditSheet
                     )
                     .onGeometryChange(for: CGRect.self) { proxy in
@@ -70,9 +95,33 @@ struct ContentView: View {
                     } action: { newFrame in
                         layersBarFrame = newFrame
                     }
+                    Color.clear.frame(height: fanButtonRowHeight)
                     Color.clear.frame(height: bottomSpacer)
                 }
                 .frame(width: geo.size.width, height: visibleHeight)
+                .overlay {
+                    if fanIsOpen {
+                        Color.black.opacity(0.001)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.spring(duration: 0.22, bounce: 0.25)) {
+                                    fanIsOpen = false
+                                }
+                            }
+                            .transition(.opacity)
+                    }
+                }
+                .overlay(alignment: .bottom) {
+                    ShapeFanButton(
+                        items: fanItems,
+                        isOpen: $fanIsOpen
+                    )
+                    .padding(.bottom, 16)
+                    .opacity(showEditSheet ? 0 : 1)
+                    .scaleEffect(showEditSheet ? 0.4 : 1)
+                    .animation(.spring(duration: 0.25, bounce: 0.2), value: showEditSheet)
+                    .allowsHitTesting(!showEditSheet)
+                }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 
                 if let rect = lassoRect {
@@ -334,20 +383,20 @@ struct ContentView: View {
             }
     }
 
-    private func addShapeLayer(spec: ShapeSpec) {
+    private func addShapeLayer(spec: ShapeSpec, presentSheet: Bool = true) {
         withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
             let layer = project.addShapeLayer(spec: spec)
             session.selectLayer(layer.uuid)
         }
-        presentEditSheet()
+        if presentSheet { presentEditSheet() }
     }
 
-    private func addTextLayer() {
+    private func addTextLayer(presentSheet: Bool = true) {
         withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
             let layer = project.addTextOverlay()
             session.selectLayer(layer.uuid)
         }
-        presentEditSheet()
+        if presentSheet { presentEditSheet() }
     }
 
     private func presentEditSheet() {

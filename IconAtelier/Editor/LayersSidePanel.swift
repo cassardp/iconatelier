@@ -4,9 +4,6 @@ import UIKit
 struct LayersBar: View {
     @Bindable var project: IconProject
     let session: ProjectSession
-    let onAddShape: () -> Void
-    let onAddText: () -> Void
-    let onImportImage: () -> Void
     let onItemSelected: () -> Void
 
     @State private var draggingUUID: UUID?
@@ -27,7 +24,6 @@ struct LayersBar: View {
         GeometryReader { geo in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.spacing) {
-                    addLayerButton
                     ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
                         rowView(layer: layer, index: idx)
                     }
@@ -40,33 +36,6 @@ struct LayersBar: View {
             .scrollDisabled(draggingUUID != nil)
         }
         .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
-    }
-
-    private var addLayerButton: some View {
-        Menu {
-            Button {
-                onAddShape()
-            } label: {
-                Label("Shape", systemImage: "square.on.circle")
-            }
-            Button {
-                onAddText()
-            } label: {
-                Label("Text", systemImage: "textformat")
-            }
-            Button {
-                onImportImage()
-            } label: {
-                Label("Import Image", systemImage: "square.and.arrow.down")
-            }
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 26, weight: .regular))
-                .foregroundStyle(.primary)
-                .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel("Add layer")
     }
 
     private var backgroundButton: some View {
