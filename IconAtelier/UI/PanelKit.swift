@@ -220,11 +220,12 @@ struct PanelSegmentedControl<Value: Hashable>: View {
     @Binding var selection: Value
     let label: (Value) -> String
     var onChange: (() -> Void)? = nil
+    var segmentHeight: CGFloat = PanelStyle.rowHeight - 6
 
     @Namespace private var pill
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             ForEach(options, id: \.self) { value in
                 segment(for: value)
             }
@@ -252,8 +253,9 @@ struct PanelSegmentedControl<Value: Hashable>: View {
             Text(label(value))
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(.primary.opacity(isSelected ? 1.0 : 0.72))
+                .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: PanelStyle.rowHeight - 6)
+                .frame(height: segmentHeight)
                 .background {
                     if isSelected {
                         RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
@@ -271,8 +273,8 @@ struct PanelSegmentedControl<Value: Hashable>: View {
 
 /// Labeled row pairing a caption with a `PanelSegmentedControl`. Mirrors
 /// the historical `PanelMenuRow` shape — label on the left, control on
-/// the right — so a segmented picker keeps a clear purpose in the panel
-/// without falling back to a separate caption row.
+/// the right inside the same row pill — so a segmented picker keeps a
+/// clear purpose in the panel without a separate caption row.
 struct PanelSegmentedRow<Value: Hashable>: View {
     let label: String
     let options: [Value]
@@ -281,18 +283,25 @@ struct PanelSegmentedRow<Value: Hashable>: View {
     var onChange: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text(label)
                 .foregroundStyle(.primary)
-                .fixedSize()
+            Spacer()
             PanelSegmentedControl(
                 options: options,
                 selection: $selection,
                 label: optionLabel,
-                onChange: onChange
+                onChange: onChange,
+                segmentHeight: PanelStyle.rowHeight - 20
             )
+            .fixedSize()
         }
+        .padding(.horizontal, PanelStyle.rowInsetH)
         .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
     }
 }
 
