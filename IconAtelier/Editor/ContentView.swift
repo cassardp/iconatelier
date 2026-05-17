@@ -28,11 +28,10 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let layersBarHeight: CGFloat = 56 + 16
-            let layersBarBottomInset: CGFloat = 8  // internal LayersBar verticalPadding
-            // Minimum air to keep above the icon and below the layers bar in
-            // the 0.5 detent so the block isn't crammed against the sheet.
-            let minVerticalMargin: CGFloat = 20
+            let layersBarHeight: CGFloat = 48
+            // Minimum air above the icon so it never sticks to the top of the
+            // visible band (status bar / nav title).
+            let topPadding: CGFloat = 16
             // The sheet's `.fraction(0.5)` and `.height(N)` detents measure
             // against the *full* window height (including the top/bottom safe
             // areas), whereas `geo.size.height` excludes them. Reconstructing
@@ -45,16 +44,11 @@ struct ContentView: View {
             let sheetCoverFromScreenBottom = sheetCoverHeight(totalHeight: totalScreenHeight)
             let sheetCoverInGeo = max(0, sheetCoverFromScreenBottom - geo.safeAreaInsets.bottom)
             let visibleHeight = max(0, geo.size.height - sheetCoverInGeo)
-            let iconHeight = max(0, visibleHeight - layersBarHeight - 2 * minVerticalMargin)
+            let iconHeight = max(0, visibleHeight - layersBarHeight - topPadding)
             let iconSide = max(0, min(geo.size.width - 32, iconHeight))
-            // Center icon+layers in visibleHeight, but bias the bottom spacer
-            // down by 8pt so the visible whitespace above the icon equals the
-            // whitespace below the last thumbnail (LayersBar carries an 8pt
-            // internal bottom padding).
-            let totalContent = iconSide + layersBarHeight
-            let leftover = max(0, visibleHeight - totalContent)
-            let bottomSpacer = max(0, (leftover - layersBarBottomInset) / 2)
-            let topSpacer = max(0, leftover - bottomSpacer)
+            let leftover = max(0, visibleHeight - iconSide - layersBarHeight)
+            let topSpacer = max(topPadding, leftover / 2)
+            let bottomSpacer = max(0, leftover - topSpacer)
             ZStack {
                 VStack(spacing: 0) {
                     Color.clear.frame(height: topSpacer)
