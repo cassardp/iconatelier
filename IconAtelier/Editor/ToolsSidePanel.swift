@@ -46,7 +46,10 @@ struct EditTabContent: View {
 
     @ViewBuilder
     private func shadowSection(for layer: Layer) -> some View {
-        PanelSection(title: "Shadow") {
+        PanelSection(
+            title: "Shadow",
+            isOn: ShadowPanelContent.enabledBinding(layer: layer, project: project)
+        ) {
             ShadowPanelContent(layer: layer, project: project)
         }
     }

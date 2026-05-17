@@ -22,13 +22,6 @@ struct BorderPanelContent: View {
     let widthValueText: (Double) -> String
 
     var body: some View {
-        PanelToggleRow(
-            label: "Apply",
-            isOn: Binding(
-                get: { layer.borderWidth > 0 },
-                set: { newVal in toggleBorder(to: newVal) }
-            )
-        )
         if layer.borderWidth > 0 {
             DialSliderRow(
                 label: "Width",
@@ -48,15 +41,27 @@ struct BorderPanelContent: View {
         }
     }
 
-    private func toggleBorder(to enable: Bool) {
-        project.recordUndo()
-        if enable {
-            layer.borderWidth = widthDefault
-            layer.borderColor = BorderDefaults.color
-            layer.borderPosition = BorderDefaults.position
-        } else {
-            layer.borderWidth = 0
-        }
+    /// Binding driving the section-header toggle. Enabling installs the
+    /// tuned defaults for the layer kind; disabling collapses the width to
+    /// zero (and the rows above auto-hide).
+    static func enabledBinding(
+        layer: Layer,
+        project: IconProject,
+        widthDefault: Double
+    ) -> Binding<Bool> {
+        Binding(
+            get: { layer.borderWidth > 0 },
+            set: { newVal in
+                project.recordUndo()
+                if newVal {
+                    layer.borderWidth = widthDefault
+                    layer.borderColor = BorderDefaults.color
+                    layer.borderPosition = BorderDefaults.position
+                } else {
+                    layer.borderWidth = 0
+                }
+            }
+        )
     }
 }
 
@@ -113,13 +118,6 @@ struct ShadowPanelContent: View {
     let project: IconProject
 
     var body: some View {
-        PanelToggleRow(
-            label: "Apply",
-            isOn: Binding(
-                get: { layer.shadowOpacity > 0 },
-                set: { newVal in toggleShadow(to: newVal) }
-            )
-        )
         if layer.shadowOpacity > 0 {
             ColorPickerRow(
                 title: "Color",
@@ -176,17 +174,24 @@ struct ShadowPanelContent: View {
         }
     }
 
-    private func toggleShadow(to enable: Bool) {
-        project.recordUndo()
-        if enable {
-            layer.shadowOpacity = ShadowDefaults.opacity
-            layer.shadowRadius = ShadowDefaults.radius
-            layer.shadowOffsetX = ShadowDefaults.offsetX
-            layer.shadowOffsetY = ShadowDefaults.offsetY
-            layer.shadowColor = ShadowDefaults.color
-        } else {
-            layer.shadowOpacity = 0
-        }
+    /// Binding driving the section-header toggle. Enabling restores the
+    /// tuned soft-drop defaults; disabling zeros the opacity (rows auto-hide).
+    static func enabledBinding(layer: Layer, project: IconProject) -> Binding<Bool> {
+        Binding(
+            get: { layer.shadowOpacity > 0 },
+            set: { newVal in
+                project.recordUndo()
+                if newVal {
+                    layer.shadowOpacity = ShadowDefaults.opacity
+                    layer.shadowRadius = ShadowDefaults.radius
+                    layer.shadowOffsetX = ShadowDefaults.offsetX
+                    layer.shadowOffsetY = ShadowDefaults.offsetY
+                    layer.shadowColor = ShadowDefaults.color
+                } else {
+                    layer.shadowOpacity = 0
+                }
+            }
+        )
     }
 }
 
@@ -205,23 +210,35 @@ struct ShadowPanelContent: View {
 struct RadialRepeatPanelContent: View {
     @Bindable var layer: Layer
     let project: IconProject
-    let wrapBase: () -> ShapeSpec
-    let disabledShapeSpec: () -> ShapeSpec?
 
     var body: some View {
-        repeatToggleRow
         if layer.shapeSpec?.radialRepeatParams != nil {
             sliders
         }
     }
 
-    private var repeatToggleRow: some View {
-        PanelToggleRow(
-            label: "Apply",
-            isOn: Binding(
-                get: { layer.shapeSpec?.radialRepeatParams != nil },
-                set: { newVal in toggleRepeat(to: newVal) }
-            )
+    /// Binding driving the section-header toggle. Enabling wraps the live
+    /// base spec in a default radial-repeat; disabling unwraps it back to
+    /// the underlying shape (or nil for text layers, per `disabledShapeSpec`).
+    static func enabledBinding(
+        layer: Layer,
+        project: IconProject,
+        wrapBase: @escaping () -> ShapeSpec,
+        disabledShapeSpec: @escaping () -> ShapeSpec?
+    ) -> Binding<Bool> {
+        Binding(
+            get: { layer.shapeSpec?.radialRepeatParams != nil },
+            set: { newVal in
+                project.recordUndo()
+                if newVal {
+                    let base = layer.shapeSpec ?? wrapBase()
+                    layer.shapeSpec = base.wrappingInRadialRepeat(
+                        ShapeSpec.defaultRadialRepeat
+                    )
+                } else {
+                    layer.shapeSpec = disabledShapeSpec()
+                }
+            }
         )
     }
 
@@ -249,16 +266,6 @@ struct RadialRepeatPanelContent: View {
             defaultValue: ShapeSpec.defaultRadialRepeat.centerHole,
             onBeginEditing: { project.recordUndo() }
         )
-    }
-
-    private func toggleRepeat(to enable: Bool) {
-        project.recordUndo()
-        if enable {
-            let base = layer.shapeSpec ?? wrapBase()
-            layer.shapeSpec = base.wrappingInRadialRepeat(ShapeSpec.defaultRadialRepeat)
-        } else {
-            layer.shapeSpec = disabledShapeSpec()
-        }
     }
 
     private func doubleBinding(

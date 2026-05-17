@@ -36,16 +36,27 @@ struct SectionDivider: View {
 
 struct PanelSection<Content: View>: View {
     let title: String
+    /// Optional on/off toggle pinned to the trailing edge of the header. Used
+    /// for "feature" sections (Border, Shadow, Repeat) where the section's
+    /// rows only make sense when the feature is enabled — the toggle replaces
+    /// a dedicated "Apply" row inside the section.
+    var isOn: Binding<Bool>? = nil
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .textCase(.uppercase)
-                .tracking(0.6)
-                .foregroundStyle(.secondary.opacity(0.8))
-                .padding(.horizontal, 4)
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary.opacity(0.8))
+                if let isOn {
+                    Spacer()
+                    PanelToggle(isOn: isOn, size: .compact)
+                }
+            }
+            .padding(.horizontal, 4)
 
             VStack(spacing: 7) {
                 content()
@@ -155,11 +166,36 @@ struct ActionRow: View {
 /// Custom on/off switch matched to PanelKit tokens. Sits in a single row pill
 /// so it visually belongs with `DialSliderRow` and `PanelSegmentedRow`.
 struct PanelToggle: View {
-    @Binding var isOn: Bool
+    enum Size {
+        case regular
+        case compact
 
-    private let trackWidth: CGFloat = 46
-    private let trackHeight: CGFloat = 28
-    private let knobInset: CGFloat = 3
+        var trackWidth: CGFloat {
+            switch self {
+            case .regular: return 46
+            case .compact: return 36
+            }
+        }
+        var trackHeight: CGFloat {
+            switch self {
+            case .regular: return 28
+            case .compact: return 20
+            }
+        }
+        var knobInset: CGFloat {
+            switch self {
+            case .regular: return 3
+            case .compact: return 2
+            }
+        }
+    }
+
+    @Binding var isOn: Bool
+    var size: Size = .regular
+
+    private var trackWidth: CGFloat { size.trackWidth }
+    private var trackHeight: CGFloat { size.trackHeight }
+    private var knobInset: CGFloat { size.knobInset }
 
     var body: some View {
         let knobSize = trackHeight - knobInset * 2

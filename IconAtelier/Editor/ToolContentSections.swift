@@ -54,7 +54,14 @@ struct TextContentSection: View {
         }
 
         SectionDivider()
-        PanelSection(title: "Border") {
+        PanelSection(
+            title: "Border",
+            isOn: BorderPanelContent.enabledBinding(
+                layer: layer,
+                project: project,
+                widthDefault: BorderDefaults.textWidth
+            )
+        ) {
             BorderPanelContent(
                 layer: layer,
                 project: project,
@@ -65,17 +72,20 @@ struct TextContentSection: View {
         }
 
         SectionDivider()
-        PanelSection(title: "Repeat") {
-            RadialRepeatPanelContent(
+        PanelSection(
+            title: "Repeat",
+            // Text layers don't actually carry a parametric base — the
+            // glyph path itself becomes the base at render time. We still
+            // need a non-nil ShapeSpec to hang the radial-repeat params on;
+            // iosSquircle is used as an inert sentinel.
+            isOn: RadialRepeatPanelContent.enabledBinding(
                 layer: layer,
                 project: project,
-                // Text layers don't actually carry a parametric base — the
-                // glyph path itself becomes the base at render time. We
-                // still need a non-nil ShapeSpec to hang the radial-repeat
-                // params on; iosSquircle is used as an inert sentinel.
                 wrapBase: { .iosSquircle },
                 disabledShapeSpec: { nil }
             )
+        ) {
+            RadialRepeatPanelContent(layer: layer, project: project)
         }
     }
 }
