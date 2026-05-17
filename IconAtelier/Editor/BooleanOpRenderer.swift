@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum BooleanOpKind: Hashable, CaseIterable {
-    case union, subtract, intersect
+    case union, intersect, subtract
 
     var label: String {
         switch self {
@@ -12,11 +12,12 @@ enum BooleanOpKind: Hashable, CaseIterable {
         }
     }
 
-    var systemImage: String {
+    @ViewBuilder
+    var icon: some View {
         switch self {
-        case .union:     return "plus"
-        case .subtract:  return "minus"
-        case .intersect: return "circle.righthalf.filled"
+        case .union:     Image(systemName: "plus")
+        case .subtract:  Image(systemName: "minus")
+        case .intersect: Image(systemName: "line.diagonal")
         }
     }
 }

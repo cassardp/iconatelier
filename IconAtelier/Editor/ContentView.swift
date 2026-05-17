@@ -153,26 +153,14 @@ struct ContentView: View {
             ToolbarItem(placement: .principal) {
                 if session.isMultiSelecting {
                     HStack(spacing: 20) {
-                        Button {
-                            performBooleanOperation(.union)
-                        } label: {
-                            Image(systemName: "plus")
+                        ForEach(BooleanOpKind.allCases, id: \.self) { op in
+                            Button {
+                                performBooleanOperation(op)
+                            } label: {
+                                op.icon
+                            }
+                            .accessibilityLabel(op.label)
                         }
-                        .accessibilityLabel("Union")
-
-                        Button {
-                            performBooleanOperation(.intersect)
-                        } label: {
-                            Image(systemName: "circle.righthalf.filled")
-                        }
-                        .accessibilityLabel("Intersect")
-
-                        Button {
-                            performBooleanOperation(.subtract)
-                        } label: {
-                            Image(systemName: "minus")
-                        }
-                        .accessibilityLabel("Subtract")
                     }
                 } else {
                     HStack(spacing: 20) {
