@@ -96,6 +96,67 @@ struct IconCanvasView: View {
         project.layer(withID: session.selectedLayerUUID)
     }
 
+    /// Centroid of the lasso-selected layers' offsets, used as the pivot for
+    /// group pinch and rotate. Returns nil when there's no multi-selection.
+    private func multiGroupCentroid() -> CGSize? {
+        guard session.isMultiSelecting else { return nil }
+        let selected = project.layers.filter {
+            !$0.isHidden && session.lassoSelectedLayerUUIDs.contains($0.uuid)
+        }
+        guard !selected.isEmpty else { return nil }
+        let count = CGFloat(selected.count)
+        let cx = selected.map(\.offset.width).reduce(0, +) / count
+        let cy = selected.map(\.offset.height).reduce(0, +) / count
+        return CGSize(width: cx, height: cy)
+    }
+
+    private struct LayerTransient {
+        var offset: CGSize
+        var scale: CGFloat
+        var angle: Angle
+    }
+
+    /// Computes the transient (in-flight) transform applied to a layer's
+    /// rendering. For a single selection it just forwards the gesture state.
+    /// For a multi-selection it rotates/scales each layer's position around
+    /// the group pivot so the group transforms as a rigid body.
+    private func transientForRender(
+        layer: Layer,
+        isSelected: Bool,
+        isInMultiDrag: Bool,
+        pivot: CGSize?,
+        side: CGFloat
+    ) -> LayerTransient {
+        if isSelected {
+            return LayerTransient(
+                offset: dragSnap.translation,
+                scale: gestureScale,
+                angle: rotationSnap.delta
+            )
+        }
+        guard isInMultiDrag, let pivot else {
+            return LayerTransient(offset: .zero, scale: 1, angle: .zero)
+        }
+        let m = gestureScale
+        let theta = CGFloat(rotationSnap.delta.radians)
+        let dx = layer.offset.width - pivot.width
+        let dy = layer.offset.height - pivot.height
+        let rx = dx * cos(theta) - dy * sin(theta)
+        let ry = dx * sin(theta) + dy * cos(theta)
+        let nx = pivot.width + rx * m
+        let ny = pivot.height + ry * m
+        let pivotShiftX = (nx - layer.offset.width) * side
+        let pivotShiftY = (ny - layer.offset.height) * side
+        return LayerTransient(
+            offset: CGSize(
+                width: pivotShiftX + dragSnap.translation.width,
+                height: pivotShiftY + dragSnap.translation.height
+            ),
+            scale: m,
+            angle: rotationSnap.delta
+        )
+    }
+
     private func squircleIcon(side: CGFloat) -> some View {
         ZStack {
             if project.safeBackground.isHidden {
@@ -103,16 +164,26 @@ struct IconCanvasView: View {
             } else {
                 BackgroundView(background: project.safeBackground, side: side)
             }
+            let groupPivot = multiGroupCentroid()
             ForEach(project.layers) { layer in
                 if !layer.isHidden {
                     let isSelected = layer.uuid == session.selectedLayerUUID
+                    let isInMultiDrag = session.isMultiSelecting
+                        && session.lassoSelectedLayerUUIDs.contains(layer.uuid)
+                    let transient = transientForRender(
+                        layer: layer,
+                        isSelected: isSelected,
+                        isInMultiDrag: isInMultiDrag,
+                        pivot: groupPivot,
+                        side: side
+                    )
                     OverlayLayerView(
                         layer: layer,
                         side: side,
                         isSelected: isSelected,
-                        transientOffset: isSelected ? dragSnap.translation : .zero,
-                        transientScale: isSelected ? gestureScale : 1.0,
-                        transientAngle: isSelected ? rotationSnap.delta : .zero,
+                        transientOffset: transient.offset,
+                        transientScale: transient.scale,
+                        transientAngle: transient.angle,
                         onTap: { session.selectLayer(layer.uuid) }
                     )
                     .transition(.scale(scale: 1.12).combined(with: .opacity))
@@ -149,6 +220,15 @@ struct IconCanvasView: View {
     private func canvasGesture(side: CGFloat) -> some Gesture {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
+                if session.isMultiSelecting {
+                    // Group drag: translate every lasso-selected layer in
+                    // lockstep. Snap-to-center is intentionally disabled —
+                    // there is no single anchor to snap on a group.
+                    state.translation = value.translation
+                    state.axes = []
+                    state.isActive = true
+                    return
+                }
                 guard let layer = selectedOverlay else { return }
                 let (effective, nextAxes) = Self.snapped(
                     translation: value.translation,
@@ -165,11 +245,29 @@ struct IconCanvasView: View {
             }
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
-                guard let layer = selectedOverlay else { return }
                 guard side > 0,
                       value.translation.width.isFinite,
                       value.translation.height.isFinite
                 else { return }
+                if session.isMultiSelecting {
+                    let dx = value.translation.width / side
+                    let dy = value.translation.height / side
+                    let ids = session.lassoSelectedLayerUUIDs
+                    let targets = project.layers.filter { ids.contains($0.uuid) }
+                    guard !targets.isEmpty else { return }
+                    project.recordUndo()
+                    for layer in targets {
+                        let nx = layer.offset.width + dx
+                        let ny = layer.offset.height + dy
+                        guard nx.isFinite, ny.isFinite else { continue }
+                        layer.offset = CGSize(
+                            width: min(max(nx, -0.5), 0.5),
+                            height: min(max(ny, -0.5), 0.5)
+                        )
+                    }
+                    return
+                }
+                guard let layer = selectedOverlay else { return }
                 project.recordUndo()
                 let (effective, _) = Self.snapped(
                     translation: value.translation,
@@ -192,8 +290,27 @@ struct IconCanvasView: View {
             }
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
-                guard let layer = selectedOverlay else { return }
                 guard value.magnification.isFinite, value.magnification > 0 else { return }
+                if session.isMultiSelecting, let pivot = multiGroupCentroid() {
+                    let m = value.magnification
+                    let ids = session.lassoSelectedLayerUUIDs
+                    let targets = project.layers.filter { ids.contains($0.uuid) }
+                    guard !targets.isEmpty else { return }
+                    project.recordUndo()
+                    for layer in targets {
+                        let dx = layer.offset.width - pivot.width
+                        let dy = layer.offset.height - pivot.height
+                        let nx = pivot.width + dx * m
+                        let ny = pivot.height + dy * m
+                        layer.offset = CGSize(
+                            width: min(max(nx, -0.5), 0.5),
+                            height: min(max(ny, -0.5), 0.5)
+                        )
+                        layer.scale = max(0.1, layer.scale * m)
+                    }
+                    return
+                }
+                guard let layer = selectedOverlay else { return }
                 project.recordUndo()
                 layer.scale = max(0.1, layer.scale * value.magnification)
             }
@@ -201,6 +318,13 @@ struct IconCanvasView: View {
         let rotate = RotateGesture(minimumAngleDelta: .degrees(1))
             .updating($rotationSnap) { value, state, _ in
                 guard value.rotation.degrees.isFinite else { return }
+                if session.isMultiSelecting {
+                    // 90° snap doesn't really fit a group — skip it and let
+                    // the user rotate freely.
+                    state.delta = value.rotation
+                    state.isSnapped = false
+                    return
+                }
                 guard let layer = selectedOverlay else {
                     state.delta = value.rotation
                     state.isSnapped = false
@@ -219,8 +343,29 @@ struct IconCanvasView: View {
             }
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
-                guard let layer = selectedOverlay else { return }
                 guard value.rotation.degrees.isFinite else { return }
+                if session.isMultiSelecting, let pivot = multiGroupCentroid() {
+                    let theta = CGFloat(value.rotation.radians)
+                    let ids = session.lassoSelectedLayerUUIDs
+                    let targets = project.layers.filter { ids.contains($0.uuid) }
+                    guard !targets.isEmpty else { return }
+                    project.recordUndo()
+                    for layer in targets {
+                        let dx = layer.offset.width - pivot.width
+                        let dy = layer.offset.height - pivot.height
+                        let rx = dx * cos(theta) - dy * sin(theta)
+                        let ry = dx * sin(theta) + dy * cos(theta)
+                        let nx = pivot.width + rx
+                        let ny = pivot.height + ry
+                        layer.offset = CGSize(
+                            width: min(max(nx, -0.5), 0.5),
+                            height: min(max(ny, -0.5), 0.5)
+                        )
+                        layer.rotation = Self.normalized(layer.rotation + value.rotation)
+                    }
+                    return
+                }
+                guard let layer = selectedOverlay else { return }
                 project.recordUndo()
                 let (delta, _) = Self.snappedRotation(
                     layerRotation: layer.rotation,
