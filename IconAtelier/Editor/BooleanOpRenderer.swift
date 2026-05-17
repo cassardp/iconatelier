@@ -75,15 +75,20 @@ enum BooleanOpRenderer {
         }
         guard sourcePaths.count >= 2 else { return nil }
 
+        // `.winding` matches what SwiftUI's `shape.fill(color)` renders by
+        // default (non-zero winding). `.evenOdd` would turn every overlap
+        // between sub-paths into a hole — that's visible mostly with
+        // `RadialRepeat`, whose petals overlap their neighbours and (with a
+        // negative `centerHole`) cross through the center.
         var combined = sourcePaths[0]
         for next in sourcePaths.dropFirst() {
             switch op {
             case .union:
-                combined = combined.union(next, using: .evenOdd)
+                combined = combined.union(next, using: .winding)
             case .intersect:
-                combined = combined.intersection(next, using: .evenOdd)
+                combined = combined.intersection(next, using: .winding)
             case .subtract:
-                combined = combined.subtracting(next, using: .evenOdd)
+                combined = combined.subtracting(next, using: .winding)
             }
         }
         let path = Path(combined)
