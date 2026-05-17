@@ -6,11 +6,11 @@ import SwiftUI
 /// units differ between shape (×200) and text (×500) layers so the same
 /// "30%" visual yields two different raw values.
 enum BorderDefaults {
-    /// 0.15 → "30%" with the parametric-shape units (`$0 * 200`).
-    static let shapeWidth: Double = 0.15
-    /// 0.06 → "30%" with the text units (`$0 * 500`).
-    static let textWidth: Double = 0.06
-    static let color: Color = .black
+    /// 0.10 → "20%" with the parametric-shape units (`$0 * 200`).
+    static let shapeWidth: Double = 0.10
+    /// 0.04 → "20%" with the text units (`$0 * 500`).
+    static let textWidth: Double = 0.04
+    static let color: Color = .black.opacity(0.2)
     static let position: BorderPosition = .outer
 }
 
