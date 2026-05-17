@@ -410,9 +410,7 @@ struct LayerContentView: View {
                     return AnyShape(RadialRepeat(
                         base: glyphShape,
                         count: params.count,
-                        centerHole: params.centerHole,
-                        phaseDegrees: params.phaseDegrees,
-                        alternateScale: params.alternateScale
+                        centerHole: params.centerHole
                     ))
                 }
                 return AnyShape(glyphShape)

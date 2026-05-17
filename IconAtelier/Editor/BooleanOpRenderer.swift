@@ -116,9 +116,7 @@ enum BooleanOpRenderer {
                 shape = AnyShape(RadialRepeat(
                     base: glyph,
                     count: params.count,
-                    centerHole: params.centerHole,
-                    phaseDegrees: params.phaseDegrees,
-                    alternateScale: params.alternateScale
+                    centerHole: params.centerHole
                 ))
             } else {
                 shape = AnyShape(glyph)

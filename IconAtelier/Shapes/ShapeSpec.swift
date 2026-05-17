@@ -16,7 +16,7 @@ import SwiftUI
 //
 //   Wrapper cases (carry a base):
 //     .transform(base, stretchX, stretchY, rotation)
-//     .radialRepeat(base, count, centerHole, phaseDegrees, alternateScale)
+//     .radialRepeat(base, count, centerHole)
 //
 // Wrappers can stack: `.radialRepeat(.transform(.polygon))` is valid.
 // They are applied outside-in at render time — the outermost wrapper is
@@ -78,9 +78,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     case radialRepeat(
         base: ShapeSpec,
         count: Int,
-        centerHole: Double,
-        phaseDegrees: Double,
-        alternateScale: Double
+        centerHole: Double
     )
 
     // Plain square is the neutral starting point — the iOS squircle is
@@ -89,7 +87,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     static let defaultShape: ShapeSpec = .preset(.square)
 
     static let defaultRadialRepeat = RadialRepeatParams(
-        count: 8, centerHole: 0.0, phaseDegrees: -90, alternateScale: 1.0
+        count: 8, centerHole: 0.0
     )
 
     static let identityTransform = TransformParams(
@@ -150,7 +148,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
             return "Custom"
         case .transform(let base, _, _, _):
             return base.displayName
-        case .radialRepeat(let base, _, _, _, _):
+        case .radialRepeat(let base, _, _):
             return base.displayName
         }
     }
@@ -158,7 +156,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     /// Peel one level of radial-repeat. For peeling every wrapper down to
     /// the underlying family case, see `deepestBase`.
     var unwrapped: ShapeSpec {
-        if case .radialRepeat(let base, _, _, _, _) = self { return base }
+        if case .radialRepeat(let base, _, _) = self { return base }
         return self
     }
 
@@ -167,17 +165,14 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     var deepestBase: ShapeSpec {
         switch self {
         case .transform(let base, _, _, _): return base.deepestBase
-        case .radialRepeat(let base, _, _, _, _): return base.deepestBase
+        case .radialRepeat(let base, _, _): return base.deepestBase
         default: return self
         }
     }
 
     var radialRepeatParams: RadialRepeatParams? {
-        if case let .radialRepeat(_, count, hole, phase, alt) = self {
-            return RadialRepeatParams(
-                count: count, centerHole: hole,
-                phaseDegrees: phase, alternateScale: alt
-            )
+        if case let .radialRepeat(_, count, hole) = self {
+            return RadialRepeatParams(count: count, centerHole: hole)
         }
         return nil
     }
@@ -189,7 +184,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         switch self {
         case let .transform(_, sx, sy, rot):
             return TransformParams(stretchX: sx, stretchY: sy, rotation: rot)
-        case .radialRepeat(let base, _, _, _, _):
+        case .radialRepeat(let base, _, _):
             return base.transformParams
         default:
             return nil
@@ -198,7 +193,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
 
     func wrappingInRadialRepeat(_ params: RadialRepeatParams) -> ShapeSpec {
         let base: ShapeSpec
-        if case .radialRepeat(let b, _, _, _, _) = self {
+        if case .radialRepeat(let b, _, _) = self {
             base = b
         } else {
             base = self
@@ -206,9 +201,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         return .radialRepeat(
             base: base,
             count: params.count,
-            centerHole: params.centerHole,
-            phaseDegrees: params.phaseDegrees,
-            alternateScale: params.alternateScale
+            centerHole: params.centerHole
         )
     }
 
@@ -216,11 +209,10 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     /// `.transform` wrapper entirely so encoded specs stay minimal.
     /// Any outer `.radialRepeat` wrap is preserved.
     func applyingTransform(_ params: TransformParams) -> ShapeSpec {
-        if case let .radialRepeat(base, count, hole, phase, alt) = self {
+        if case let .radialRepeat(base, count, hole) = self {
             return .radialRepeat(
                 base: base.applyingTransform(params),
-                count: count, centerHole: hole,
-                phaseDegrees: phase, alternateScale: alt
+                count: count, centerHole: hole
             )
         }
         let strippedBase: ShapeSpec
@@ -244,11 +236,10 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     /// stacked over it (transform, radial-repeat).
     func replacingBase(with newBase: ShapeSpec) -> ShapeSpec {
         switch self {
-        case let .radialRepeat(base, count, hole, phase, alt):
+        case let .radialRepeat(base, count, hole):
             return .radialRepeat(
                 base: base.replacingBase(with: newBase),
-                count: count, centerHole: hole,
-                phaseDegrees: phase, alternateScale: alt
+                count: count, centerHole: hole
             )
         case let .transform(base, sx, sy, rot):
             return .transform(
@@ -328,13 +319,11 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 stretchY: sy,
                 rotationDegrees: rot
             ))
-        case let .radialRepeat(base, count, centerHole, phaseDegrees, alternateScale):
+        case let .radialRepeat(base, count, centerHole):
             return AnyShape(RadialRepeat(
                 base: base.anyShape(),
                 count: count,
-                centerHole: centerHole,
-                phaseDegrees: phaseDegrees,
-                alternateScale: alternateScale
+                centerHole: centerHole
             ))
         }
     }
@@ -352,7 +341,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
             return arcSweep < 1.0 - 1e-6
         case .transform(let base, _, _, _):
             return base.isOpenPath
-        case .radialRepeat(let base, _, _, _, _):
+        case .radialRepeat(let base, _, _):
             return base.isOpenPath
         default:
             return false
@@ -363,8 +352,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
 nonisolated struct RadialRepeatParams: Hashable, Sendable {
     var count: Int
     var centerHole: Double
-    var phaseDegrees: Double
-    var alternateScale: Double
 }
 
 nonisolated struct TransformParams: Hashable, Sendable {
@@ -489,7 +476,9 @@ nonisolated extension ShapeSpec: Codable {
         case roundness, arcStart, arcSweep
     }
     private enum RadialKeys: String, CodingKey {
-        case base, count, centerHole, phaseDegrees, alternateScale
+        // `phaseDegrees` and `alternateScale` were removed; the decoder
+        // silently ignores them so legacy project JSON keeps loading.
+        case base, count, centerHole
     }
     private enum TransformKeys: String, CodingKey {
         case base, stretchX, stretchY, rotation
@@ -563,14 +552,10 @@ nonisolated extension ShapeSpec: Codable {
             let base = try nested.decode(ShapeSpec.self, forKey: .base)
             let count = try nested.decode(Int.self, forKey: .count)
             let centerHole = try nested.decode(Double.self, forKey: .centerHole)
-            let phaseDegrees = try nested.decode(Double.self, forKey: .phaseDegrees)
-            let alternateScale = try nested.decode(Double.self, forKey: .alternateScale)
             self = .radialRepeat(
                 base: base,
                 count: count,
-                centerHole: centerHole,
-                phaseDegrees: phaseDegrees,
-                alternateScale: alternateScale
+                centerHole: centerHole
             )
             return
         }
@@ -615,13 +600,11 @@ nonisolated extension ShapeSpec: Codable {
             try nested.encode(sx, forKey: .stretchX)
             try nested.encode(sy, forKey: .stretchY)
             try nested.encode(rot, forKey: .rotation)
-        case let .radialRepeat(base, count, centerHole, phaseDegrees, alternateScale):
+        case let .radialRepeat(base, count, centerHole):
             var nested = container.nestedContainer(keyedBy: RadialKeys.self, forKey: .radialRepeat)
             try nested.encode(base, forKey: .base)
             try nested.encode(count, forKey: .count)
             try nested.encode(centerHole, forKey: .centerHole)
-            try nested.encode(phaseDegrees, forKey: .phaseDegrees)
-            try nested.encode(alternateScale, forKey: .alternateScale)
         }
     }
 }

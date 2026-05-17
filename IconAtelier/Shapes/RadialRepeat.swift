@@ -16,8 +16,10 @@ struct RadialRepeat<Base: Shape>: Shape {
                               // The outer tip always lands at outerRadius
                               // because unitLen = outerRadius - inner, so the
                               // pattern never overflows the bounds.
-    var phaseDegrees: Double  // global rotation of the pattern
-    var alternateScale: Double // 0..1 — odd-indexed instances scaled by this factor (1 = uniform)
+
+    // First instance points up (-y axis) so the pattern reads symmetrically
+    // around the vertical axis without a configurable phase.
+    private static var basePhase: Double { -.pi / 2 }
 
     func path(in rect: CGRect) -> Path {
         let side = min(rect.width, rect.height)
@@ -27,20 +29,17 @@ struct RadialRepeat<Base: Shape>: Shape {
         let unitLen = max(0, outerRadius - inner)
         let unitWid = unitLen * 0.55
         let n = max(2, count)
-        let phase = phaseDegrees * .pi / 180
-        let alt = max(0.05, min(1, alternateScale))
 
         var path = Path()
         for i in 0..<n {
-            let theta = (Double(i) / Double(n)) * 2 * .pi + phase
-            let s = (alt < 1 && !i.isMultiple(of: 2)) ? alt : 1.0
+            let theta = (Double(i) / Double(n)) * 2 * .pi + Self.basePhase
 
             // Local frame: base at (0, 0), tip extends toward y = -unitLen.
             let local = CGRect(
-                x: -unitWid * s / 2,
-                y: -unitLen * s,
-                width: unitWid * s,
-                height: unitLen * s
+                x: -unitWid / 2,
+                y: -unitLen,
+                width: unitWid,
+                height: unitLen
             )
             var sub = base.path(in: local)
 

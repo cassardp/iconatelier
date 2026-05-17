@@ -249,28 +249,6 @@ struct RadialRepeatPanelContent: View {
             defaultValue: ShapeSpec.defaultRadialRepeat.centerHole,
             onBeginEditing: { project.recordUndo() }
         )
-        DialSliderRow(
-            label: "Phase",
-            value: doubleBinding(
-                get: { $0.phaseDegrees },
-                set: { p, v in var p = p; p.phaseDegrees = v; return p }
-            ),
-            range: -180 ... 180,
-            valueText: { String(format: "%.0f°", $0) },
-            defaultValue: ShapeSpec.defaultRadialRepeat.phaseDegrees,
-            onBeginEditing: { project.recordUndo() }
-        )
-        DialSliderRow(
-            label: "Alternate",
-            value: doubleBinding(
-                get: { $0.alternateScale },
-                set: { p, v in var p = p; p.alternateScale = v; return p }
-            ),
-            range: 0.2 ... 1.0,
-            valueText: { String(format: "%.2f", $0) },
-            defaultValue: ShapeSpec.defaultRadialRepeat.alternateScale,
-            onBeginEditing: { project.recordUndo() }
-        )
     }
 
     private func toggleRepeat(to enable: Bool) {
