@@ -267,6 +267,35 @@ struct PanelSegmentedControl<Value: Hashable>: View {
     }
 }
 
+// MARK: - Segmented control with leading label
+
+/// Labeled row pairing a caption with a `PanelSegmentedControl`. Mirrors
+/// the historical `PanelMenuRow` shape — label on the left, control on
+/// the right — so a segmented picker keeps a clear purpose in the panel
+/// without falling back to a separate caption row.
+struct PanelSegmentedRow<Value: Hashable>: View {
+    let label: String
+    let options: [Value]
+    @Binding var selection: Value
+    let optionLabel: (Value) -> String
+    var onChange: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .foregroundStyle(.primary)
+                .fixedSize()
+            PanelSegmentedControl(
+                options: options,
+                selection: $selection,
+                label: optionLabel,
+                onChange: onChange
+            )
+        }
+        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
+    }
+}
+
 // MARK: - Menu (standalone, full-width)
 
 /// Standalone pop-up menu shaped as a full-width row, without a separate

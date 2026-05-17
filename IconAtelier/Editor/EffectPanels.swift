@@ -65,17 +65,16 @@ private struct BorderPositionRow: View {
     let project: IconProject
 
     var body: some View {
-        LabeledSegmented(title: "Position") {
-            PanelSegmentedControl(
-                options: BorderPosition.allCases,
-                selection: Binding(
-                    get: { position },
-                    set: { position = $0 }
-                ),
-                label: { $0.displayName },
-                onChange: { project.recordUndo() }
-            )
-        }
+        PanelSegmentedRow(
+            label: "Position",
+            options: BorderPosition.allCases,
+            selection: Binding(
+                get: { position },
+                set: { position = $0 }
+            ),
+            optionLabel: { $0.displayName },
+            onChange: { project.recordUndo() }
+        )
     }
 }
 
@@ -84,35 +83,16 @@ private struct LineCapRow: View {
     let project: IconProject
 
     var body: some View {
-        LabeledSegmented(title: "Cap") {
-            PanelSegmentedControl(
-                options: LayerLineCap.allCases,
-                selection: Binding(
-                    get: { layer.lineCap },
-                    set: { layer.lineCap = $0 }
-                ),
-                label: { $0.displayName },
-                onChange: { project.recordUndo() }
-            )
-        }
-    }
-}
-
-/// Small caption above a segmented control — gives an otherwise unlabeled
-/// pill a clear purpose ("Position", "Cap", …). Title sits flush-left in
-/// the same secondary style as the section header but smaller.
-private struct LabeledSegmented<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-            content()
-        }
+        PanelSegmentedRow(
+            label: "Cap",
+            options: LayerLineCap.allCases,
+            selection: Binding(
+                get: { layer.lineCap },
+                set: { layer.lineCap = $0 }
+            ),
+            optionLabel: { $0.displayName },
+            onChange: { project.recordUndo() }
+        )
     }
 }
 
