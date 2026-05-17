@@ -389,10 +389,6 @@ struct LayerContentView: View {
                     .frame(width: imageSide, height: imageSide)
                     .contentShape(Rectangle())
             }
-        case .emoji:
-            Text(layer.emoji)
-                .font(.system(size: side * 0.5 * scale))
-                .contentShape(Rectangle())
         case .text:
             // Render the text as a glyph-derived Path so it plugs into the
             // same fill + stroke + radial-repeat pipeline as parametric

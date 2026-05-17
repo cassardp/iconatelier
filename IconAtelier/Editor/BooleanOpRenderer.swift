@@ -50,7 +50,7 @@ enum BooleanOpRenderer {
     static let workingPixelSide: CGFloat = 1024
 
     /// Try to compose `layers` as a single vector path. Returns nil if any
-    /// source layer can't be expressed as a Path (image, emoji) — caller
+    /// source layer can't be expressed as a Path (image) — caller
     /// should fall back to the raster `compose` path. When successful, the
     /// caller gets a Path expressed in canvas-centered pixel coords; the
     /// new layer's offset and scale can be derived from the path's bbox.
@@ -94,7 +94,7 @@ enum BooleanOpRenderer {
     /// Build the Path representation of a layer in canvas-centered pixel
     /// coordinates. Bakes offset/rotation/flip/scale into the path so the
     /// boolean op can operate on independent vectors. Returns nil for kinds
-    /// that have no native vector silhouette (image, emoji).
+    /// that have no native vector silhouette (image).
     @MainActor
     private static func vectorPath(for layer: Layer, canvasSide: CGFloat) -> Path? {
         let shape: AnyShape
@@ -122,7 +122,7 @@ enum BooleanOpRenderer {
                 shape = AnyShape(glyph)
             }
             baseSide = canvasSide * 0.6
-        case .image, .emoji:
+        case .image:
             return nil
         }
 

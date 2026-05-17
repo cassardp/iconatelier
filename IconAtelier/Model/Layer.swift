@@ -4,7 +4,6 @@ import UIKit
 
 enum LayerKind: String, Equatable, CaseIterable {
     case image
-    case emoji
     case text
     case parametricShape
 }
@@ -97,7 +96,6 @@ final class Layer {
 
     @Attribute(.externalStorage) var imagePNG: Data?
 
-    var emoji: String = "✨"
     var text: String = "Aa"
     var fontWeightRaw: String = LayerFontWeight.bold.rawValue
     var fontDesignRaw: String = LayerFontDesign.rounded.rawValue
@@ -138,7 +136,6 @@ final class Layer {
         kind: LayerKind,
         name: String,
         image: UIImage? = nil,
-        emoji: String = "✨",
         text: String = "Aa",
         fontWeight: LayerFontWeight = .bold,
         fontDesign: LayerFontDesign = .rounded,
@@ -149,7 +146,6 @@ final class Layer {
         self.name = name
         self.kindRaw = kind.rawValue
         self.imagePNG = image?.pngData()
-        self.emoji = emoji
         self.text = text
         self.fontWeightRaw = fontWeight.rawValue
         self.fontDesignRaw = fontDesign.rawValue
@@ -160,7 +156,10 @@ final class Layer {
     // MARK: - Bridged properties
 
     var kind: LayerKind {
-        get { LayerKind(rawValue: kindRaw)! }
+        // Fallback to .image if the stored raw value no longer maps to a
+        // known case (e.g. legacy "emoji" layers from before the kind was
+        // dropped). Keeps the app from crashing on stale projects.
+        get { LayerKind(rawValue: kindRaw) ?? .image }
         set { kindRaw = newValue.rawValue }
     }
 
@@ -237,7 +236,6 @@ struct LayerSnapshot {
     let kind: LayerKind
     let name: String
     let imagePNG: Data?
-    let emoji: String
     let text: String
     let fontWeight: LayerFontWeight
     let fontDesign: LayerFontDesign
@@ -273,7 +271,6 @@ extension Layer {
             kind: kind,
             name: name,
             imagePNG: imagePNG,
-            emoji: emoji,
             text: text,
             fontWeight: fontWeight,
             fontDesign: fontDesign,
@@ -307,7 +304,6 @@ extension Layer {
         kindRaw = s.kind.rawValue
         name = s.name
         imagePNG = s.imagePNG
-        emoji = s.emoji
         text = s.text
         fontWeightRaw = s.fontWeight.rawValue
         fontDesignRaw = s.fontDesign.rawValue

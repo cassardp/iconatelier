@@ -143,14 +143,16 @@ enum LibraryImporter {
         from dto: LayerExport,
         fileMap: [String: Data]
     ) -> Layer {
+        // Legacy bundles may carry layers tagged "emoji" — that case has
+        // been removed, so we coerce to .image (the safest neutral kind)
+        // and drop the emoji payload silently.
         let layer = Layer(
             uuid: dto.uuid,
-            kind: LayerKind(rawValue: dto.kind)!,
+            kind: LayerKind(rawValue: dto.kind) ?? .image,
             name: dto.name
         )
         layer.orderIndex = dto.orderIndex
         layer.imagePNG = dto.image.flatMap { fileMap[$0] }
-        layer.emoji = dto.emoji
         layer.text = dto.text
         layer.fontWeightRaw = dto.fontWeight
         layer.fontDesignRaw = dto.fontDesign

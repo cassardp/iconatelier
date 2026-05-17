@@ -64,7 +64,9 @@ struct LayerExport: Codable {
 
     let image: String?
 
-    let emoji: String
+    // `emoji` was removed when the emoji layer kind was dropped — kept as
+    // an optional ignored field so older bundles still decode.
+    let emoji: String?
     let text: String
     let fontWeight: String
     let fontDesign: String
@@ -155,7 +157,7 @@ enum LibraryExporter {
                     kind: layer.kindRaw,
                     orderIndex: layer.orderIndex,
                     image: layerPath,
-                    emoji: layer.emoji,
+                    emoji: nil,
                     text: layer.text,
                     fontWeight: layer.fontWeightRaw,
                     fontDesign: layer.fontDesignRaw,

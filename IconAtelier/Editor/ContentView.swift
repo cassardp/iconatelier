@@ -383,7 +383,7 @@ struct ContentView: View {
     private func layerBaseFraction(_ kind: LayerKind) -> CGFloat {
         switch kind {
         case .image: return 0.7
-        case .emoji, .text, .parametricShape: return 0.5
+        case .text, .parametricShape: return 0.5
         }
     }
 
@@ -558,7 +558,6 @@ struct ContentView: View {
             hasher.combine(layer.uuid)
             hasher.combine(layer.kindRaw)
             hasher.combine(layer.imagePNG?.hashValue ?? 0)
-            hasher.combine(layer.emoji)
             hasher.combine(layer.text)
             hasher.combine(layer.shapeSpecJSON?.hashValue ?? 0)
             hasher.combine(layer.cornerRadius)
