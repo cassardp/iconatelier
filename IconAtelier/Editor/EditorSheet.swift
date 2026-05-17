@@ -4,7 +4,6 @@ import UIKit
 struct EditSheet: View {
     @Bindable var project: IconProject
     let session: ProjectSession
-    let onBooleanOp: (BooleanOpKind) -> Void
 
     var body: some View {
         content
@@ -14,33 +13,13 @@ struct EditSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        if session.isMultiSelecting {
-            MultiSelectContent(onBooleanOp: onBooleanOp)
-        } else if session.isBackgroundSelected {
+        if session.isBackgroundSelected {
             BackgroundEditorContent(project: project, session: session)
         } else if project.layer(withID: session.selectedLayerUUID) != nil {
             EditTabContent(project: project, session: session)
         } else {
             EmptySelectionContent()
         }
-    }
-}
-
-// MARK: - Multi-select content (boolean ops)
-
-private struct MultiSelectContent: View {
-    let onBooleanOp: (BooleanOpKind) -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                MultiSelectActionsRow(onBooleanOp: onBooleanOp)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 28)
-            .padding(.bottom, 14)
-        }
-        .scrollIndicators(.hidden)
     }
 }
 
@@ -116,25 +95,6 @@ struct BackgroundActionsRow: View {
                 systemImage: "trash",
                 enabled: false
             ) {}
-        }
-    }
-}
-
-struct MultiSelectActionsRow: View {
-    let onBooleanOp: (BooleanOpKind) -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            CompactActionButton(title: "Union", systemImage: "plus") {
-                onBooleanOp(.union)
-            }
-            CompactActionButton(title: "Intersect", systemImage: "circle.righthalf.filled") {
-                onBooleanOp(.intersect)
-            }
-            CompactActionButton(title: "Subtract", systemImage: "minus") {
-                onBooleanOp(.subtract)
-            }
         }
     }
 }

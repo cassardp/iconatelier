@@ -98,22 +98,47 @@ struct ContentView: View {
             }
 
             ToolbarItem(placement: .principal) {
-                HStack(spacing: 20) {
-                    Button {
-                        project.undo()
-                        reselectTopIfNeeded()
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .disabled(!project.canUndo)
+                if session.isMultiSelecting {
+                    HStack(spacing: 20) {
+                        Button {
+                            performBooleanOperation(.union)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Union")
 
-                    Button {
-                        project.redo()
-                        reselectTopIfNeeded()
-                    } label: {
-                        Image(systemName: "arrow.uturn.forward")
+                        Button {
+                            performBooleanOperation(.intersect)
+                        } label: {
+                            Image(systemName: "circle.righthalf.filled")
+                        }
+                        .accessibilityLabel("Intersect")
+
+                        Button {
+                            performBooleanOperation(.subtract)
+                        } label: {
+                            Image(systemName: "minus")
+                        }
+                        .accessibilityLabel("Subtract")
                     }
-                    .disabled(!project.canRedo)
+                } else {
+                    HStack(spacing: 20) {
+                        Button {
+                            project.undo()
+                            reselectTopIfNeeded()
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                        }
+                        .disabled(!project.canUndo)
+
+                        Button {
+                            project.redo()
+                            reselectTopIfNeeded()
+                        } label: {
+                            Image(systemName: "arrow.uturn.forward")
+                        }
+                        .disabled(!project.canRedo)
+                    }
                 }
             }
 
@@ -142,8 +167,7 @@ struct ContentView: View {
         .sheet(isPresented: $showEditSheet) {
             EditSheet(
                 project: project,
-                session: session,
-                onBooleanOp: performBooleanOperation
+                session: session
             )
             .presentationDetents(
                 [.fraction(0.5), .large],
