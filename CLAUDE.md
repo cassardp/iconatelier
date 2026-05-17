@@ -18,8 +18,10 @@ Communication avec l'utilisateur dans Claude Code reste en français.
 - iOS 18 minimum, pas de Liquid Glass
 - SwiftUI + `@Observable`
 - Architecture MV (pas MVVM)
-- Positionnement actuel : design tool paramétrique pur, **sans IA**
-  (cf. memory `project-non-ai-pivot`)
+- Positionnement actuel : design tool paramétrique **+** génération AI
+  overlay text-to-image (`AIPromptSheet`, `AIStyle`, `OpenAIImageService`).
+  Pas de drawing-to-AI, pas de photo flow, pas d'AI-background.
+  (cf. memory `project-non-ai-pivot`, `project-ai-first-plan`)
 
 ## Composants natifs vs custom
 
