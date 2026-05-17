@@ -8,7 +8,7 @@ struct BackgroundEditorContent: View {
         @Bindable var background = project.safeBackground
         ScrollView {
             VStack(spacing: 18) {
-                BackgroundActionsRow(project: project)
+                BackgroundActionsRow(project: project, session: session)
                 SectionDivider()
                 kindPicker(for: background)
                 SectionDivider()

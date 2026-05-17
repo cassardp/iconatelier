@@ -33,10 +33,29 @@ struct ShapeContentSection: View {
     }
 
     /// Title shown on the main section header — name of the live family
-    /// (e.g. "Square", "Pentagon", "Star 5", "Circle", "Drop", "Squircle",
-    /// "Custom"). Falls back to "Shape" if the spec is somehow missing.
+    /// (e.g. "Square", "Pentagon", "Star 5", "Circle", "Drop",
+    /// "App Silhouette"). When the user drifts a polygon away from its
+    /// preset (`.free`), we re-derive the title from the live side count
+    /// instead of falling back to a generic "Custom" — so 3 sides reads
+    /// as "Triangle", 4 as "Square", and so on. Falls back to "Shape" if
+    /// the spec is somehow missing.
     private var shapeFamilyTitle: String {
-        layer.shapeSpec?.displayName ?? "Shape"
+        guard let spec = layer.shapeSpec else { return "Shape" }
+        if case let .polygon(preset, sides, _) = spec.deepestBase, preset == .free {
+            return polygonTitle(forSides: sides)
+        }
+        return spec.displayName
+    }
+
+    private func polygonTitle(forSides sides: Int) -> String {
+        switch sides {
+        case 3: return "Triangle"
+        case 4: return "Square"
+        case 5: return "Pentagon"
+        case 6: return "Hexagon"
+        case 8: return "Octagon"
+        default: return "Custom"
+        }
     }
 
     // True iOS-icon squircle is parameter-less by design — polygon sliders

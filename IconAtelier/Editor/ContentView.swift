@@ -31,23 +31,20 @@ struct ContentView: View {
 
     private var fanItems: [ShapeFanItem] {
         [
-            ShapeFanItem(id: "square", symbol: "square", label: "Square") {
-                addShapeLayer(spec: .preset(.square), presentSheet: false)
+            ShapeFanItem(id: "text", symbol: "textformat", label: "Text") {
+                addTextLayer(presentSheet: false)
             },
             ShapeFanItem(id: "circle", symbol: "circle", label: "Circle") {
                 addShapeLayer(spec: .preset(.circle), presentSheet: false)
+            },
+            ShapeFanItem(id: "square", symbol: "square", label: "Square") {
+                addShapeLayer(spec: .preset(.square), presentSheet: false)
             },
             ShapeFanItem(id: "drop", symbol: "drop", label: "Drop") {
                 addShapeLayer(spec: .preset(.drop), presentSheet: false)
             },
             ShapeFanItem(id: "flower", symbol: "star", label: "Flower") {
                 addShapeLayer(spec: .preset(.flower6), presentSheet: false)
-            },
-            ShapeFanItem(id: "squircle", symbol: "app", label: "Squircle") {
-                addShapeLayer(spec: .preset(.squircle), presentSheet: false)
-            },
-            ShapeFanItem(id: "text", symbol: "textformat", label: "Text") {
-                addTextLayer(presentSheet: false)
             },
             ShapeFanItem(id: "generate", symbol: "wand.and.stars", label: "Generate") {
                 showPromptSheet = true

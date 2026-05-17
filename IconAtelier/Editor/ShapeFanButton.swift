@@ -20,7 +20,7 @@ struct ShapeFanButton: View {
 
     private let centerSize: CGFloat = 60
     private let miniSize: CGFloat = 56
-    private let radius: CGFloat = 150
+    private let radius: CGFloat = 110
 
     var body: some View {
         ZStack {
@@ -109,9 +109,12 @@ struct ShapeFanButton: View {
 
     private func position(for index: Int) -> CGSize {
         guard !items.isEmpty else { return .zero }
-        // Fan upward, from 150° (top-left) to 30° (top-right).
-        let startDeg = 150.0
-        let endDeg = 30.0
+        // Fan upward across a full semicircle, from 180° (left) to 0°
+        // (right). Widening the arc compensates for the tighter radius —
+        // items stay visually spaced even when they sit closer to the
+        // central button.
+        let startDeg = 180.0
+        let endDeg = 0.0
         let span = startDeg - endDeg
         let step = items.count > 1 ? span / Double(items.count - 1) : 0
         let deg = startDeg - step * Double(index)

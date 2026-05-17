@@ -72,9 +72,12 @@ struct LayerActionsRow: View {
 }
 
 /// Background-context actions. The background is unique to the project,
-/// so only visibility is meaningful — no Duplicate or Delete.
+/// so visibility is the main control — plus a shortcut to drop an iOS
+/// app-silhouette layer (the parameter-less Lamé squircle), since the
+/// silhouette is the natural sibling of the background surface.
 struct BackgroundActionsRow: View {
     @Bindable var project: IconProject
+    let session: ProjectSession
 
     var body: some View {
         let background = project.safeBackground
@@ -85,6 +88,15 @@ struct BackgroundActionsRow: View {
             ) {
                 project.recordUndo()
                 background.isHidden.toggle()
+            }
+            CompactActionButton(
+                title: "App Silhouette",
+                systemImage: "app.fill"
+            ) {
+                withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
+                    let layer = project.addShapeLayer(spec: .iosSquircle)
+                    session.selectLayer(layer.uuid)
+                }
             }
             Spacer(minLength: 0)
         }

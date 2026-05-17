@@ -143,7 +143,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         case .drop:
             return "Drop"
         case .iosSquircle:
-            return "Squircle"
+            return "App Silhouette"
         case .customPath:
             return "Custom"
         case .transform(let base, _, _, _):
@@ -418,7 +418,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
     var displayName: String {
         switch self {
         case .circle: return "Circle"
-        case .squircle: return "Squircle"
+        case .squircle: return "App Silhouette"
         case .roundedSquare: return "Rounded Square"
         case .square: return "Square"
         case .triangle: return "Triangle"
