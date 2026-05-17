@@ -39,10 +39,11 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         roundness: Double   // 0...1 — same fillet as polygon (flowers = high roundness)
     )
     case drop(
-        pointiness: Double, // 0...1 — tip sharpness
-        bulbSize: Double,   // 0...1 — bulb width
-        tailOffset: Double, // 0...1 — shoulder Y position
-        bend: Double        // -1...1 — lateral tip drift
+        pointiness: Double,   // 0...1 — tip sharpness
+        bulbSize: Double,     // 0...1 — bulb width
+        tailOffset: Double,   // 0...1 — shoulder Y position
+        bend: Double,         // -1...1 — lateral tip drift
+        tipRoundness: Double  // 0...1 — apex fillet (0 = sharp, 1 = rounded)
     )
     // Ellipse / circle family — true Lamé curve rather than a high-sided
     // polygon, so a circle stays a circle (no visible facets) at any size.
@@ -108,7 +109,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                     pointiness: d.pointiness,
                     bulbSize: d.bulbSize,
                     tailOffset: d.tailOffset,
-                    bend: d.bend
+                    bend: d.bend,
+                    tipRoundness: d.tipRoundness
                 )
             }
             // .free without a family is uncommon — fall back to a squircle-
@@ -269,12 +271,13 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 roundness: roundness,
                 rotationDegrees: preset.canonical.rotationDegrees
             ))
-        case let .drop(pointiness, bulbSize, tailOffset, bend):
+        case let .drop(pointiness, bulbSize, tailOffset, bend, tipRoundness):
             return AnyShape(DropShape(
                 pointiness: pointiness,
                 bulbSize: bulbSize,
                 tailOffset: tailOffset,
-                bend: bend
+                bend: bend,
+                tipRoundness: tipRoundness
             ))
         case let .ellipse(roundness, arcStart, arcSweep):
             return AnyShape(SuperellipseShape(
@@ -481,7 +484,9 @@ nonisolated extension ShapeSpec: Codable {
         case preset, points, innerDepth, roundness
     }
     private enum DropKeys: String, CodingKey {
-        case pointiness, bulbSize, tailOffset, bend
+        // `tipRoundness` added later — decoded with a default so pre-fillet
+        // projects keep loading unchanged.
+        case pointiness, bulbSize, tailOffset, bend, tipRoundness
     }
     private enum EllipseKeys: String, CodingKey {
         case roundness, arcStart, arcSweep
@@ -528,9 +533,11 @@ nonisolated extension ShapeSpec: Codable {
             let bulbSize = try nested.decode(Double.self, forKey: .bulbSize)
             let tailOffset = try nested.decode(Double.self, forKey: .tailOffset)
             let bend = try nested.decode(Double.self, forKey: .bend)
+            let tipRoundness = try nested.decodeIfPresent(Double.self, forKey: .tipRoundness) ?? 0
             self = .drop(
                 pointiness: pointiness, bulbSize: bulbSize,
-                tailOffset: tailOffset, bend: bend
+                tailOffset: tailOffset, bend: bend,
+                tipRoundness: tipRoundness
             )
             return
         }
@@ -594,12 +601,13 @@ nonisolated extension ShapeSpec: Codable {
             try nested.encode(points, forKey: .points)
             try nested.encode(innerDepth, forKey: .innerDepth)
             try nested.encode(roundness, forKey: .roundness)
-        case let .drop(pointiness, bulbSize, tailOffset, bend):
+        case let .drop(pointiness, bulbSize, tailOffset, bend, tipRoundness):
             var nested = container.nestedContainer(keyedBy: DropKeys.self, forKey: .drop)
             try nested.encode(pointiness, forKey: .pointiness)
             try nested.encode(bulbSize, forKey: .bulbSize)
             try nested.encode(tailOffset, forKey: .tailOffset)
             try nested.encode(bend, forKey: .bend)
+            try nested.encode(tipRoundness, forKey: .tipRoundness)
         case let .ellipse(roundness, arcStart, arcSweep):
             var nested = container.nestedContainer(keyedBy: EllipseKeys.self, forKey: .ellipse)
             try nested.encode(roundness, forKey: .roundness)

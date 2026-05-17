@@ -1,37 +1,26 @@
 import SwiftUI
 
-// Parametric teardrop with decoupled bulb size, tip elongation, and a
-// smooth (no-kink) lateral bend.
+// Minimal parametric teardrop. The base silhouette uses three anchor
+// points joined by three cubic Bézier arcs: tip at top, two widest points
+// on the equator. The bottom arc is a single cubic with vertical tangents
+// at the equator (handle length 4r/3, the standard half-circle
+// approximation).
 //
-// Geometry (screen coords, y down):
-//   • Bulb = true circle of radius `r` (set by `bulbSize`). The lower
-//     hemicircle is rendered with the magic 0.5523 cubic-Bézier
-//     approximation.
-//   • Shoulders sit on the bulb's equator → tangents leaving the
-//     shoulders are vertical, matching the circle.
-//   • Tip rises `tipHeight` above the equator (set by `tailOffset`,
-//     scaled into the headroom left by the bulb in the rect).
-//   • Tip apex carries an opening angle φ = π·(1 − pointiness):
-//       - φ = π    → horizontal tangent (perfectly rounded top)
-//       - φ = π/2  → 90° tip (slightly rounded)
-//       - φ = 0    → vertical tangents (sharp needle, kink)
-//     The two cubics meeting at the tip have control points placed
-//     symmetrically along that tangent angle, so the transition from
-//     "round" to "sharp" is continuous and visually pleasing.
-//   • `bend` shifts the upper half horizontally via a smoothstep g(v),
-//     where v is the normalized height above the equator. g(0)=g'(0)=0
-//     at the shoulders → no kink; g(1)=1 at the tip → full lean.
-//     Tip handles, shoulder handles, and the apex itself are all warped
-//     by the same field, so the upper silhouette leans as one smooth S.
+// `tipRoundness` rounds off the apex by De Casteljau-splitting each
+// tip→widest cubic at parameter t = tipRoundness · 0.4. The two split
+// points become apexL/apexR; a fillet cubic bridges them, with control
+// handles taken from the De Casteljau intermediates so C¹ continuity is
+// automatic.
 //
-// The drop is sized so that the bulb keeps a stable visible diameter
-// regardless of `tailOffset`, and the whole drop is uniformly scaled
-// down if it would otherwise overflow the rect.
+// `bend` shifts the tip and its two handles laterally; equator handles
+// stay vertical, so the up- and down-handles at each widest point remain
+// colinear with the anchor → no cusp at the shoulders.
 struct DropShape: InsettableShape, Equatable {
-    var pointiness: Double  // 0...1
-    var bulbSize: Double    // 0...1
-    var tailOffset: Double  // 0...1
-    var bend: Double        // -1...1
+    var pointiness: Double   // 0...1
+    var bulbSize: Double     // 0...1
+    var tailOffset: Double   // 0...1
+    var bend: Double         // -1...1
+    var tipRoundness: Double // 0...1
     var insetAmount: CGFloat = 0
 
     func inset(by amount: CGFloat) -> DropShape {
@@ -48,113 +37,179 @@ struct DropShape: InsettableShape, Equatable {
         let bulb = max(0, min(1, bulbSize))
         let tail = max(0, min(1, tailOffset))
         let bnd = max(-1, min(1, bend))
+        let tipR = max(0, min(1, tipRoundness))
 
-        // Bulb diameter is a stable fraction of `side`, independent of
-        // tail. Tail then elongates the tip into the remaining headroom.
-        // If bulb + tail asks for more than `side`, everything is
-        // scaled down uniformly.
-        let bulbDiameter = side * (0.40 + bulb * 0.40)            // 0.40...0.80 of side
-        var r = bulbDiameter / 2
-        let maxTipHeight = max(0, side - bulbDiameter)
-        var tipHeight = maxTipHeight * (0.30 + tail * 0.85)       // 0.30...1.15 of headroom
-        var totalHeight = 2 * r + tipHeight
-        if totalHeight > side {
-            let s = side / totalHeight
-            r *= s
+        // Bulb width grows with `bulb`. Tip height grows with `tail`
+        // alone — independent of `bulb`, so cranking up the bulb makes
+        // the silhouette extend DOWNWARD only (the apex and equator stay
+        // put). To anchor them, we center the maximum-bulb drop in the
+        // rect: smaller bulbs sit with the same apex Y and leave empty
+        // space below.
+        let bulbDiameter = side * (0.40 + bulb * 0.40)   // 0.40...0.80
+        var r = bulbDiameter / 2                           // 0.20...0.40
+        let maxR = side * 0.40                             // bulb = 1
+
+        var tipHeight = side * (0.20 + 0.50 * tail)        // 0.20...0.70
+        // Anchor span = the drop's height at full bulb. We center that
+        // in the rect so the apex Y is invariant under `bulb`. If full
+        // bulb would overflow, scale `tipHeight` (and proportionally
+        // `r`) so the max-bulb drop fits exactly.
+        var anchorSpan = maxR + tipHeight
+        if anchorSpan > side {
+            let s = side / anchorSpan
             tipHeight *= s
-            totalHeight = side
+            r = min(r, maxR * s)
+            anchorSpan = side
         }
 
         let cx = rect.midX
-        let topMargin = (side - totalHeight) / 2 + insetAmount
+        let topMargin = (side - anchorSpan) / 2 + insetAmount
         let tipApexY = rect.minY + topMargin
-        let cy = tipApexY + tipHeight + r                          // bulb center y
+        let midY = tipApexY + tipHeight        // equator y (invariant)
 
         // Tip apex opening angle.
         let phi = Double.pi * (1 - p)
         let sinHalf = sin(phi / 2)
         let cosHalf = cos(phi / 2)
 
-        // Handle lengths. Longer tip handle when tip is rounded so the
-        // apex broadens; shorter when sharp so the cusp stays tight.
-        let tipHandleLen = tipHeight * (0.28 + 0.30 * (1 - p))
-        let shoulderHandleLen = tipHeight * 0.55
-        let kCircle = 0.5522847498 * r
+        // Handle lengths. Tip handle grows when the apex is rounded, but
+        // capped so its lateral projection (tipHandleLen·sinHalf) never
+        // exceeds `r` — otherwise the apex flares wider than the equator.
+        let tipHandleRaw = tipHeight * (0.30 + 0.35 * (1 - p))
+        let tipHandleLen: Double = {
+            guard sinHalf > 1e-6 else { return tipHandleRaw }
+            return min(tipHandleRaw, r * 0.95 / sinHalf)
+        }()
+        // Equator → tip handle, capped at ~r to avoid a thin neck on
+        // tall narrow drops.
+        let equatorHandleUp = min(tipHeight * 0.55, r * 1.10)
+        // Equator → bulb-bottom handle. 4r/3 is the standard cubic
+        // approximation of a half-circle.
+        let equatorHandleDown = (4.0 / 3.0) * r
 
-        // Max lateral lean of the tip (in pt). Capped so the bent tip
-        // never escapes the rect's horizontal extent.
+        // Lateral bend. Only the tip anchor and its two handles drift;
+        // equator handles stay vertical. Handle lengths are scaled per
+        // side by the side's chord ratio so the two flanks remain
+        // equally round when the tip leans.
         let bendMax = min(r * 0.9, (rect.width - bulbDiameter) / 2 + r * 0.4)
+        let tipDx = CGFloat(bnd) * bendMax
 
-        // Smoothstep warp: g(0) = g'(0) = 0, g(1) = 1, g'(1) = 0.
-        // Smooth at both ends → no kink at shoulders or pinch at tip.
-        func bendOffset(_ relY: Double) -> CGFloat {
-            let v = max(0, min(1, relY))
-            let g = v * v * (3 - 2 * v)
-            return CGFloat(bnd * g) * bendMax
-        }
-        func warp(_ point: CGPoint) -> CGPoint {
-            guard tipHeight > 0 else { return point }
-            let relY = max(0, Double((cy - point.y) / tipHeight))
-            return CGPoint(x: point.x + bendOffset(relY), y: point.y)
-        }
+        let chordDefault = hypot(r, tipHeight)
+        let chordRight = hypot(r - Double(tipDx), tipHeight)
+        let chordLeft = hypot(r + Double(tipDx), tipHeight)
+        let rightScale = chordDefault > 0 ? chordRight / chordDefault : 1
+        let leftScale = chordDefault > 0 ? chordLeft / chordDefault : 1
 
-        // Anchor points.
-        let shoulderR = CGPoint(x: cx + r, y: cy)
-        let shoulderL = CGPoint(x: cx - r, y: cy)
-        let bulbBottom = CGPoint(x: cx, y: cy + r)
+        // Original control points for the two tip→widest cubics.
+        let tipApex = CGPoint(x: cx + tipDx, y: tipApexY)
+        let rightWidest = CGPoint(x: cx + r, y: midY)
+        let leftWidest = CGPoint(x: cx - r, y: midY)
 
-        // Tip apex + handles, in the un-warped frame.
-        let tipBase = CGPoint(x: cx, y: tipApexY)
-        let tipCtrl1Base = CGPoint(
-            x: cx + tipHandleLen * sinHalf,
-            y: tipApexY + tipHandleLen * cosHalf
+        let tipHandleRight = tipHandleLen * rightScale
+        let tipHandleLeft = tipHandleLen * leftScale
+
+        let tipCtrlRight = CGPoint(
+            x: tipApex.x + tipHandleRight * sinHalf,
+            y: tipApexY + tipHandleRight * cosHalf
         )
-        let tipCtrl2Base = CGPoint(
-            x: cx - tipHandleLen * sinHalf,
-            y: tipApexY + tipHandleLen * cosHalf
+        let tipCtrlLeft = CGPoint(
+            x: tipApex.x - tipHandleLeft * sinHalf,
+            y: tipApexY + tipHandleLeft * cosHalf
         )
+        let rightCtrlUp = CGPoint(x: cx + r, y: midY - equatorHandleUp * rightScale)
+        let leftCtrlUp = CGPoint(x: cx - r, y: midY - equatorHandleUp * leftScale)
+        let rightCtrlDown = CGPoint(x: cx + r, y: midY + equatorHandleDown)
+        let leftCtrlDown = CGPoint(x: cx - r, y: midY + equatorHandleDown)
 
-        // Shoulder handles aim straight up toward the tip.
-        let shoulderCtrlRBase = CGPoint(x: cx + r, y: cy - shoulderHandleLen)
-        let shoulderCtrlLBase = CGPoint(x: cx - r, y: cy - shoulderHandleLen)
+        // De Casteljau split: take each tip→widest cubic and split at
+        // t = tipR · 0.4. The split point F becomes the new apex on that
+        // side; (E, C) are the outer cubic's controls; D is the
+        // intermediate that the fillet borrows to keep C¹ continuity.
+        // At tipR = 0, splitT = 0 and the split degenerates: apexR =
+        // tipApex, the outer cubic equals the original, and the fillet
+        // collapses to a point.
+        let splitT = tipR * 0.4
 
-        // Warp upper-half points/handles.
-        let tip = warp(tipBase)
-        let tipCtrl1 = warp(tipCtrl1Base)
-        let tipCtrl2 = warp(tipCtrl2Base)
-        let shoulderCtrlR = warp(shoulderCtrlRBase)
-        let shoulderCtrlL = warp(shoulderCtrlLBase)
-        // Shoulders, bulb, and bulb-bottom controls are at or below the
-        // equator (relY ≤ 0) → smoothstep gives 0 → no warp applied.
+        func split(
+            apex: CGPoint, ctrl1: CGPoint, ctrl2: CGPoint, end: CGPoint
+        ) -> (apex: CGPoint, outerCtrl1: CGPoint, outerCtrl2: CGPoint, filletCtrl: CGPoint) {
+            let t = CGFloat(splitT)
+            let aP = CGPoint(
+                x: apex.x + t * (ctrl1.x - apex.x),
+                y: apex.y + t * (ctrl1.y - apex.y)
+            )
+            let bP = CGPoint(
+                x: ctrl1.x + t * (ctrl2.x - ctrl1.x),
+                y: ctrl1.y + t * (ctrl2.y - ctrl1.y)
+            )
+            let cP = CGPoint(
+                x: ctrl2.x + t * (end.x - ctrl2.x),
+                y: ctrl2.y + t * (end.y - ctrl2.y)
+            )
+            let dP = CGPoint(
+                x: aP.x + t * (bP.x - aP.x),
+                y: aP.y + t * (bP.y - aP.y)
+            )
+            let eP = CGPoint(
+                x: bP.x + t * (cP.x - bP.x),
+                y: bP.y + t * (cP.y - bP.y)
+            )
+            let fP = CGPoint(
+                x: dP.x + t * (eP.x - dP.x),
+                y: dP.y + t * (eP.y - dP.y)
+            )
+            return (apex: fP, outerCtrl1: eP, outerCtrl2: cP, filletCtrl: dP)
+        }
+
+        let splitRight = split(
+            apex: tipApex, ctrl1: tipCtrlRight,
+            ctrl2: rightCtrlUp, end: rightWidest
+        )
+        let splitLeft = split(
+            apex: tipApex, ctrl1: tipCtrlLeft,
+            ctrl2: leftCtrlUp, end: leftWidest
+        )
 
         var path = Path()
-        path.move(to: tip)
-        // Tip → right shoulder.
-        path.addCurve(to: shoulderR, control1: tipCtrl1, control2: shoulderCtrlR)
-        // Right shoulder → bulb bottom (true quarter circle).
+        path.move(to: splitRight.apex)
+        // apexR → right widest (outer half of the original right cubic).
         path.addCurve(
-            to: bulbBottom,
-            control1: CGPoint(x: cx + r, y: cy + kCircle),
-            control2: CGPoint(x: cx + kCircle, y: cy + r)
+            to: rightWidest,
+            control1: splitRight.outerCtrl1,
+            control2: splitRight.outerCtrl2
         )
-        // Bulb bottom → left shoulder (true quarter circle).
+        // Bottom of the bulb: single half-circle cubic.
         path.addCurve(
-            to: shoulderL,
-            control1: CGPoint(x: cx - kCircle, y: cy + r),
-            control2: CGPoint(x: cx - r, y: cy + kCircle)
+            to: leftWidest,
+            control1: rightCtrlDown,
+            control2: leftCtrlDown
         )
-        // Left shoulder → tip.
-        path.addCurve(to: tip, control1: shoulderCtrlL, control2: tipCtrl2)
+        // left widest → apexL (outer half of the original left cubic, run
+        // backwards — controls swap order).
+        path.addCurve(
+            to: splitLeft.apex,
+            control1: splitLeft.outerCtrl2,
+            control2: splitLeft.outerCtrl1
+        )
+        // Fillet apexL → apexR. control1 = left side's De Casteljau
+        // intermediate, control2 = right side's. Both naturally tangent
+        // to the surrounding cubics.
+        path.addCurve(
+            to: splitRight.apex,
+            control1: splitLeft.filletCtrl,
+            control2: splitRight.filletCtrl
+        )
         path.closeSubpath()
         return path
     }
 }
 
 extension DropShape {
-    /// Canonical default — full circular bulb, medium tip elongation,
-    /// moderately rounded apex, no bend.
+    /// Canonical default — moderate bulb, medium tip elongation,
+    /// moderately rounded apex, no bend, sharp tip (no fillet).
     nonisolated static let canonical = DropParams(
-        pointiness: 0.55, bulbSize: 0.85, tailOffset: 0.55, bend: 0
+        pointiness: 0.55, bulbSize: 0.60, tailOffset: 0.55,
+        bend: 0, tipRoundness: 0
     )
 }
 
@@ -163,4 +218,5 @@ struct DropParams: Hashable, Sendable {
     var bulbSize: Double
     var tailOffset: Double
     var bend: Double
+    var tipRoundness: Double
 }

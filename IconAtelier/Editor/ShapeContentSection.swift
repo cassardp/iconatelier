@@ -202,6 +202,14 @@ struct ShapeContentSection: View {
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
+            label: "Tip Roundness",
+            value: dropBinding(\.tipRoundness, scale: 100),
+            range: 0 ... 100,
+            valueText: { "\(Int($0.rounded()))" },
+            defaultValue: DropShape.canonical.tipRoundness * 100,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
             label: "Bend",
             value: dropBinding(\.bend, scale: 100),
             range: -100 ... 100,
@@ -393,11 +401,12 @@ struct ShapeContentSection: View {
     // MARK: - Drop parameter plumbing
 
     private var currentDropParams: DropParams {
-        if case let .drop(pointiness, bulbSize, tailOffset, bend)
+        if case let .drop(pointiness, bulbSize, tailOffset, bend, tipRoundness)
             = layer.shapeSpec?.deepestBase {
             return DropParams(
                 pointiness: pointiness, bulbSize: bulbSize,
-                tailOffset: tailOffset, bend: bend
+                tailOffset: tailOffset, bend: bend,
+                tipRoundness: tipRoundness
             )
         }
         return DropShape.canonical
@@ -406,7 +415,8 @@ struct ShapeContentSection: View {
     private func applyDropParams(_ p: DropParams) {
         let newBase = ShapeSpec.drop(
             pointiness: p.pointiness, bulbSize: p.bulbSize,
-            tailOffset: p.tailOffset, bend: p.bend
+            tailOffset: p.tailOffset, bend: p.bend,
+            tipRoundness: p.tipRoundness
         )
         layer.shapeSpec = (layer.shapeSpec ?? .defaultShape)
             .replacingBase(with: newBase)
