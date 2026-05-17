@@ -10,7 +10,7 @@ enum BorderDefaults {
     static let shapeWidth: Double = 0.15
     /// 0.06 → "30%" with the text units (`$0 * 500`).
     static let textWidth: Double = 0.06
-    static let color: Color = .white
+    static let color: Color = .black
     static let position: BorderPosition = .outer
 }
 
