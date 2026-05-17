@@ -214,7 +214,7 @@ struct PanelToggleRow: View {
 
 /// Generic segmented control with an animated selection pill. Use when the
 /// option set is small (2–5 items) and equally weighted. For longer lists,
-/// prefer `PanelMenuRow`.
+/// prefer `PanelMenu`.
 struct PanelSegmentedControl<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
@@ -316,66 +316,6 @@ struct PanelMenu<Value: Hashable>: View {
         }
         .menuOrder(.fixed)
         .tint(.primary)
-    }
-}
-
-// MARK: - Menu row
-
-/// Labeled row hosting a native pop-up menu. Use when the choice list is too
-/// long for a segmented control (5+ items) or when the values benefit from
-/// being shown one-per-line.
-struct PanelMenuRow<Value: Hashable>: View {
-    let label: String
-    let options: [Value]
-    @Binding var selection: Value
-    let optionLabel: (Value) -> String
-    var onChange: (() -> Void)? = nil
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .foregroundStyle(.primary)
-            Spacer()
-            Menu {
-                ForEach(options, id: \.self) { value in
-                    Button {
-                        guard selection != value else { return }
-                        UISelectionFeedbackGenerator().selectionChanged()
-                        onChange?()
-                        selection = value
-                    } label: {
-                        if value == selection {
-                            Label(optionLabel(value), systemImage: "checkmark")
-                        } else {
-                            Text(optionLabel(value))
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(optionLabel(selection))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .frame(height: PanelStyle.rowHeight - 16)
-                .background(
-                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius - 3, style: .continuous)
-                        .fill(PanelStyle.rowFillActive)
-                )
-            }
-            .menuOrder(.fixed)
-            .tint(.primary)
-        }
-        .padding(.horizontal, PanelStyle.rowInsetH)
-        .frame(maxWidth: .infinity, minHeight: PanelStyle.rowHeight, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                .fill(PanelStyle.rowFill)
-        )
     }
 }
 
