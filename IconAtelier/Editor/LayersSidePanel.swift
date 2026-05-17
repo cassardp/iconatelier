@@ -7,6 +7,7 @@ struct LayersBar: View {
     let onAddShape: () -> Void
     let onAddText: () -> Void
     let onImportImage: () -> Void
+    let onItemSelected: () -> Void
 
     @State private var draggingUUID: UUID?
     @State private var dragOffset: CGFloat = 0
@@ -79,6 +80,7 @@ struct LayersBar: View {
                 UISelectionFeedbackGenerator().selectionChanged()
             }
             session.selectBackground()
+            onItemSelected()
         }
     }
 
@@ -115,6 +117,7 @@ struct LayersBar: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 session.selectLayer(layer.uuid)
+                onItemSelected()
             }
             .gesture(
                 LongPressDragRecognizer { recognizer, location in

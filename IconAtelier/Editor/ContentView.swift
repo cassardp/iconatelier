@@ -11,14 +11,12 @@ struct ContentView: View {
     @Bindable var project: IconProject
 
     @State private var session = ProjectSession()
-    @State private var showEditSheet = true
+    @State private var showEditSheet = false
     @State private var showExportSheet = false
-    @State private var sheetDetent: PresentationDetent = Self.peekDetent
+    @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
     @State private var showImportPicker: Bool = false
-
-    private static let peekHeight: CGFloat = 100
-    private static let peekDetent: PresentationDetent = .height(100)
+    @State private var wasEditSheetOpenBeforeExport = false
 
     // Lasso multi-selection (Phase 1)
     @State private var canvasFrame: CGRect = .zero
@@ -64,7 +62,8 @@ struct ContentView: View {
                         session: session,
                         onAddShape: { addShapeLayer(spec: .defaultShape) },
                         onAddText: addTextLayer,
-                        onImportImage: { showImportPicker = true }
+                        onImportImage: { showImportPicker = true },
+                        onItemSelected: presentEditSheet
                     )
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .named(Self.editorSpaceName))
@@ -147,13 +146,12 @@ struct ContentView: View {
                 onBooleanOp: performBooleanOperation
             )
             .presentationDetents(
-                [Self.peekDetent, .fraction(0.5), .large],
+                [.fraction(0.5), .large],
                 selection: $sheetDetent
             )
             .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
             .presentationContentInteraction(.scrolls)
             .presentationDragIndicator(.visible)
-            .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
@@ -166,10 +164,11 @@ struct ContentView: View {
             handleImportResult(result)
         }
         .onChange(of: showExportSheet) { _, isPresented in
-            // The edit sheet is normally always open. We close it while the
-            // export sheet is on screen (iOS allows only one sheet from a given
-            // anchor), then re-open it once export is dismissed.
-            if !isPresented && !showEditSheet {
+            // iOS allows only one sheet from a given anchor, so the edit sheet
+            // is temporarily dismissed while export is on screen. Restore the
+            // previous state once export dismisses.
+            if !isPresented && wasEditSheetOpenBeforeExport && !showEditSheet {
+                wasEditSheetOpenBeforeExport = false
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(250))
                     showEditSheet = true
@@ -316,6 +315,7 @@ struct ContentView: View {
             let layer = project.addShapeLayer(spec: spec)
             session.selectLayer(layer.uuid)
         }
+        presentEditSheet()
     }
 
     private func addTextLayer() {
@@ -323,6 +323,13 @@ struct ContentView: View {
             let layer = project.addTextOverlay()
             session.selectLayer(layer.uuid)
         }
+        presentEditSheet()
+    }
+
+    private func presentEditSheet() {
+        guard !showEditSheet else { return }
+        sheetDetent = .fraction(0.5)
+        showEditSheet = true
     }
 
     private func handleImportResult(_ result: Result<[URL], Error>) {
@@ -339,7 +346,7 @@ struct ContentView: View {
             let layer = project.addImportedOverlay(image: image)
             session.selectLayer(layer.uuid)
         }
-        sheetDetent = .fraction(0.5)
+        presentEditSheet()
     }
 
     private func presentExportSheet() {
@@ -347,6 +354,7 @@ struct ContentView: View {
         // If the edit sheet is open, dismiss it first so the export sheet can
         // be presented from the parent anchor after the dismiss animation.
         if showEditSheet {
+            wasEditSheetOpenBeforeExport = true
             showEditSheet = false
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
@@ -380,7 +388,6 @@ struct ContentView: View {
     /// into geo space if needed.
     private func sheetCoverHeight(totalHeight: CGFloat) -> CGFloat {
         guard showEditSheet else { return 0 }
-        if sheetDetent == Self.peekDetent { return Self.peekHeight }
         if sheetDetent == .fraction(0.5) { return totalHeight * 0.5 }
         // .large covers (almost) everything — clamp so the canvas can collapse
         // without producing negative dimensions.

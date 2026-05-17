@@ -5,19 +5,6 @@ struct ParametricShapeContentSection: View {
     let project: IconProject
 
     var body: some View {
-        PanelSection(title: "Preset") {
-            PresetPickerRow(
-                selectedPreset: selectedPreset,
-                onSelect: { preset in
-                    project.recordUndo()
-                    let newBase = ShapeSpec.preset(preset)
-                    layer.shapeSpec = (layer.shapeSpec ?? .defaultShape)
-                        .replacingBase(with: newBase)
-                }
-            )
-        }
-
-        SectionDivider()
         PanelSection(title: "Shape") {
             ColorPickerRow(title: "Color", color: $layer.tintColor, onChange: { project.recordUndo() })
             if isPolygonFamily {
@@ -92,22 +79,6 @@ struct ParametricShapeContentSection: View {
     private var isEllipseFamily: Bool {
         if case .ellipse = layer.shapeSpec?.deepestBase { return true }
         return false
-    }
-
-    // Picker selection. iosSquircle maps back to the .squircle tile;
-    // polygon/star/drop surface their stored preset for tile highlighting.
-    // Boolean-op results land in `.customPath` and have no matching tile,
-    // so they surface as the inert `.free` selection.
-    private var selectedPreset: PolygonPreset {
-        switch layer.shapeSpec?.deepestBase {
-        case .iosSquircle: return .squircle
-        case .customPath: return .free
-        case .polygon(let preset, _, _): return preset
-        case .star(let preset, _, _, _): return preset
-        case .ellipse: return .circle
-        case .drop: return .drop
-        default: return .free
-        }
     }
 
     // MARK: - Family-specific sliders
@@ -454,75 +425,3 @@ struct ParametricShapeContentSection: View {
     }
 }
 
-// MARK: - Shape preset picker
-
-private struct PresetPickerRow: View {
-    let selectedPreset: PolygonPreset
-    let onSelect: (PolygonPreset) -> Void
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 8) {
-                ForEach(PolygonPreset.pickerOrder, id: \.self) { preset in
-                    PresetTile(
-                        preset: preset,
-                        isSelected: preset == selectedPreset,
-                        action: { onSelect(preset) }
-                    )
-                }
-            }
-            .padding(.vertical, 2)
-        }
-        .frame(height: 72)
-    }
-}
-
-private struct PresetTile: View {
-    let preset: PolygonPreset
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            UISelectionFeedbackGenerator().selectionChanged()
-            action()
-        } label: {
-            Group {
-                // Each tile must render exactly what tapping it produces.
-                // Squircle uses the true Lamé curve; drop/shield use their
-                // built-in custom paths; everything else falls through to
-                // the canonical StarPolygonShape parameter cell.
-                switch preset {
-                case .squircle:
-                    SquircleShape().fill(Color.primary)
-                case .circle:
-                    SuperellipseShape(roundness: 1.0).fill(Color.primary)
-                case .drop:
-                    DropShape(
-                        pointiness: DropShape.canonical.pointiness,
-                        bulbSize: DropShape.canonical.bulbSize,
-                        tailOffset: DropShape.canonical.tailOffset,
-                        bend: DropShape.canonical.bend
-                    ).fill(Color.primary)
-                default:
-                    preset.canonical.fill(Color.primary)
-                }
-            }
-            .frame(width: 40, height: 40)
-            .frame(width: 64, height: 64)
-            .background(
-                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                    .fill(isSelected ? PanelStyle.rowFillActive : PanelStyle.rowFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.primary.opacity(0.6) : .clear,
-                        lineWidth: 1.5
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(preset.displayName)
-    }
-}

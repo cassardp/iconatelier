@@ -57,6 +57,10 @@ struct PanelSection<Content: View>: View {
 
 // MARK: - Compact icon-only action button
 
+/// Square icon-only button sized to align with the PanelKit row height
+/// (52pt) and using the same `rowFill` background as `ActionRow`,
+/// `DialSliderRow`, and friends — so it sits naturally alongside other
+/// rows when grouped in an `HStack`.
 struct CompactActionButton: View {
     enum Role {
         case standard
@@ -69,14 +73,20 @@ struct CompactActionButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(.title3)
                 .foregroundStyle(iconColor)
-                .frame(maxWidth: .infinity, minHeight: 52)
+                .frame(width: PanelStyle.rowHeight, height: PanelStyle.rowHeight)
                 .background(
                     RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
                         .fill(PanelStyle.rowFill)
+                )
+                .contentShape(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
                 )
         }
         .buttonStyle(.plain)

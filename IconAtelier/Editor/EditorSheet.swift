@@ -7,24 +7,15 @@ struct EditSheet: View {
     let onBooleanOp: (BooleanOpKind) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            PeekActionHeader(
-                project: project,
-                session: session,
-                onBooleanOp: onBooleanOp
-            )
-            content
-        }
-        .sheetUserInterfaceStyle(.dark)
-        .presentationBackground(Color(.systemBackground))
+        content
+            .sheetUserInterfaceStyle(.dark)
+            .presentationBackground(Color(.systemBackground))
     }
 
     @ViewBuilder
     private var content: some View {
         if session.isMultiSelecting {
-            // Boolean ops live entirely in the peek header — keep the sheet
-            // body intentionally empty so nothing competes for attention.
-            Color.clear
+            MultiSelectContent(onBooleanOp: onBooleanOp)
         } else if session.isBackgroundSelected {
             BackgroundEditorContent(project: project, session: session)
         } else if project.layer(withID: session.selectedLayerUUID) != nil {
@@ -35,110 +26,106 @@ struct EditSheet: View {
     }
 }
 
-// MARK: - Peek action header
+// MARK: - Multi-select content (boolean ops)
 
-private struct PeekActionHeader: View {
-    @Bindable var project: IconProject
-    let session: ProjectSession
+private struct MultiSelectContent: View {
     let onBooleanOp: (BooleanOpKind) -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            if session.isMultiSelecting {
-                booleanButtons
-            } else if session.isBackgroundSelected {
-                backgroundButtons
-            } else if let layer = selectedLayer {
-                layerButtons(for: layer)
-            } else {
-                Color.clear
+        ScrollView {
+            VStack(spacing: 18) {
+                MultiSelectActionsRow(onBooleanOp: onBooleanOp)
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 28)
+            .padding(.bottom, 14)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 60)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
-        .padding(.horizontal, 16)
+        .scrollIndicators(.hidden)
     }
+}
 
-    private var selectedLayer: Layer? {
-        project.layer(withID: session.selectedLayerUUID)
-    }
+// MARK: - Action rows (right-aligned, scrollable with content)
 
-    @ViewBuilder
-    private func layerButtons(for layer: Layer) -> some View {
-        PeekActionButton(
-            symbol: layer.isHidden ? "eye" : "eye.slash",
-            label: layer.isHidden ? "Show" : "Hide"
-        ) {
-            project.toggleVisibility(layer)
-        }
-        PeekActionButton(symbol: "square.on.square", label: "Duplicate") {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                let copy = project.duplicate(layer)
-                session.selectLayer(copy.uuid)
+/// Layer-context actions (hide/show, duplicate, delete) rendered as
+/// square `CompactActionButton`s aligned to the trailing edge, designed
+/// to sit at the top of the sheet's scrollable content.
+struct LayerActionsRow: View {
+    @Bindable var project: IconProject
+    let session: ProjectSession
+    let layer: Layer
+
+    var body: some View {
+        HStack(spacing: 8) {
+            CompactActionButton(
+                title: layer.isHidden ? "Show" : "Hide",
+                systemImage: layer.isHidden ? "eye" : "eye.slash"
+            ) {
+                project.toggleVisibility(layer)
             }
-        }
-        PeekActionButton(symbol: "trash", label: "Delete") {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                let wasSelected = session.selectedLayerUUID == layer.uuid
-                project.remove(layer)
-                if wasSelected {
-                    if let top = project.layers.last {
-                        session.selectLayer(top.uuid)
-                    } else {
-                        session.selectBackground()
+            CompactActionButton(
+                title: "Duplicate",
+                systemImage: "square.on.square"
+            ) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let copy = project.duplicate(layer)
+                    session.selectLayer(copy.uuid)
+                }
+            }
+            Spacer(minLength: 0)
+            CompactActionButton(
+                title: "Delete",
+                systemImage: "trash"
+            ) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    let wasSelected = session.selectedLayerUUID == layer.uuid
+                    project.remove(layer)
+                    if wasSelected {
+                        if let top = project.layers.last {
+                            session.selectLayer(top.uuid)
+                        } else {
+                            session.selectBackground()
+                        }
                     }
                 }
             }
         }
     }
+}
 
-    @ViewBuilder
-    private var backgroundButtons: some View {
+struct BackgroundActionsRow: View {
+    @Bindable var project: IconProject
+
+    var body: some View {
         let background = project.safeBackground
-        PeekActionButton(
-            symbol: background.isHidden ? "eye" : "eye.slash",
-            label: background.isHidden ? "Show" : "Hide"
-        ) {
-            project.recordUndo()
-            background.isHidden.toggle()
-        }
-    }
-
-    @ViewBuilder
-    private var booleanButtons: some View {
-        PeekActionButton(symbol: "plus", label: "Union") {
-            onBooleanOp(.union)
-        }
-        PeekActionButton(symbol: "circle.righthalf.filled", label: "Intersect") {
-            onBooleanOp(.intersect)
-        }
-        PeekActionButton(symbol: "minus", label: "Subtract") {
-            onBooleanOp(.subtract)
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            CompactActionButton(
+                title: background.isHidden ? "Show" : "Hide",
+                systemImage: background.isHidden ? "eye" : "eye.slash"
+            ) {
+                project.recordUndo()
+                background.isHidden.toggle()
+            }
         }
     }
 }
 
-private struct PeekActionButton: View {
-    let symbol: String
-    let label: String
-    let action: () -> Void
+struct MultiSelectActionsRow: View {
+    let onBooleanOp: (BooleanOpKind) -> Void
 
     var body: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            action()
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .regular))
-                .foregroundStyle(.primary)
-                .frame(width: 46, height: 46)
-                .background(PanelStyle.rowFillActive, in: .circle)
-                .contentShape(.circle)
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            CompactActionButton(title: "Union", systemImage: "plus") {
+                onBooleanOp(.union)
+            }
+            CompactActionButton(title: "Intersect", systemImage: "circle.righthalf.filled") {
+                onBooleanOp(.intersect)
+            }
+            CompactActionButton(title: "Subtract", systemImage: "minus") {
+                onBooleanOp(.subtract)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 }
 

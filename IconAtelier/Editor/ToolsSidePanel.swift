@@ -10,6 +10,8 @@ struct EditTabContent: View {
         ScrollView {
             VStack(spacing: 18) {
                 if let layer = project.layer(withID: session.selectedLayerUUID) {
+                    LayerActionsRow(project: project, session: session, layer: layer)
+                    SectionDivider()
                     contentSection(for: layer)
                     SectionDivider()
                     shadowSection(for: layer)
