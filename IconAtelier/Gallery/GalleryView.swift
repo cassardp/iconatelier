@@ -284,11 +284,11 @@ struct GalleryView: View {
     private func createNewProject() {
         let project = IconProject(title: "Untitled")
         project.background = Background(kind: .solid)
+        project.addTextOverlay(text: "New")
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         modelContext.insert(project)
         try? modelContext.save()
-        path.append(ProjectRoute(projectUUID: project.uuid))
     }
 
     private func duplicate(_ project: IconProject) {
