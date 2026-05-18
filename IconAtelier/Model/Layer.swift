@@ -92,18 +92,10 @@ final class Layer: Codable, Identifiable {
     var name: String = ""
     var kind: LayerKind = .image
 
-    /// In-memory PNG payload. Persisted by `ProjectStore` to a sibling
-    /// `layer-{uuid}.png` file rather than serialized inline in the JSON
-    /// (excluded from `CodingKeys`).
     var imagePNG: Data? {
         didSet { imagePNGDirty = true }
     }
 
-    /// Set every time `imagePNG` is mutated; `ProjectStore.save` uses it to
-    /// skip rewriting the layer's PNG sidecar when nothing about the blob
-    /// has changed. Defaults to true so freshly-built layers always get a
-    /// first write to disk; the store resets it to false right after a
-    /// successful write (or after rehydration on load).
     @ObservationIgnored
     var imagePNGDirty: Bool = true
 
@@ -113,14 +105,10 @@ final class Layer: Codable, Identifiable {
 
     var storedTintColor: StoredColor = StoredColor.white
 
-    /// Backing storage for `fillPaint`. `nil` means "fall back to a solid
-    /// Paint built from `tintColor`" — keeps freshly-added layers (and
-    /// pre-Paint records) rendering as before without forcing a migration.
     var storedFillPaint: Paint?
 
     var shapeSpec: ShapeSpec?
 
-    // Shape-level styling (applies to .parametricShape layers).
     var cornerRadius: Double = 0
     var borderWidth: Double = 0
     var storedBorderColor: StoredColor = StoredColor.black
@@ -170,15 +158,7 @@ final class Layer: Codable, Identifiable {
     }
 
     // MARK: - Codable
-    //
-    // `imagePNG` is intentionally excluded from JSON. `ProjectStore` writes
-    // it out to a `layer-{uuid}.png` sibling file on save and rehydrates it
-    // on load. Keeping blobs out of the JSON keeps `project.json` small
-    // enough to inspect by hand.
 
-    // JSON key names retain the historical `*Raw` suffix from the SwiftData
-    // era so existing on-disk projects keep decoding unchanged. The Swift-side
-    // property names are the natural typed ones.
     private enum CodingKeys: String, CodingKey {
         case uuid, name
         case kind = "kindRaw"
@@ -199,9 +179,7 @@ final class Layer: Codable, Identifiable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        // `try?` swallows both a missing key and an unknown raw value (e.g. a
-        // legacy "emoji" kind from before that case was dropped) — fall back
-        // to the default rather than crashing on stale projects.
+
         kind = (try? c.decodeIfPresent(LayerKind.self, forKey: .kind)) ?? .image
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? "Aa"
         fontWeight = (try? c.decodeIfPresent(LayerFontWeight.self, forKey: .fontWeight)) ?? .bold
@@ -265,10 +243,6 @@ final class Layer: Codable, Identifiable {
     }
 
     // MARK: - Bridged properties
-    //
-    // Only types that don't round-trip through Codable on their own
-    // (`UIImage`, `Color`, `CGSize`, `CGFloat`, `Angle`) keep a bridge.
-    // Enums are stored directly above — no `*Raw` indirection.
 
     var image: UIImage? {
         get { imagePNG.flatMap { UIImage(data: $0) } }
@@ -305,12 +279,6 @@ final class Layer: Codable, Identifiable {
         set { storedBorderColor = StoredColor(newValue) }
     }
 
-    /// Shape/text fill description. When no Paint has been stored yet,
-    /// falls back to a solid Paint built from `tintColor` so the layer
-    /// renders identically to its pre-Paint state. The setter keeps
-    /// `storedTintColor` in sync with the solid case so code paths still
-    /// reading `tintColor` (image colorMultiply, snapshot hashing, …)
-    /// reflect the active fill.
     var fillPaint: Paint {
         get { storedFillPaint ?? .solid(tintColor) }
         set {

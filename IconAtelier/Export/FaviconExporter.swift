@@ -6,18 +6,6 @@ enum FaviconExporter {
         case pngEncodingFailed
     }
 
-    /// Builds a zip with a standard web favicon set:
-    ///
-    ///     {baseName}-favicons/
-    ///         favicon.ico              (multi-image: 16, 32, 48)
-    ///         favicon-16.png
-    ///         favicon-32.png
-    ///         favicon-48.png
-    ///         apple-touch-icon.png     (180×180)
-    ///         icon-192.png             (PWA / Android Chrome)
-    ///         icon-512.png             (PWA / Android Chrome)
-    ///         site.webmanifest
-    ///         README.txt               (HTML snippet to paste in <head>)
     static func writeBundle(light: UIImage, baseName: String) throws -> URL {
         let fm = FileManager.default
         let clean = sanitize(baseName)
@@ -63,16 +51,13 @@ enum FaviconExporter {
 
     // MARK: - ICO (multi-image PNG-embedded)
 
-    /// Builds a .ico container with PNG-embedded entries. PNG-in-ICO has been
-    /// supported by Windows Vista and every modern browser; it keeps the file
-    /// small and preserves alpha.
     private static func makeICO(images: [UIImage]) -> Data? {
         var pngs: [(width: UInt8, height: UInt8, data: Data)] = []
         for img in images {
             guard let png = img.pngData() else { return nil }
             let w = Int(img.size.width)
             let h = Int(img.size.height)
-            // ICO stores 256 as the byte value 0.
+
             let wb: UInt8 = w >= 256 ? 0 : UInt8(w)
             let hb: UInt8 = h >= 256 ? 0 : UInt8(h)
             pngs.append((wb, hb, png))
@@ -80,21 +65,19 @@ enum FaviconExporter {
 
         var data = Data()
 
-        // ICONDIR header (6 bytes)
-        data.appendU16LE(0)               // reserved
-        data.appendU16LE(1)               // type = ICO
+        data.appendU16LE(0)
+        data.appendU16LE(1)
         data.appendU16LE(UInt16(pngs.count))
 
-        // ICONDIRENTRY for each image (16 bytes each)
         let headerSize = 6 + 16 * pngs.count
         var offset = UInt32(headerSize)
         for entry in pngs {
             data.append(entry.width)
             data.append(entry.height)
-            data.append(0)                // color count (0 = no palette)
-            data.append(0)                // reserved
-            data.appendU16LE(1)           // color planes
-            data.appendU16LE(32)          // bits per pixel
+            data.append(0)
+            data.append(0)
+            data.appendU16LE(1)
+            data.appendU16LE(32)
             data.appendU32LE(UInt32(entry.data.count))
             data.appendU32LE(offset)
             offset += UInt32(entry.data.count)

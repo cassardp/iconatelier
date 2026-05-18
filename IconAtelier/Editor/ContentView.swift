@@ -26,7 +26,6 @@ struct ContentView: View {
 
     private static let generationTimeoutSeconds: Int = 90
 
-    // Lasso multi-selection (Phase 1)
     @State private var canvasFrame: CGRect = .zero
     @State private var layersBarFrame: CGRect = .zero
     @State private var lassoRect: CGRect? = nil
@@ -58,19 +57,11 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geo in
             let layersBarHeight: CGFloat = 48
-            // Reserve space below the layers bar for the floating + button
-            // only when it's actually visible. When the edit sheet is open
-            // the button hides, so the bar can sit closer to the sheet edge.
+
             let fanButtonRowHeight: CGFloat = showEditSheet ? 0 : 76
-            // Minimum air above the icon so it never sticks to the top of the
-            // visible band (status bar / nav title).
+
             let topPadding: CGFloat = 16
-            // The sheet's `.fraction(0.5)` and `.height(N)` detents measure
-            // against the *full* window height (including the top/bottom safe
-            // areas), whereas `geo.size.height` excludes them. Reconstructing
-            // the total screen height here lets us project the sheet's cover
-            // band back into geo's coordinate space — otherwise the VStack
-            // ends up extending behind the sheet by ~50pt in the 0.5 detent.
+
             let totalScreenHeight = geo.size.height
                 + geo.safeAreaInsets.top
                 + geo.safeAreaInsets.bottom
@@ -274,9 +265,7 @@ struct ContentView: View {
             handleImportResult(result)
         }
         .onChange(of: showExportSheet) { _, isPresented in
-            // iOS allows only one sheet from a given anchor, so the edit sheet
-            // is temporarily dismissed while export is on screen. Restore the
-            // previous state once export dismisses.
+
             if !isPresented && wasEditSheetOpenBeforeExport && !showEditSheet {
                 wasEditSheetOpenBeforeExport = false
                 Task { @MainActor in
@@ -286,9 +275,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: exportSignature) { _, _ in
-            // Thumbnail is refreshed in-memory so the gallery is up to date
-            // when we navigate back. Actual persistence is debounced until
-            // the project closes or the app backgrounds.
+
             IconRenderer.updateThumbnail(project)
         }
         .onChange(of: scenePhase) { _, phase in
@@ -334,9 +321,7 @@ struct ContentView: View {
         DragGesture(minimumDistance: 12, coordinateSpace: .named(Self.editorSpaceName))
             .onChanged { value in
                 let start = value.startLocation
-                // Only engage when the drag starts outside both the canvas and the
-                // layers bar — the canvas owns its own transform gestures and the
-                // bar owns long-press reorder, so we must not steal from them.
+
                 guard !canvasFrame.contains(start),
                       !layersBarFrame.contains(start)
                 else { return }
@@ -363,13 +348,12 @@ struct ContentView: View {
                     lassoRect = nil
                 }
                 if session.lassoSelectedLayerUUIDs.count == 1 {
-                    // A single layer matches — promote it to standard selection
-                    // for consistency with tap-to-select.
+
                     if let only = session.lassoSelectedLayerUUIDs.first {
                         session.selectLayer(only)
                     }
                 } else if session.lassoSelectedLayerUUIDs.isEmpty {
-                    // Nothing matched — make sure we don't leave a dangling state.
+
                     session.clearLassoSelection()
                 } else {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -377,9 +361,6 @@ struct ContentView: View {
             }
     }
 
-    /// Approximate axis-aligned bounding box of each visible layer, in canvas-local
-    /// coordinates. Good enough for marquee selection; the exact rotated bounds
-    /// are not worth the cost here.
     private func lassoHitTest(rect: CGRect, side: CGFloat) -> Set<UUID> {
         guard side > 0 else { return [] }
         var matched: Set<UUID> = []
@@ -407,8 +388,6 @@ struct ContentView: View {
         }
     }
 
-    /// If the currently-selected layer no longer exists (e.g. after undo/redo
-    /// removed it), fall back to selecting the top-most remaining layer.
     private func reselectTopIfNeeded() {
         if let id = session.selectedLayerUUID, project.layer(withID: id) == nil {
             session.selectLayer(project.layers.last?.uuid)
@@ -476,9 +455,7 @@ struct ContentView: View {
             }
             _ = key
             generationStartDate = Date()
-            // The overlay drives its own iris-reveal choreography on appear;
-            // here we just toggle the state without an outer animation so the
-            // entrance is immediate and the iris owns the visual reveal.
+
             isGenerating = true
             let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
             let subjectText = trimmedSubject.isEmpty
@@ -554,9 +531,7 @@ struct ContentView: View {
     }
 
     private func presentExportSheet() {
-        // SwiftUI cannot present two sheets from the same anchor view at once.
-        // If the edit sheet is open, dismiss it first so the export sheet can
-        // be presented from the parent anchor after the dismiss animation.
+
         if showEditSheet {
             wasEditSheetOpenBeforeExport = true
             showEditSheet = false
@@ -579,22 +554,17 @@ struct ContentView: View {
         let projectRef = project
         let storeRef = store
         Task { @MainActor in
-            // Yield once so the dismiss/zoom-out animation can start before
-            // the synchronous ImageRenderer pass blocks the main actor.
+
             await Task.yield()
             IconRenderer.updateThumbnail(projectRef)
             storeRef.save(projectRef)
         }
     }
 
-    /// Height (in points) that the sheet visually claims from the bottom of
-    /// the *full* window for the current detent. The caller projects this
-    /// into geo space if needed.
     private func sheetCoverHeight(totalHeight: CGFloat) -> CGFloat {
         guard showEditSheet else { return 0 }
         if sheetDetent == .fraction(0.5) { return totalHeight * 0.5 }
-        // .large covers (almost) everything — clamp so the canvas can collapse
-        // without producing negative dimensions.
+
         return totalHeight
     }
 
@@ -651,4 +621,3 @@ private struct LassoMarquee: View {
         }
     }
 }
-

@@ -2,13 +2,6 @@ import Foundation
 import Compression
 
 // MARK: - Minimal zip reader
-//
-// Reads standard ZIP archives (PKZIP, stored or deflate-compressed) using
-// only Foundation + the Compression framework. Sufficient for archives
-// produced by `LibraryExporter` via `NSFileCoordinator(.forUploading)`.
-//
-// Limitations: no ZIP64, no encryption, no multi-disk archives. None of
-// these apply to library backups.
 
 enum ZipReaderError: LocalizedError {
     case malformed
@@ -113,9 +106,6 @@ enum ZipReader {
         }
     }
 
-    /// Inflates raw DEFLATE (RFC 1951) using the Compression framework.
-    /// Apple's `COMPRESSION_ZLIB` is raw DEFLATE despite the name -- it's what
-    /// ZIP archives use.
     private static func inflateRawDeflate(_ data: Data, expectedSize: Int) throws -> Data {
         guard expectedSize > 0 else { return Data() }
         let dst = UnsafeMutablePointer<UInt8>.allocate(capacity: expectedSize)
@@ -136,8 +126,6 @@ enum ZipReader {
         return Data(bytes: dst, count: written)
     }
 
-    /// Locates the End-of-Central-Directory record by scanning the trailing
-    /// 64KB + 22 bytes (max comment size + record size).
     private static func findEndOfCentralDirectory(in data: Data) -> Int? {
         let minSize = 22
         guard data.count >= minSize else { return nil }

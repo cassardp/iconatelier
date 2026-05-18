@@ -1,17 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// Full-screen overlay shown while an AI generation request is in flight.
-///
-/// Entrance choreography:
-/// 1. Circular iris-reveal grows from the top-right corner (where the
-///    Generate toolbar button sits), wiping in the overlay over ~0.7 s.
-/// 2. Background mesh starts as a vibrant Apple-Intelligence-style palette
-///    and morphs over ~1.4 s into a calm, light-gray mesh.
-/// 3. Mesh points "breathe" with subtle sinusoidal motion the whole time.
-/// 4. Title, subtitle and countdown badge enter in a staggered cascade
-///    (title 0.35 s, subtitle 0.50 s, badge 0.60 s with a soft spring).
-/// 5. A soft halo behind the badge pulses gently for the duration.
 struct GeneratingOverlay: View {
     let startDate: Date?
     let total: Int
@@ -112,27 +101,19 @@ struct GeneratingOverlay: View {
 // MARK: - Animated mesh background
 
 private struct AnimatedMesh: View {
-    /// Free-running clock that drives all of the motion.
+
     let time: Double
 
     var body: some View {
         let t = time
 
-        // Inverted layout: corners are the darker "taches" and the centre
-        // is a bright highlight that wanders. Each corner pulses on its
-        // own phase between mid-gray and lighter gray so the spots feel
-        // alive and never all darken at once.
         let cornerTL = 0.62 + 0.10 * sin(t * 0.32 + 0.0)
         let cornerTR = 0.62 + 0.10 * sin(t * 0.36 + 1.7)
         let cornerBL = 0.62 + 0.10 * sin(t * 0.30 + 3.0)
         let cornerBR = 0.62 + 0.10 * sin(t * 0.34 + 4.2)
 
-        // Edges sit between corners and centre — light gray, gently
-        // breathing.
         let edgeLightness = 0.85 + 0.04 * sin(t * 0.42 + 1.1)
 
-        // Bright centre — pulses subtly between near-white and white so
-        // the wandering highlight has some life of its own too.
         let centerLightness = 0.96 + 0.03 * sin(t * 0.65)
 
         let colors: [Color] = [
@@ -149,19 +130,11 @@ private struct AnimatedMesh: View {
         )
     }
 
-    /// The corners stay clamped to the rectangle edges. The centre point
-    /// follows a wide Lissajous orbit — different X and Y frequencies, so
-    /// the trajectory never quite repeats — which drags the bright centre
-    /// highlight across the canvas. The middle row and column also breathe
-    /// to give the edges some life.
     private func meshPoints(t: Double) -> [SIMD2<Float>] {
-        // Wide, very visible centre orbit. Slightly different radii and
-        // frequencies on X and Y produce a slow figure-eight-like path.
+
         let centerX: Float = 0.5 + 0.34 * Float(cos(t * 0.48))
         let centerY: Float = 0.5 + 0.30 * Float(sin(t * 0.71))
 
-        // Subtle sway on the middle row/column so the rest of the mesh
-        // isn't perfectly static while the centre drifts.
         let amp: Float = 0.10
         let s = { (phase: Double) -> Float in Float(sin(t * 0.55 + phase)) }
         let c = { (phase: Double) -> Float in Float(cos(t * 0.45 + phase)) }

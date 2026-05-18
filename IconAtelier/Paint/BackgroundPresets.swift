@@ -37,7 +37,6 @@ private extension Color {
 }
 
 // MARK: - Curated presets
-// Inspired by uiGradients classics, tuned for app-icon legibility.
 
 enum BackgroundPresets {
     static let linear: [LinearPreset] = [
@@ -80,7 +79,7 @@ enum BackgroundPresets {
     ]
 
     static let radial: [RadialPreset] = [
-        // Sun-style halos (bright center → saturated → dark edge)
+
         .init(name: "Sunburst",
               colors: [Color(hex: 0xFFEDA0), Color(hex: 0xFF9500), Color(hex: 0xC62828)]),
         .init(name: "Glow",
@@ -90,7 +89,6 @@ enum BackgroundPresets {
         .init(name: "Dusk",
               colors: [Color(hex: 0xFFD89B), Color(hex: 0xFF6B35), Color(hex: 0x0E2A47)]),
 
-        // Cool / cosmic halos
         .init(name: "Aurora Burst",
               colors: [Color(hex: 0x84FFC9), Color(hex: 0x7B9AFF), Color(hex: 0x2D0A4E)]),
         .init(name: "Magenta Halo",
@@ -98,19 +96,16 @@ enum BackgroundPresets {
         .init(name: "Tide",
               colors: [Color(hex: 0xE8F5FF), Color(hex: 0x4A90E2), Color(hex: 0x0A3A8F)]),
 
-        // Saturated vivid halos
         .init(name: "Cherry",
               colors: [Color(hex: 0xFF3D5C), Color(hex: 0x600018)]),
         .init(name: "Forest Glow",
               colors: [Color(hex: 0xD4FF4A), Color(hex: 0x2E7D32), Color(hex: 0x0A2E1F)]),
 
-        // Soft / pastel halos
         .init(name: "Cream",
               colors: [Color(hex: 0xFFF4D6), Color(hex: 0xFFB4A2), Color(hex: 0xC1416B)]),
         .init(name: "Spotlight",
               colors: [Color(hex: 0xFFFFFF), Color(hex: 0xFFCC33), Color(hex: 0x2D2D2D)]),
 
-        // Grayscale
         .init(name: "Moonlight",
               colors: [Color(hex: 0xFFFFFF), Color(hex: 0xB0BEC5), Color(hex: 0x37474F)]),
     ]

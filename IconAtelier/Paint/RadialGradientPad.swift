@@ -1,21 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// Compact square editor for a 2-stop radial gradient.
-///
-/// Same visual language as `LinearGradientPad`: a small gray pad whose
-/// only job is to convey *geometry* — the gradient itself is already
-/// visible on the icon canvas above. Two handles:
-///
-/// - **Center handle**: tap edits the inner stop color, drag moves
-///   `gradientCenter` (which the existing UI never exposed before).
-/// - **Edge handle**: tap edits the outer stop color, drag changes
-///   `radialSpread` (= distance from center, in pad-side units). The
-///   visual angle is kept in transient state so the handle follows the
-///   finger naturally; the model only stores the scalar spread.
-///
-/// A dashed circle of radius `spread × padSize` is drawn around the
-/// center so the user sees the spread setting at a glance.
 struct RadialGradientPad: View {
     @Binding var paint: Paint
     let onBeginEditing: () -> Void
@@ -25,9 +10,6 @@ struct RadialGradientPad: View {
     private static let handleSize: CGFloat = 26
     private static let dragMinimumDistance: CGFloat = 10
 
-    /// Visual direction of the edge handle relative to the center
-    /// (radians). Persisted only in view state — the model has no
-    /// notion of direction, just a scalar spread.
     @State private var edgeAngle: Double = 0
 
     @State private var isDraggingCenter = false
@@ -152,7 +134,7 @@ struct RadialGradientPad: View {
             let dy = Double(value.location.y - center.y)
             let distance = (dx * dx + dy * dy).squareRoot()
             edgeAngle = atan2(dy, dx)
-            // Match the model bounds defined by radialSpreadSlider.
+
             paint.radialSpread = clamp(distance / Double(size), 0.2, 1.5)
         }
         .onEnded { _ in isDraggingEdge = false }

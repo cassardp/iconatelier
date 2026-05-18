@@ -17,10 +17,7 @@ struct LibraryImportSummary: Sendable {
 }
 
 enum LibraryImporter {
-    /// Reads each `project.json` from the archive, rehydrates the matching
-    /// out-of-band PNG sidecars (thumbnail + layer images), and hands the
-    /// assembled `IconProject` to the store. Projects whose UUID already
-    /// exists in the library are skipped.
+
     @MainActor
     static func importBundle(
         from zipURL: URL,
@@ -28,10 +25,6 @@ enum LibraryImporter {
     ) throws -> LibraryImportSummary {
         let entries = try ZipReader.extract(zipURL: zipURL)
 
-        // Group every entry by its parent directory. A project is then any
-        // directory whose file map contains `project.json`. This handles
-        // both NSFileCoordinator-wrapped bundles (`IconAtelier-…/{uuid}/…`)
-        // and flat ones (`{uuid}/…`) without a special prefix-stripping step.
         var byDir: [String: [String: Data]] = [:]
         for entry in entries {
             guard let lastSlash = entry.name.lastIndex(of: "/") else { continue }

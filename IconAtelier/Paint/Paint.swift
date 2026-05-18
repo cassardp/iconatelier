@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// Kind discriminator for `Paint`. Identical raw values to the legacy
-/// `BackgroundKind` (kept as a typealias in `Background.swift` for source
-/// compatibility).
 enum PaintKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case solid
     case meshGradient
@@ -21,14 +18,6 @@ enum PaintKind: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
-/// Shared paint description used by both `Background` (whole-canvas fill)
-/// and shape/text layer `fillPaint`. Stored as JSON on `Layer` and as
-/// flat columns on `Background` — `Paint` is the in-memory shape the
-/// `PaintEditor` and the renderer both operate on.
-///
-/// All fields are kept regardless of `kind` so switching between kinds
-/// (solid → linear → mesh → …) preserves whatever the user already
-/// configured — same convention as `Background`.
 nonisolated struct Paint: Codable, Hashable, Sendable {
     var kind: PaintKind
     var solidColor: StoredColor
@@ -38,9 +27,7 @@ nonisolated struct Paint: Codable, Hashable, Sendable {
     var gradientCenter: StoredPoint
     var radialSpread: Double
     var meshColors: [StoredColor]
-    /// Positions of the 4 mesh corners in canvas-unit space, in TL/TR/BL/BR
-    /// order. Empty when the field is missing on disk — the renderer and
-    /// editor fall back to `defaultMeshCornerPoints` (identity grid).
+
     var meshCornerPoints: [StoredPoint]
     var meshRotationDegrees: Double
 
@@ -72,9 +59,6 @@ nonisolated struct Paint: Codable, Hashable, Sendable {
         )
     }
 
-    // Decode without the new field for projects saved before the
-    // draggable-mesh feature: meshCornerPoints defaults to [] and the
-    // renderer/editor fall back to `defaultMeshCornerPoints`.
     private enum CodingKeys: String, CodingKey {
         case kind, solidColor, gradientColors
         case linearStart, linearEnd, gradientCenter
@@ -143,16 +127,12 @@ nonisolated struct Paint: Codable, Hashable, Sendable {
     }
 
     nonisolated static let defaultMeshCornerPoints: [StoredPoint] = [
-        StoredPoint(x: 0, y: 0),  // top-left
-        StoredPoint(x: 1, y: 0),  // top-right
-        StoredPoint(x: 0, y: 1),  // bottom-left
-        StoredPoint(x: 1, y: 1),  // bottom-right
+        StoredPoint(x: 0, y: 0),
+        StoredPoint(x: 1, y: 0),
+        StoredPoint(x: 0, y: 1),
+        StoredPoint(x: 1, y: 1),
     ]
 
-    /// Builds the 9 SwiftUI `MeshGradient` points (row-major 3×3) from the
-    /// 4 stored corners. Mid-row, mid-column, and center cells are linearly
-    /// interpolated. Falls back to the identity grid when `corners` has the
-    /// wrong arity (legacy projects, accidental clears).
     nonisolated static func mesh9Points(corners: [StoredPoint]) -> [SIMD2<Float>] {
         let c = corners.count == 4 ? corners : defaultMeshCornerPoints
         let tl = c[0], tr = c[1], bl = c[2], br = c[3]
@@ -173,17 +153,6 @@ nonisolated struct Paint: Codable, Hashable, Sendable {
         ]
     }
 
-    /// Builds a 5×5 `MeshGradient` points grid where the 4 user-controlled
-    /// corners sit at the *inner* positions [6, 8, 16, 18] (row-major),
-    /// surrounded by an outer ring pinned to the unit-frame edges. This is
-    /// what lets the gradient *always cover the full canvas* even when a
-    /// corner handle is dragged inward — the outer ring carries the corner
-    /// color out to the frame edge, eliminating the convex-hull holes that
-    /// the bare 3×3 grid produces.
-    ///
-    /// Inner positions (handles, mid-edges, center) are computed exactly
-    /// like `mesh9Points`. Outer ring positions are fixed at quarters of
-    /// the unit frame.
     nonisolated static func mesh25Points(corners: [StoredPoint]) -> [SIMD2<Float>] {
         let c = corners.count == 4 ? corners : defaultMeshCornerPoints
         let tl = c[0], tr = c[1], bl = c[2], br = c[3]
@@ -210,13 +179,6 @@ nonisolated struct Paint: Codable, Hashable, Sendable {
         ]
     }
 
-    /// Expands the 9 stored mesh colors (3×3) into the 25 colors needed by
-    /// `mesh25Points`. The outer ring cells repeat the nearest corner /
-    /// mid-edge color so the gradient color *extends* from the user corner
-    /// out to the frame edge instead of fading to transparent.
-    ///
-    /// Stored 3×3 indices: 0=TL, 1=top-mid, 2=TR, 3=mid-left, 4=center,
-    /// 5=mid-right, 6=BL, 7=bottom-mid, 8=BR.
     nonisolated static func mesh25Colors(from colors9: [Color]) -> [Color] {
         guard colors9.count == 9 else {
             return mesh25Colors(from: Paint.defaultMeshStoredColors.map { $0.color })

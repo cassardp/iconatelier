@@ -1,60 +1,21 @@
 import SwiftUI
 
-/// Reusable editor for a `Paint` value — kind picker, geometry pad,
-/// per-kind controls (mesh angle), and presets. Used by the background
-/// editor and by the shape/text fill sections so a layer fill can be
-/// any of the same gradients the canvas background supports.
-///
-/// Always emits its rows bare — the caller is responsible for wrapping
-/// in a `PanelSection` with whatever title fits the context
-/// ("Background", "Fill", etc.). For the background editor the
-/// canonical title flips between Color and Gradient based on the
-/// current kind; use `PaintEditor.sectionTitle(for:)` to compute it.
-///
-/// Top → bottom:
-///   1. Kind segmented control
-///   2. Presets thumbnails (gradients only)
-///   3. The pad (or solid color row) — bordered block
-///   4. Mesh angle slider (mesh only)
 struct PaintEditor: View {
     @Binding var paint: Paint
-    /// Called once per discrete edit (start of a slider drag, color
-    /// picker tap, preset tap, kind switch…). Wire to
-    /// `project.recordUndo()` — its own coalescing window dedupes the
-    /// rapid-fire calls a `ColorPicker` produces.
+
     let onBeginEditing: () -> Void
 
     var body: some View {
-        // 12pt between the kind picker, presets row, and pad block —
-        // these are heavy, visually rich rows (segmented control,
-        // gradient thumbnails, large bordered pad), so they need more
-        // breathing room than `PanelSection`'s default 7pt row rhythm
-        // (which is tuned for slider stacks). Same value in every
-        // context — background editor or layer fill — so the editor
-        // reads identically wherever it's embedded.
+
         VStack(spacing: 14) {
             editorRows
         }
     }
 
-    /// Canonical section title for the background editor — "Color"
-    /// when solid, "Gradient" otherwise. Other callers ("Fill", …)
-    /// pass their own title.
     static func sectionTitle(for kind: PaintKind) -> String {
         kind == .solid ? "Color" : "Gradient"
     }
 
-    /// Rows shared by sectioned and flat modes, in their canonical
-    /// top→bottom order:
-    ///   1. Kind segmented control
-    ///   2. Presets thumbnails (gradients only — no "Presets" title
-    ///      because the parent section header already speaks for them)
-    ///   3. The pad (or solid color row) — its bordered block is the
-    ///      visual end-of-section delimiter; no divider is appended
-    ///      after it
-    ///   4. Mesh only: angle slider, placed directly under the pad
-    ///      block (no divider — the bordered block already separates
-    ///      it from the pad)
     @ViewBuilder
     private var editorRows: some View {
         kindPickerRow
@@ -87,13 +48,6 @@ struct PaintEditor: View {
 
     // MARK: - Geometry
 
-    /// Per-kind editor body. Each gradient pad is wrapped in a bordered
-    /// "block" — a thin stroke around the area where the color-picker
-    /// handles live, so the pad reads as a self-contained card instead
-    /// of floating bare in the panel. The mesh angle slider sits
-    /// *outside* this block (see `editorRows`) so the slider gets real
-    /// breathing room from the bottom handles that can drift past the
-    /// pad edge.
     @ViewBuilder
     private var geometryBlock: some View {
         switch paint.kind {
@@ -114,11 +68,6 @@ struct PaintEditor: View {
         }
     }
 
-    /// Wraps a gradient pad in the bordered "block" used by all three
-    /// gradient editors. Vertical padding clears the outward-drifting
-    /// color-picker handles so the stroke truly wraps the reachable
-    /// picker zone — the handles are conceptually tethered to the
-    /// block and can't extend past it.
     @ViewBuilder
     private func gradientPadBlock<Content: View>(
         @ViewBuilder content: () -> Content
@@ -135,11 +84,6 @@ struct PaintEditor: View {
             }
     }
 
-    /// Top/bottom padding inside the gradient pad block. Sized to fully
-    /// clear the linear/mesh pads' outward-drifting handles — overshoot
-    /// is 0.25 × 140pt ≈ 35pt past the pad edge, plus a 13pt handle
-    /// radius — so the stroke wraps the reachable color-picker zone
-    /// on every side instead of cutting through it.
     private let padBlockVerticalPadding: CGFloat = 48
 
     // MARK: - Presets
@@ -246,8 +190,7 @@ struct PaintEditor: View {
             onSelect: { preset in
                 onBeginEditing()
                 paint.meshColors = preset.meshColors.map { StoredColor($0) }
-                // Reset any previous corner warp + rotation so the preset
-                // renders with the canonical layout shown in the thumbnail.
+
                 paint.meshCornerPoints = Paint.defaultMeshCornerPoints
                 paint.meshRotationDegrees = 0
             }

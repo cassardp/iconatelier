@@ -1,10 +1,6 @@
 import SwiftUI
 import UIKit
 
-// Legacy alias — `Background` and the rest of the codebase were written
-// around `BackgroundKind` before the shared `Paint` model existed. The two
-// enums are intentionally one-to-one (same raw values), so we just route
-// every reference through `PaintKind`.
 typealias BackgroundKind = PaintKind
 
 @Observable
@@ -18,8 +14,7 @@ final class Background: Codable {
     var storedGradientCenter: StoredPoint = StoredPoint(x: 0.5, y: 0.5)
     var radialSpread: Double = 0.75
     var storedMeshColors: [StoredColor] = []
-    /// Stored 4 mesh corner positions (TL/TR/BL/BR). Empty when the field
-    /// is missing on disk — the renderer falls back to the identity grid.
+
     var storedMeshCornerPoints: [StoredPoint] = []
     var meshRotationDegrees: Double = 0
 
@@ -46,8 +41,6 @@ final class Background: Codable {
 
     // MARK: - Codable
 
-    // JSON key for `kind` stays `kindRaw` so existing on-disk projects keep
-    // decoding unchanged after the SwiftData → Codable migration.
     private enum CodingKeys: String, CodingKey {
         case kind = "kindRaw"
         case storedSolidColor, storedGradientColors
@@ -59,8 +52,7 @@ final class Background: Codable {
 
     required init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        // `try?` covers both a missing key and an unknown raw value — fall
-        // back to the default rather than failing the whole project load.
+
         kind = (try? c.decodeIfPresent(BackgroundKind.self, forKey: .kind)) ?? .solid
         storedSolidColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedSolidColor)
             ?? StoredColor(r: 0.92, g: 0.92, b: 0.94, a: 1.0)
@@ -91,9 +83,6 @@ final class Background: Codable {
     }
 
     // MARK: - Bridged properties (Color, UnitPoint)
-    //
-    // Only types that don't natively round-trip through Codable on their own
-    // (`Color`, `UnitPoint`) keep a bridge. `kind` is stored directly above.
 
     var solidColor: Color {
         get { storedSolidColor.color }
@@ -126,11 +115,7 @@ final class Background: Codable {
     }
 
     // MARK: - Paint bridge
-    //
-    // Snapshot the Background's flat columns into a `Paint` value so the
-    // shared `PaintEditor` (also used by shape/text fill) can drive the
-    // Background through a single `Binding<Paint>`. The setter splats the
-    // value back into the same columns — round-trip is lossless.
+
     var paint: Paint {
         get {
             Paint(
@@ -223,12 +208,12 @@ extension Background {
 // MARK: - Color tokens
 
 extension Color {
-    nonisolated static let iaDefaultBackground = Color(red: 222.0/255.0, green: 222.0/255.0, blue: 222.0/255.0)  // #DEDEDE
-    nonisolated static let iaBlue = Color(red: 0.0, green: 0.478, blue: 1.0)        // #007AFF
-    nonisolated static let iaPurple = Color(red: 0.345, green: 0.337, blue: 0.839)  // #5856D6
-    nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)      // #FF2D55
-    nonisolated static let iaOrange = Color(red: 1.0, green: 0.584, blue: 0.0)      // #FF9500
-    nonisolated static let iaSelectionYellow = Color(red: 1.0, green: 0.78, blue: 0.0) // #FFC700
+    nonisolated static let iaDefaultBackground = Color(red: 222.0/255.0, green: 222.0/255.0, blue: 222.0/255.0)
+    nonisolated static let iaBlue = Color(red: 0.0, green: 0.478, blue: 1.0)
+    nonisolated static let iaPurple = Color(red: 0.345, green: 0.337, blue: 0.839)
+    nonisolated static let iaPink = Color(red: 1.0, green: 0.176, blue: 0.333)
+    nonisolated static let iaOrange = Color(red: 1.0, green: 0.584, blue: 0.0)
+    nonisolated static let iaSelectionYellow = Color(red: 1.0, green: 0.78, blue: 0.0)
 
     nonisolated static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         let ua = UIColor(a)
@@ -246,8 +231,6 @@ extension Color {
         )
     }
 
-    /// Builds a 9-cell 3×3 mesh gradient by linearly interpolating the 5
-    /// non-corner cells between the 4 corners. Row-major order.
     nonisolated static func mesh3x3(
         topLeft tl: Color,
         topRight tr: Color,

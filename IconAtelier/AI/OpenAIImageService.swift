@@ -232,9 +232,6 @@ struct OpenAIImageService {
         }
     }
 
-    // Photo references have no alpha — JPEG is ~5–10× smaller than PNG at
-    // visually equivalent quality, which dramatically reduces upload time
-    // to OpenAI. The /images/edits endpoint accepts JPG, PNG, and WEBP.
     static func prepareJPEGSquare(
         _ image: UIImage,
         side: CGFloat = 1024,

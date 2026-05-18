@@ -51,8 +51,7 @@ private struct SheetUserInterfaceStyleSetter: UIViewControllerRepresentable {
 }
 
 extension View {
-    /// Forces a specific `UIUserInterfaceStyle` on the sheet hosting this view,
-    /// without propagating to the presenting window (no flash on the parent view).
+
     func sheetUserInterfaceStyle(_ style: UIUserInterfaceStyle) -> some View {
         background {
             SheetUserInterfaceStyleSetter(style: style)

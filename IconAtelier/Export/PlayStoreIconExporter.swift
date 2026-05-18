@@ -19,18 +19,6 @@ enum PlayStoreIconExporter {
         .init(folder: "mipmap-xxxhdpi", pixels: 192)
     ]
 
-    /// Builds a zip with the Google Play 512×512 store icon and the Android
-    /// legacy launcher icons in five density buckets. The bundle layout:
-    ///
-    ///     {baseName}-play-store/
-    ///         play-store-512.png
-    ///         android/
-    ///             mipmap-mdpi/ic_launcher.png
-    ///             mipmap-hdpi/ic_launcher.png
-    ///             mipmap-xhdpi/ic_launcher.png
-    ///             mipmap-xxhdpi/ic_launcher.png
-    ///             mipmap-xxxhdpi/ic_launcher.png
-    ///         README.txt
     static func writeBundle(light: UIImage, baseName: String) throws -> URL {
         let fm = FileManager.default
         let clean = sanitize(baseName)
@@ -41,7 +29,6 @@ enum PlayStoreIconExporter {
 
         defer { try? fm.removeItem(at: workDir) }
 
-        // 512×512 hi-res Play Store icon (PNG-32 with alpha, ≤ 1024 KB per spec)
         try writePNG(downscale(light, to: 512), to: bundle.appendingPathComponent("play-store-512.png"))
 
         let androidDir = bundle.appendingPathComponent("android", isDirectory: true)

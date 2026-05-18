@@ -96,8 +96,6 @@ struct IconCanvasView: View {
         project.layer(withID: session.selectedLayerUUID)
     }
 
-    /// Centroid of the lasso-selected layers' offsets, used as the pivot for
-    /// group pinch and rotate. Returns nil when there's no multi-selection.
     private func multiGroupCentroid() -> CGSize? {
         guard session.isMultiSelecting else { return nil }
         let selected = project.layers.filter {
@@ -116,10 +114,6 @@ struct IconCanvasView: View {
         var angle: Angle
     }
 
-    /// Computes the transient (in-flight) transform applied to a layer's
-    /// rendering. For a single selection it just forwards the gesture state.
-    /// For a multi-selection it rotates/scales each layer's position around
-    /// the group pivot so the group transforms as a rigid body.
     private func transientForRender(
         layer: Layer,
         isSelected: Bool,
@@ -221,9 +215,7 @@ struct IconCanvasView: View {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
                 if session.isMultiSelecting {
-                    // Group drag: translate every lasso-selected layer in
-                    // lockstep. Snap-to-center is intentionally disabled —
-                    // there is no single anchor to snap on a group.
+
                     state.translation = value.translation
                     state.axes = []
                     state.isActive = true
@@ -319,8 +311,7 @@ struct IconCanvasView: View {
             .updating($rotationSnap) { value, state, _ in
                 guard value.rotation.degrees.isFinite else { return }
                 if session.isMultiSelecting {
-                    // 90° snap doesn't really fit a group — skip it and let
-                    // the user rotate freely.
+
                     state.delta = value.rotation
                     state.isSnapped = false
                     return
@@ -431,7 +422,7 @@ struct BackgroundView: View {
             .scaleEffect(scale)
             .rotationEffect(.degrees(angle))
         } else {
-            // Pre-iOS 18 fallback: approximate with a linear gradient.
+
             LinearGradient(
                 colors: [background.meshColors.first ?? .iaPurple,
                          background.meshColors.last ?? .iaOrange],
@@ -461,10 +452,7 @@ private struct OverlayLayerView: View {
             transientScale: transientScale,
             transientAngle: transientAngle
         )
-        // No `.contentShape(Rectangle())` here on purpose — LayerContentView
-        // sets a per-kind content shape (the actual Path for parametric
-        // shapes, Rectangle for image/emoji/text) so taps on transparent
-        // areas of a star or polygon no longer select the layer.
+
         .onTapGesture {
             if !isSelected {
                 UISelectionFeedbackGenerator().selectionChanged()
@@ -531,11 +519,7 @@ struct LayerContentView: View {
                     .contentShape(Rectangle())
             }
         case .text:
-            // Render the text as a glyph-derived Path so it plugs into the
-            // same fill + stroke + radial-repeat pipeline as parametric
-            // shapes. The optional radial-repeat is read from
-            // `layer.shapeSpec` — for text layers only the wrap's params
-            // matter, the base is ignored (the glyph path is the base).
+
             let textSide = side * 0.6 * scale
             let glyphShape = TextGlyphShape(
                 text: layer.text,
@@ -568,9 +552,7 @@ struct LayerContentView: View {
                 }
             }
             .frame(width: textSide, height: textSide)
-            // Same path-aware hit-testing as parametric shapes: taps in the
-            // negative space of a glyph (or between repeated copies) fall
-            // through instead of selecting the text layer.
+
             .contentShape(renderShape)
         case .parametricShape:
             let shapeSide = side * 0.5 * scale
@@ -585,11 +567,7 @@ struct LayerContentView: View {
                         borderView(
                             shape: shape,
                             width: strokeWidth,
-                            // Open paths can't use .inner / .outer — those
-                            // clip / punch-out via the shape's fill, which
-                            // implicitly closes the arc and chops off the
-                            // stroke endpoints. Force .center so caps stay
-                            // intact.
+
                             color: layer.borderColor,
                             position: spec.isOpenPath ? .center : layer.borderPosition,
                             lineCap: layer.lineCap.cgLineCap
@@ -597,9 +575,7 @@ struct LayerContentView: View {
                     }
                 }
                 .frame(width: shapeSide, height: shapeSide)
-                // Precise hit-testing via Path.contains for closed paths.
-                // Open paths (e.g. partial-arc ellipse) can't be hit-tested
-                // that way, so fall back to a Rectangle content shape.
+
                 .contentShape(spec.isOpenPath ? AnyShape(Rectangle()) : shape)
             } else {
                 Color.clear
@@ -609,23 +585,9 @@ struct LayerContentView: View {
         }
     }
 
-    // Three border positions:
-    //  - .center: SwiftUI's default stroke, centered on the path. Bleeds inward
-    //    and outward; self-intersects on concave shapes at large widths.
-    //  - .inner:  doubled stroke clipped to the shape's interior. Effective
-    //    width = `width`, fully inside, no overflow.
-    //  - .outer:  doubled stroke with the shape's interior punched out via
-    //    `destinationOut`. Effective width = `width`, fully outside.
-    //
-    // `lineCap` is the user-selected cap — visible only on open paths
-    // (partial arcs). Closed loops join back into themselves so cap style
-    // is invisible there.
     @ViewBuilder
     private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition, lineCap: CGLineCap) -> some View {
-        // Use rounded joins everywhere — at large render sizes the default
-        // .miter join produces long spikes wherever a glyph or path has an
-        // acute angle. Invisible on a 56pt thumbnail, very visible at full
-        // canvas size as a stray "tail" outside the shape.
+
         switch position {
         case .center:
             shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: lineCap, lineJoin: .round))

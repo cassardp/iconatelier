@@ -22,11 +22,6 @@ enum AppIconSetExporter {
         case fileWriteFailed
     }
 
-    /// Writes a `.appiconset` directory then zips it. The archive expands to a
-    /// `{baseName}.appiconset/` folder containing `Contents.json` (declaring
-    /// the requested platforms — iOS / macOS / watchOS) and the corresponding
-    /// 1024×1024 PNGs. Drag the unzipped folder into Xcode's asset catalog.
-    /// Dark and tinted only apply to the iOS slot.
     static func writeAppIconSet(
         variants: Variants,
         platforms: Platforms,
@@ -41,7 +36,6 @@ enum AppIconSetExporter {
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: workDir) }
 
-        // Light (any appearance) — required, shared across platforms
         let lightFile = "icon-1024.png"
         try writePNG(variants.light, to: directory.appendingPathComponent(lightFile))
 
@@ -145,11 +139,6 @@ enum AppIconSetExporter {
 
     // MARK: - macOS size matrix
 
-    /// macOS asset catalog requires the full 10-slot size × scale matrix.
-    /// Mac sizes (in pt × scale → pixel dimensions):
-    ///   16@1x=16, 16@2x=32, 32@1x=32, 32@2x=64,
-    ///   128@1x=128, 128@2x=256, 256@1x=256, 256@2x=512,
-    ///   512@1x=512, 512@2x=1024
     private struct MacSlot {
         let size: String
         let scale: String
@@ -175,7 +164,7 @@ enum AppIconSetExporter {
         light: UIImage,
         sharedLightFile: String
     ) throws {
-        // Distinct pixel sizes we need to render once and reuse across slots
+
         var fileByPixels: [CGFloat: String] = [1024: sharedLightFile]
         let distinctSizes = Set(macSlots.map { $0.pixels }).subtracting([1024])
 

@@ -5,11 +5,7 @@ struct ShapeContentSection: View {
     let project: IconProject
 
     var body: some View {
-        // Family section — title is the live shape family (Square,
-        // Pentagon, Star 5, Circle, Drop, Squircle, Custom…) so the
-        // panel header always tells the user which family they're
-        // editing. Holds only the shape-parameter sliders; the fill UI
-        // lives in its own section below.
+
         if hasFamilySliders {
             PanelSection(title: shapeFamilyTitle) {
                 if isPolygonFamily {
@@ -44,20 +40,10 @@ struct ShapeContentSection: View {
         }
     }
 
-    /// True when the family has its own parameter sliders to render
-    /// (polygon/star/ellipse/drop). Squircle and custom-path shapes
-    /// don't, so we skip the empty family section for them.
     private var hasFamilySliders: Bool {
         isPolygonFamily || isStarFamily || isEllipseFamily || isDropFamily
     }
 
-    /// Title shown on the main section header — name of the live family
-    /// (e.g. "Square", "Pentagon", "Star 5", "Circle", "Drop",
-    /// "App Silhouette"). When the user drifts a polygon away from its
-    /// preset (`.free`), we re-derive the title from the live side count
-    /// instead of falling back to a generic "Custom" — so 3 sides reads
-    /// as "Triangle", 4 as "Square", and so on. Falls back to "Shape" if
-    /// the spec is somehow missing.
     private var shapeFamilyTitle: String {
         guard let spec = layer.shapeSpec else { return "Shape" }
         if case let .polygon(preset, sides, _) = spec.deepestBase, preset == .free {
@@ -77,16 +63,11 @@ struct ShapeContentSection: View {
         }
     }
 
-    // True iOS-icon squircle is parameter-less by design — polygon sliders
-    // hidden so the user can't drift away from the pixel-identical mask.
     private var isIosSquircle: Bool {
         if case .iosSquircle = layer.shapeSpec?.deepestBase { return true }
         return false
     }
 
-    // Boolean-op result: opaque path, no sides/roundness to tune. The
-    // preset picker stays interactive so the user can opt out of the
-    // result by tapping a normal preset tile.
     private var isCustomPath: Bool {
         if case .customPath = layer.shapeSpec?.deepestBase { return true }
         return false
@@ -180,8 +161,7 @@ struct ShapeContentSection: View {
             defaultValue: 100,
             onBeginEditing: { project.recordUndo() }
         )
-        // Start angle is only meaningful when the arc is partial — a full
-        // ring looks identical at any start angle.
+
         if currentEllipseParams.arcSweep < 1.0 - 1e-6 {
             DialSliderRow(
                 label: "Arc Start",
@@ -243,7 +223,7 @@ struct ShapeContentSection: View {
     private struct PolygonParams: Equatable {
         var preset: PolygonPreset
         var sides: Int
-        var roundness: Double  // 0...1
+        var roundness: Double
 
         static let fallback = PolygonParams(
             preset: .square, sides: 4, roundness: 0
@@ -295,8 +275,8 @@ struct ShapeContentSection: View {
     private struct StarParams: Equatable {
         var preset: PolygonPreset
         var points: Int
-        var innerDepth: Double  // 0...1
-        var roundness: Double   // 0...1
+        var innerDepth: Double
+        var roundness: Double
 
         static let fallback = StarParams(
             preset: .star5, points: 5, innerDepth: 0.5, roundness: 0
@@ -441,11 +421,6 @@ struct ShapeContentSection: View {
             .replacingBase(with: newBase)
     }
 
-    /// All four drop sliders share the same shape: read a Double through a
-    /// keyPath, scale it for the UI (×100 → percent), clamp on write.
-    /// `pointiness`, `bulbSize`, `tailOffset` clamp to 0...1; `bend` to -1...1
-    /// — detected from the slider's symmetric vs asymmetric range upstream
-    /// (the binding just clamps to the natural domain of the keyPath value).
     private func dropBinding(
         _ keyPath: WritableKeyPath<DropParams, Double>,
         scale: Double
@@ -455,9 +430,7 @@ struct ShapeContentSection: View {
             set: { newScaled in
                 var p = currentDropParams
                 let raw = newScaled / scale
-                // `bend` is the only param with a signed domain — everything
-                // else is 0...1. Clamp accordingly so the slider can't push
-                // pointiness/bulbSize/tailOffset negative.
+
                 if keyPath == \DropParams.bend {
                     p[keyPath: keyPath] = max(-1, min(1, raw))
                 } else {
@@ -469,4 +442,3 @@ struct ShapeContentSection: View {
     }
 
 }
-

@@ -25,9 +25,6 @@ struct EditSheet: View {
 
 // MARK: - Action rows (right-aligned, scrollable with content)
 
-/// Layer-context actions (hide/show, duplicate, delete) rendered as
-/// square `CompactActionButton`s aligned to the trailing edge, designed
-/// to sit at the top of the sheet's scrollable content.
 struct LayerActionsRow: View {
     @Bindable var project: IconProject
     let session: ProjectSession
@@ -71,10 +68,6 @@ struct LayerActionsRow: View {
     }
 }
 
-/// Background-context actions. The background is unique to the project,
-/// so visibility is the main control — plus a shortcut to drop an iOS
-/// app-silhouette layer (the parameter-less Lamé squircle), since the
-/// silhouette is the natural sibling of the background surface.
 struct BackgroundActionsRow: View {
     @Bindable var project: IconProject
     let session: ProjectSession

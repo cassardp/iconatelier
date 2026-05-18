@@ -1,14 +1,6 @@
 import SwiftUI
 import Foundation
 
-// A serialized Path produced by a boolean operation (or any future
-// "freeze the silhouette" feature). Stored normalized so its bbox center
-// sits at (0.5, 0.5) in a unit square and its longer dimension spans
-// [0, 1]. The shorter dimension is centered with margin — the original
-// aspect is preserved automatically through the unit-space coordinates.
-//
-// PathPrimitive is reserved for boolean-op results. Named built-in shapes
-// (drop, polygon, star…) have their own parametric `ShapeSpec` cases.
 nonisolated struct PathPrimitive: Hashable, Codable, Sendable {
     enum Element: Hashable, Codable, Sendable {
         case move(x: Double, y: Double)
@@ -19,17 +11,12 @@ nonisolated struct PathPrimitive: Hashable, Codable, Sendable {
     }
 
     var elements: [Element]
-    // bbox.width / bbox.height of the original path. Kept for reference
-    // (and so the IconProject placement math can derive the layer's logical
-    // size); the renderer doesn't need it — the unit coords already encode
-    // the aspect.
+
     var aspect: Double
 }
 
 extension PathPrimitive {
-    /// Walk `path`'s elements, compute its bbox, and renormalize every
-    /// coordinate so the bbox center maps to (0.5, 0.5) and the longer side
-    /// spans the unit interval. Returns nil for an empty or degenerate path.
+
     init?(path: Path) {
         let bbox = path.boundingRect
         guard bbox.width.isFinite, bbox.height.isFinite,
@@ -73,10 +60,6 @@ extension PathPrimitive {
     }
 }
 
-// Renders a stored `PathPrimitive` into a rect. The path is positioned so
-// its bbox center lands at the rect center and its longer dimension fills
-// the rect's shorter side — the shorter dimension stays proportionally
-// smaller, automatically letterboxed.
 struct CustomPathShape: InsettableShape, Equatable {
     var primitive: PathPrimitive
     var insetAmount: CGFloat = 0

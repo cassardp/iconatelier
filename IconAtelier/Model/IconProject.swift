@@ -8,55 +8,46 @@ struct IconProjectSnapshot {
 
 @Observable
 final class IconProject: Codable, Identifiable {
-    /// Stable identifier for sync, sharing, and gallery publication.
+
     var uuid: UUID = UUID()
 
     var title: String = "Untitled"
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
 
-    /// In-memory thumbnail. `ProjectStore` persists it to a sibling
-    /// `thumbnail.png` file rather than serialising the PNG inline
-    /// (excluded from `CodingKeys`).
     var thumbnailPNG: Data? {
         didSet { thumbnailPNGDirty = true }
     }
 
-    /// Set every time `thumbnailPNG` is mutated; `ProjectStore.save` uses it
-    /// to skip rewriting `thumbnail.png` when the blob hasn't changed. See
-    /// `Layer.imagePNGDirty` for the same pattern at the layer level.
     @ObservationIgnored
     var thumbnailPNGDirty: Bool = true
 
     // MARK: - Target app metadata
-    /// Display name of the app this icon is designed for (may differ from `title`).
+
     var appName: String?
-    /// App Store URL of the target app (e.g. https://apps.apple.com/app/id...).
+
     var appStoreURL: URL?
-    /// Bundle identifier of the target app, when known.
+
     var appBundleID: String?
 
     // MARK: - Gallery metadata
-    /// Free-form caption / description shown in the gallery.
+
     var notes: String?
-    /// User-defined tags for search and filtering.
+
     var tags: [String] = []
-    /// Display name credited as author when published.
+
     var authorName: String?
 
     // MARK: - Publication state
-    /// Whether the icon is intended to be visible in the public gallery.
+
     var isPublic: Bool = false
-    /// Server-assigned identifier once the icon has been uploaded.
+
     var publishedID: String?
-    /// Timestamp of the most recent successful publish.
+
     var publishedAt: Date?
 
     var background: Background?
 
-    /// Ordered list of layers. The array's order IS the rendering / UI order
-    /// (bottom-most first). No separate `orderIndex` is maintained — the
-    /// array position is the single source of truth.
     var layers: [Layer] = []
 
     @ObservationIgnored private var undoStack: [IconProjectSnapshot] = []
@@ -125,7 +116,6 @@ final class IconProject: Codable, Identifiable {
         if background == nil { background = Background() }
     }
 
-    /// Guaranteed non-nil background. Caller must have invoked `ensureBackground()` on entry.
     var safeBackground: Background {
         if let bg = background { return bg }
         let bg = Background()
@@ -177,15 +167,11 @@ final class IconProject: Codable, Identifiable {
             }
         }
 
-        // Layers absent from the snapshot are simply dropped — ARC reclaims
-        // them since `layers` was the only strong reference.
         layers = rebuilt
     }
 
     func recordUndo() {
-        // Coalesce rapid-fire calls (e.g. SwiftUI ColorPicker drags) so a single
-        // edit session does not push dozens of snapshots. The "before" state is
-        // already captured by the first call in the window.
+
         let now = Date()
         if let last = lastRecordedAt, now.timeIntervalSince(last) < Self.coalesceWindow {
             return
@@ -306,7 +292,7 @@ final class IconProject: Codable, Identifiable {
         let snap = layer.snapshot()
         let copy = Layer(kind: snap.kind, name: snap.name + " copy")
         copy.apply(snap)
-        copy.uuid = UUID() // new identity for the copy
+        copy.uuid = UUID()
 
         if let idx = layers.firstIndex(where: { $0.uuid == layer.uuid }) {
             layers.insert(copy, at: idx + 1)
@@ -323,9 +309,6 @@ final class IconProject: Codable, Identifiable {
 
     // MARK: - Boolean operations
 
-    /// Rasterize the selected layers, apply the boolean op, and replace the
-    /// sources with a single new image layer at the position of the
-    /// bottom-most source.
     @MainActor
     @discardableResult
     func performBooleanOperation(
@@ -335,11 +318,6 @@ final class IconProject: Codable, Identifiable {
         let targets = layers.filter { layerUUIDs.contains($0.uuid) && !$0.isHidden }
         guard targets.count >= 2 else { return nil }
 
-        // Try the vector path first — if every source is a parametric shape
-        // or text layer, the result stays a real Shape and inherits border,
-        // radial-repeat, and color edits like any other parametric layer.
-        // Falls back to raster for image/emoji sources (or when the vector
-        // boolean ops yield an empty path, e.g. an intersect with no overlap).
         let newLayer: Layer
         if let vector = BooleanOpRenderer.vectorCompose(layers: targets, op: op),
            let layer = buildVectorBooleanLayer(
@@ -372,14 +350,10 @@ final class IconProject: Codable, Identifiable {
         let removeUUIDs = Set(targets.map(\.uuid))
         var remaining = layers.filter { !removeUUIDs.contains($0.uuid) }
 
-        // Insert at the position the bottom-most source occupied in the
-        // pruned array. firstIndex is recomputed against `remaining` so the
-        // shift caused by earlier removals is implicit.
         let insertAt: Int
         if let bottomUUID,
            let originalIdx = layers.firstIndex(where: { $0.uuid == bottomUUID }) {
-            // Count how many removed layers preceded the bottom in the
-            // original array — that's the number of slots already consumed.
+
             let priorRemoved = layers.prefix(originalIdx).filter { removeUUIDs.contains($0.uuid) }.count
             insertAt = min(originalIdx - priorRemoved, remaining.count)
         } else {
@@ -396,12 +370,6 @@ final class IconProject: Codable, Identifiable {
         layer.isHidden.toggle()
     }
 
-    /// Wrap a vector boolean result as a parametric-shape layer. Derives
-    /// the layer's offset and scale from the path's bbox so that, when the
-    /// shape pipeline renders the `customPath` into its standard
-    /// `canvasSide * 0.5 * scale` square frame, the path lands exactly
-    /// where the silhouette was computed. Returns nil for a degenerate
-    /// (empty / zero-area) result — caller falls back to raster compose.
     @MainActor
     private func buildVectorBooleanLayer(
         vector: BooleanVectorResult,
@@ -412,12 +380,6 @@ final class IconProject: Codable, Identifiable {
         guard bbox.width > 0, bbox.height > 0 else { return nil }
         guard let primitive = PathPrimitive(path: vector.path) else { return nil }
 
-        // Layer rendering uses a `canvasSide * 0.5 * scale` square frame for
-        // parametric shapes. We want the frame's side to equal the path's
-        // longest dimension, so `scale = maxSide / (canvasSide * 0.5)`. The
-        // offset is the bbox center expressed in canvas-normalized units
-        // (canvas = unit square, origin = canvas center) — same convention
-        // as `Layer.offset` everywhere else.
         let maxSide = max(bbox.width, bbox.height)
         let scale = maxSide / (vector.canvasSide * 0.5)
         let offset = CGSize(

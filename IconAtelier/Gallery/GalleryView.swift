@@ -43,8 +43,7 @@ struct GalleryView: View {
             }
             .onEnded { _ in
                 pinchTriggered = false
-                // Keep tap-suppression briefly so a finger lifted just after a
-                // pinch doesn't fire a stray Button tap and open an icon.
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                     isPinching = false
                 }
@@ -195,9 +194,7 @@ struct GalleryView: View {
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: project.uuid, in: galleryNamespace) { config in
-            // matchedTransitionSource is restricted to RoundedRectangle clip
-            // shapes by SwiftUI, so the transition uses the .continuous
-            // approximation. The settled cell itself uses SquircleShape.
+
             config.clipShape(
                 RoundedRectangle(
                     cornerRadius: max(tileSide, 1) * 0.2237,
@@ -327,10 +324,6 @@ private struct BottomProgressiveBlur: View {
     }
 }
 
-// Non-lazy uniform square grid. All cells exist in the view tree at all
-// times, so when the column count changes SwiftUI animates each cell from
-// its old position to the new one instead of materializing/dematerializing
-// cells (which would trigger insertion/removal transitions and feel janky).
 private struct UniformIconGridLayout: Layout {
     let columns: Int
     let horizontalSpacing: CGFloat

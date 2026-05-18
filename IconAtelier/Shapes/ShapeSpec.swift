@@ -1,80 +1,40 @@
 import SwiftUI
 
-// Shapes are built from a small set of parametric families plus a couple
-// of wrappers. Each family case carries ONLY the parameters that matter
-// for that family; transformations (stretch + extra rotation) and radial
-// repeat are factored out into wrapper cases so the editor can surface
-// family-specific sliders without case-by-case branching.
-//
-//   Family cases (always a base, never a wrapper):
-//     .polygon(preset, sides, roundness)     // regular N-gons
-//     .star(preset, points, innerDepth, roundness)   // stars + flowers
-//     .ellipse(roundness)                    // true circle / superellipse
-//     .drop(pointiness, bulbSize, tailOffset, bend)  // parametric teardrop
-//     .iosSquircle
-//     .customPath(PathPrimitive)
-//
-//   Wrapper cases (carry a base):
-//     .transform(base, stretchX, stretchY, rotation)
-//     .radialRepeat(base, count, centerHole)
-//
-// Wrappers can stack: `.radialRepeat(.transform(.polygon))` is valid.
-// They are applied outside-in at render time — the outermost wrapper is
-// the last transformation.
-//
-// `.polygon` and `.star` share `StarPolygonShape` as their internal render
-// engine; the split is purely API-side so each family exposes only the
-// sliders that make sense for it (a regular hexagon has no "inner depth";
-// a 5-point star has no "puff toward 2N-gon").
 nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     case polygon(
         preset: PolygonPreset,
         sides: Int,
-        roundness: Double   // 0...1 — corner fillet fraction
+        roundness: Double
     )
     case star(
         preset: PolygonPreset,
-        points: Int,        // tip count
-        innerDepth: Double, // 0...1 — how far the indents pull toward the center
-        roundness: Double   // 0...1 — same fillet as polygon (flowers = high roundness)
+        points: Int,
+        innerDepth: Double,
+        roundness: Double
     )
     case drop(
-        pointiness: Double,   // 0...1 — tip sharpness
-        bulbSize: Double,     // 0...1 — bulb width
-        tailOffset: Double,   // 0...1 — shoulder Y position
-        bend: Double,         // -1...1 — lateral tip drift
-        tipRoundness: Double  // 0...1 — apex fillet (0 = sharp, 1 = rounded)
+        pointiness: Double,
+        bulbSize: Double,
+        tailOffset: Double,
+        bend: Double,
+        tipRoundness: Double
     )
-    // Ellipse / circle family — true Lamé curve rather than a high-sided
-    // polygon, so a circle stays a circle (no visible facets) at any size.
-    // `roundness` controls the squircle-style continuum: 1 = perfect
-    // circle/ellipse, 0 = very square corners. Aspect ratio (oval vs round)
-    // is layered on via the outer `.transform` wrapper, same as every other
-    // parametric family.
-    // `arcSweep` < 1 produces an OPEN path (an arc) — combined with a
-    // stroke this draws partial rings (half-moon, three-quarter, etc.).
+
     case ellipse(
-        roundness: Double,  // 0...1 — 1 = pure circle, 0 = near-rectangle
-        arcStart: Double,   // degrees, -180...180. 0 = right (3 o'clock), -90 = top.
-        arcSweep: Double    // 0...1 — fraction of the full revolution to draw. 1 = closed loop.
+        roundness: Double,
+        arcStart: Double,
+        arcSweep: Double
     )
-    // The true Apple icon squircle (Lamé curve, n ≈ 5.2). Parameter-less by
-    // design — it must stay pixel-identical to the iOS-icon mask used by
-    // the canvas, gallery, and layer thumbnails.
+
     case iosSquircle
-    // Arbitrary frozen silhouette — currently produced by boolean ops and
-    // built-in path presets (drop, shield). Flows through the same
-    // border/repeat pipeline as any parametric shape.
+
     case customPath(PathPrimitive)
-    // Per-axis stretch and additional rotation, layered over ANY base.
-    // For `.polygon` bases the parameters are pushed into the underlying
-    // `StarPolygonShape` to reuse its intrinsic bbox-fit; for other bases
-    // the wrapper falls back to a Path-level transform-and-refit.
+
     case transform(
         base: ShapeSpec,
-        stretchX: Double,   // 0.3...3 (typical range; clamped at render)
+        stretchX: Double,
         stretchY: Double,
-        rotation: Double    // degrees, ADDITIONAL to any intrinsic rotation
+        rotation: Double
     )
     case radialRepeat(
         base: ShapeSpec,
@@ -82,9 +42,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         centerHole: Double
     )
 
-    // Plain square is the neutral starting point — the iOS squircle is
-    // deliberately NOT the default (it's a fixed primitive, not a
-    // parametric polygon).
     static let defaultShape: ShapeSpec = .preset(.square)
 
     static let defaultRadialRepeat = RadialRepeatParams(
@@ -95,10 +52,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         stretchX: 1.0, stretchY: 1.0, rotation: 0.0
     )
 
-    // Build a ShapeSpec from a named preset. Squircle, drop, and shield
-    // route to their non-parametric specializations; star-family presets
-    // route to `.star`; everything else becomes a `.polygon` with the
-    // preset's canonical parameter cell.
     static func preset(_ p: PolygonPreset) -> ShapeSpec {
         switch p.family {
         case .special:
@@ -113,8 +66,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                     tipRoundness: d.tipRoundness
                 )
             }
-            // .free without a family is uncommon — fall back to a squircle-
-            // shaped default so the user has something visible to tweak.
+
             return .iosSquircle
         case .star:
             let c = p.canonical
@@ -155,15 +107,11 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         }
     }
 
-    /// Peel one level of radial-repeat. For peeling every wrapper down to
-    /// the underlying family case, see `deepestBase`.
     var unwrapped: ShapeSpec {
         if case .radialRepeat(let base, _, _) = self { return base }
         return self
     }
 
-    /// Recursively peel every wrapper, returning the underlying family case
-    /// (`.polygon` / `.iosSquircle` / `.customPath`).
     var deepestBase: ShapeSpec {
         switch self {
         case .transform(let base, _, _, _): return base.deepestBase
@@ -179,9 +127,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         return nil
     }
 
-    /// The transform params if this spec or its radial-repeat wrap carries
-    /// any. Identity (no stretch, no extra rotation) is never present — we
-    /// normalize the wrapper away when params collapse to identity.
     var transformParams: TransformParams? {
         switch self {
         case let .transform(_, sx, sy, rot):
@@ -207,9 +152,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         )
     }
 
-    /// Apply (or strip) transform parameters. Identity params remove the
-    /// `.transform` wrapper entirely so encoded specs stay minimal.
-    /// Any outer `.radialRepeat` wrap is preserved.
     func applyingTransform(_ params: TransformParams) -> ShapeSpec {
         if case let .radialRepeat(base, count, hole) = self {
             return .radialRepeat(
@@ -234,8 +176,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         )
     }
 
-    /// Replace the deepest family base while preserving every wrapper
-    /// stacked over it (transform, radial-repeat).
     func replacingBase(with newBase: ShapeSpec) -> ShapeSpec {
         switch self {
         case let .radialRepeat(base, count, hole):
@@ -253,8 +193,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         }
     }
 
-    /// Build the SwiftUI Shape. Corner curvature is controlled intrinsically
-    /// by `roundness` on each family case.
     func anyShape() -> AnyShape {
         switch self {
         case let .polygon(preset, sides, roundness):
@@ -290,12 +228,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         case .customPath(let primitive):
             return AnyShape(CustomPathShape(primitive: primitive))
         case let .transform(base, sx, sy, rot):
-            // Polygon and star bases reuse StarPolygonShape's intrinsic
-            // stretch and bbox-fit — same vertex math as before the wrapper
-            // existed, so projects that drift through this code path keep
-            // rendering pixel-identically. Other bases go through
-            // TransformedShape, which performs an equivalent Path-level
-            // transform.
+
             if case let .polygon(preset, sides, roundness) = base {
                 return AnyShape(StarPolygonShape(
                     sides: sides,
@@ -331,24 +264,16 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         }
     }
 
-    /// Parametric shapes carry their own corner curvature (`roundness`) —
-    /// the Layer-level cornerRadius slider is therefore hidden for them.
     var hasIntrinsicCornerRadius: Bool { true }
 
-    /// True when the deepest family supports per-axis Stretch (and the
-    /// `.transform` wrapper). Parameter-less primitives (Squircle, Custom
-    /// path) don't expose stretch in the editor.
     var supportsTransform: Bool {
         switch deepestBase {
         case .polygon, .star, .ellipse, .drop: return true
         case .iosSquircle, .customPath: return false
-        case .transform, .radialRepeat: return false // unreachable via deepestBase
+        case .transform, .radialRepeat: return false
         }
     }
 
-    /// True when the rendered path is open (an arc, not a closed loop).
-    /// Open paths can't be reliably hit-tested via `Path.contains`, so the
-    /// renderer falls back to a Rectangle content shape for these.
     var isOpenPath: Bool {
         switch self {
         case let .ellipse(_, _, arcSweep):
@@ -373,9 +298,6 @@ nonisolated struct TransformParams: Hashable, Sendable {
     var stretchY: Double
     var rotation: Double
 
-    /// True when this set of parameters would render identically to the
-    /// untransformed base — used to collapse the `.transform` wrapper away
-    /// so it never serializes a useless identity.
     var isIdentity: Bool {
         let eps = 1e-6
         return abs(stretchX - 1) < eps
@@ -386,10 +308,6 @@ nonisolated struct TransformParams: Hashable, Sendable {
 
 // MARK: - PolygonPreset
 
-// User-facing preset catalog. Each preset maps to a canonical
-// `StarPolygonShape` parameter cell, plus a `family` that tells the
-// editor which ShapeSpec case to instantiate (polygon, star, or one of
-// the non-parametric specials).
 nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codable {
     case circle, squircle, roundedSquare, square
     case triangle, pentagon, hexagon, octagon
@@ -400,11 +318,6 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
 
     enum Family { case polygon, star, ellipse, special }
 
-    /// Routes a preset to the matching ShapeSpec case at construction time.
-    /// `.free` is bucketed as polygon by default — when the user drifts
-    /// away from a star preset, the editor keeps the spec a `.star` (the
-    /// preset just flips to `.free`); the family of `.free` is only
-    /// consulted when the picker spawns a fresh shape from it.
     var family: Family {
         switch self {
         case .star4, .star5, .star6, .star8, .flower6, .flower8:
@@ -439,10 +352,6 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
         }
     }
 
-    // Canonical parameter cell. The first vertex of a StarPolygonShape sits
-    // at the top by construction, so even-sided shapes (square, octagon)
-    // need an explicit rotation to land axis-aligned ("flat side up")
-    // rather than diamond-oriented.
     var canonical: StarPolygonShape {
         switch self {
         case .circle:        return .init(sides: 24, bulge: 1,    roundness: 1,    rotationDegrees: 0)
@@ -459,8 +368,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
         case .star8:         return .init(sides: 8, bulge: -0.45, roundness: 0)
         case .flower6:       return .init(sides: 6, bulge: -0.5,  roundness: 0.85)
         case .flower8:       return .init(sides: 8, bulge: -0.45, roundness: 0.85)
-        // Drop routes through its own parametric `DropShape` — this slot
-        // only exists to satisfy the exhaustive switch.
+
         case .drop:          return .init(sides: 4, bulge: 0,     roundness: 0,    rotationDegrees: 45)
         case .free:          return .init(sides: 4, bulge: 0,     roundness: 0,    rotationDegrees: 45)
         }
@@ -484,16 +392,14 @@ nonisolated extension ShapeSpec: Codable {
         case preset, points, innerDepth, roundness
     }
     private enum DropKeys: String, CodingKey {
-        // `tipRoundness` added later — decoded with a default so pre-fillet
-        // projects keep loading unchanged.
+
         case pointiness, bulbSize, tailOffset, bend, tipRoundness
     }
     private enum EllipseKeys: String, CodingKey {
         case roundness, arcStart, arcSweep
     }
     private enum RadialKeys: String, CodingKey {
-        // `phaseDegrees` and `alternateScale` were removed; the decoder
-        // silently ignores them so legacy project JSON keeps loading.
+
         case base, count, centerHole
     }
     private enum TransformKeys: String, CodingKey {
@@ -544,8 +450,7 @@ nonisolated extension ShapeSpec: Codable {
         if container.contains(.ellipse) {
             let nested = try container.nestedContainer(keyedBy: EllipseKeys.self, forKey: .ellipse)
             let roundness = try nested.decode(Double.self, forKey: .roundness)
-            // Arc params added later — default to a full closed ellipse so
-            // pre-arc projects decode unchanged.
+
             let arcStart = try nested.decodeIfPresent(Double.self, forKey: .arcStart) ?? -90
             let arcSweep = try nested.decodeIfPresent(Double.self, forKey: .arcSweep) ?? 1.0
             self = .ellipse(roundness: roundness, arcStart: arcStart, arcSweep: arcSweep)

@@ -11,9 +11,6 @@ struct ShapeFanItem: Identifiable, Equatable {
     }
 }
 
-/// Floating "+" button that fans out a semicircle of add actions when
-/// tapped. Modelled after the gallery's old `CreateRadialMenu` (see commit
-/// 0d35f50). The parent owns `isOpen` so it can be closed by external taps.
 struct ShapeFanButton: View {
     let items: [ShapeFanItem]
     @Binding var isOpen: Bool
@@ -109,10 +106,7 @@ struct ShapeFanButton: View {
 
     private func position(for index: Int) -> CGSize {
         guard !items.isEmpty else { return .zero }
-        // Fan upward across a full semicircle, from 180° (left) to 0°
-        // (right). Widening the arc compensates for the tighter radius —
-        // items stay visually spaced even when they sit closer to the
-        // central button.
+
         let startDeg = 180.0
         let endDeg = 0.0
         let span = startDeg - endDeg

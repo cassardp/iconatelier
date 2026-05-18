@@ -24,37 +24,22 @@ enum BooleanOpKind: Hashable, CaseIterable {
 
 struct BooleanOpResult {
     let image: UIImage
-    /// Crop center in normalized canvas coordinates (-0.5 ... 0.5, origin at canvas center).
+
     let centerInUnit: CGPoint
-    /// Crop side length in normalized canvas units (0 ... 1).
+
     let sizeInUnit: CGFloat
 }
 
-/// Vector-mode boolean result. Carries a Path expressed in canvas-centered
-/// coordinates (origin = canvas center, units = pixels of `workingPixelSide`)
-/// so callers can derive the new layer's offset and scale by inspecting the
-/// path's bounding box. Path content is the raw silhouette — no per-layer
-/// border, shadow, or fill — which matches user intent: the boolean op
-/// freezes the *shape* of the combination, not its current styling.
 struct BooleanVectorResult {
     let path: Path
-    /// The canvas side used to express coordinates; callers normalize the
-    /// path's bbox against this to derive a (-0.5...0.5) offset and a
-    /// 0...1 size in canvas units.
+
     let canvasSide: CGFloat
 }
 
 enum BooleanOpRenderer {
-    /// Pixel side of the working canvas. The boolean op runs on this square.
-    /// Chosen large enough that even after cropping a small intersection we still
-    /// keep a decent number of pixels for the resulting overlay.
+
     static let workingPixelSide: CGFloat = 1024
 
-    /// Try to compose `layers` as a single vector path. Returns nil if any
-    /// source layer can't be expressed as a Path (image) — caller
-    /// should fall back to the raster `compose` path. When successful, the
-    /// caller gets a Path expressed in canvas-centered pixel coords; the
-    /// new layer's offset and scale can be derived from the path's bbox.
     @MainActor
     static func vectorCompose(
         layers: [Layer],
@@ -74,11 +59,6 @@ enum BooleanOpRenderer {
         }
         guard sourcePaths.count >= 2 else { return nil }
 
-        // `.winding` matches what SwiftUI's `shape.fill(color)` renders by
-        // default (non-zero winding). `.evenOdd` would turn every overlap
-        // between sub-paths into a hole — that's visible mostly with
-        // `RadialRepeat`, whose petals overlap their neighbours and (with a
-        // negative `centerHole`) cross through the center.
         var combined = sourcePaths[0]
         for next in sourcePaths.dropFirst() {
             switch op {
@@ -95,10 +75,6 @@ enum BooleanOpRenderer {
         return BooleanVectorResult(path: path, canvasSide: canvasSide)
     }
 
-    /// Build the Path representation of a layer in canvas-centered pixel
-    /// coordinates. Bakes offset/rotation/flip/scale into the path so the
-    /// boolean op can operate on independent vectors. Returns nil for kinds
-    /// that have no native vector silhouette (image).
     @MainActor
     private static func vectorPath(for layer: Layer, canvasSide: CGFloat) -> Path? {
         let shape: AnyShape
@@ -106,8 +82,7 @@ enum BooleanOpRenderer {
         switch layer.kind {
         case .parametricShape:
             guard let spec = layer.shapeSpec else { return nil }
-            // Mirrors `LayerContentView.parametricShape` — same shape, same
-            // 0.5×canvas base frame, so the silhouette matches what's drawn.
+
             shape = spec.anyShape()
             baseSide = canvasSide * 0.5
         case .text:
@@ -131,8 +106,7 @@ enum BooleanOpRenderer {
         }
 
         let shapeSide = baseSide * CGFloat(layer.scale)
-        // Draw the shape into a square centered at the origin so the
-        // affine transform below can rotate around its center naturally.
+
         let rect = CGRect(
             x: -shapeSide / 2,
             y: -shapeSide / 2,
@@ -140,11 +114,6 @@ enum BooleanOpRenderer {
             height: shapeSide
         )
 
-        // Same transform order as `IconCanvasView`: flip (innermost) →
-        // rotate → translate (outermost). CGAffineTransform's chained
-        // builders right-multiply, so `.scaledBy.rotated.translatedBy`
-        // applies flip first, then rotate, then translate when a point
-        // is passed through `.applying(_:)`.
         var t = CGAffineTransform.identity
         if layer.isFlippedHorizontally { t = t.scaledBy(x: -1, y: 1) }
         if layer.isFlippedVertically { t = t.scaledBy(x: 1, y: -1) }
@@ -156,8 +125,6 @@ enum BooleanOpRenderer {
         return shape.path(in: rect).applying(t)
     }
 
-    /// Render N layers into a square canvas, apply the boolean op via CGBlendMode,
-    /// then crop the result to a square bounding box of its visible pixels.
     @MainActor
     static func compose(
         layers: [Layer],
@@ -210,22 +177,20 @@ enum BooleanOpRenderer {
         return renderer.image { _ in
             switch op {
             case .union:
-                // Plain source-over of every layer — overlap area stays opaque.
+
                 for image in images {
                     image.draw(in: fullRect, blendMode: .normal, alpha: 1)
                 }
 
             case .subtract:
-                // Bottom layer is the base, each upper layer punches a hole.
+
                 images[0].draw(in: fullRect, blendMode: .normal, alpha: 1)
                 for image in images.dropFirst() {
                     image.draw(in: fullRect, blendMode: .destinationOut, alpha: 1)
                 }
 
             case .intersect:
-                // Bottom layer provides the pixels (colors stay intact); each
-                // upper layer acts as a mask via destinationIn — only the area
-                // covered by every upper silhouette survives.
+
                 images[0].draw(in: fullRect, blendMode: .normal, alpha: 1)
                 for image in images.dropFirst() {
                     image.draw(in: fullRect, blendMode: .destinationIn, alpha: 1)
@@ -236,8 +201,6 @@ enum BooleanOpRenderer {
 
     // MARK: - Cropping to non-transparent bounding box
 
-    /// Scan the alpha channel, find the bbox of pixels above a small threshold,
-    /// then crop a square (max of width/height + padding) around the centroid.
     private static func cropToContentBounds(
         _ image: UIImage,
         canvasSide: CGFloat
@@ -317,9 +280,6 @@ enum BooleanOpRenderer {
 
 // MARK: - Stripped-down layer view for rasterization
 
-/// Mirrors `OverlayLayerRender` but without the drop shadow — boolean ops should
-/// operate on the layer silhouette only. Otherwise the soft shadow alpha would
-/// participate in `.destinationIn` / `.destinationOut` masks and produce ghosting.
 private struct LayerForBooleanRender: View {
     let layer: Layer
     let side: CGFloat

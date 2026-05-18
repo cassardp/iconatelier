@@ -2,19 +2,6 @@ import SwiftUI
 import UIKit
 import os
 
-/// Filesystem-backed project store. Replaces the previous SwiftData
-/// `ModelContainer` setup. Each project lives in its own directory under
-/// `Documents/Projects/{uuid}/`:
-///
-///     project.json        # IconProject + Background + [Layer] serialised
-///     layer-{uuid}.png    # per-layer PNG payloads (out-of-band)
-///     thumbnail.png       # gallery vignette
-///
-/// All writes are atomic. PNG sidecars are written first, then `project.json`
-/// last: the JSON is the index of truth, so a mid-save crash can leave PNG
-/// orphans (cleaned up on the next save) but never produce a JSON that
-/// references a missing image. The store keeps every project loaded in
-/// memory — IconAtelier is single-user and the libraries are small.
 @MainActor
 @Observable
 final class ProjectStore {
@@ -56,9 +43,6 @@ final class ProjectStore {
                 continue
             }
 
-            // Rehydrate out-of-band PNG payloads. The dirty flags are reset
-            // right after assignment so the next save() doesn't rewrite
-            // what we just read back.
             if let thumbData = try? Data(contentsOf: dir.appendingPathComponent("thumbnail.png")) {
                 project.thumbnailPNG = thumbData
             }
@@ -75,14 +59,11 @@ final class ProjectStore {
             loaded.append(project)
         }
 
-        // Gallery is sorted newest-first, matching the previous @Query order.
         projects = loaded.sorted { $0.createdAt > $1.createdAt }
     }
 
     // MARK: - Mutations
 
-    /// Inserts a freshly created project, persists it, and returns the same
-    /// instance so callers can navigate into it immediately.
     @discardableResult
     func add(_ project: IconProject) -> IconProject {
         if !projects.contains(where: { $0.uuid == project.uuid }) {
@@ -92,21 +73,12 @@ final class ProjectStore {
         return project
     }
 
-    /// Writes the project's PNG sidecars first, then `project.json` last.
-    /// All writes are atomic per file. The JSON is written last so it never
-    /// references a sidecar that doesn't exist yet: a mid-save crash can
-    /// leave orphan PNGs (which the next save will reap) but never an
-    /// inconsistent index. Updates `updatedAt` as a side effect.
     func save(_ project: IconProject) {
         project.updatedAt = .now
         let dir = directory(for: project.uuid)
         do {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
 
-            // 1. Thumbnail sidecar — skip the write if the blob is clean
-            //    *and* the file already exists on disk. The dirty flag is
-            //    reset only on a successful write so a failed write retries
-            //    next time.
             let thumbURL = dir.appendingPathComponent("thumbnail.png")
             if let thumb = project.thumbnailPNG {
                 if project.thumbnailPNGDirty || !fm.fileExists(atPath: thumbURL.path) {
@@ -117,7 +89,6 @@ final class ProjectStore {
                 try? fm.removeItem(at: thumbURL)
             }
 
-            // 2. Layer PNG sidecars — same skip logic per layer.
             var keepFilenames: Set<String> = ["project.json", "thumbnail.png"]
             for layer in project.layers {
                 let filename = "layer-\(layer.uuid.uuidString).png"
@@ -133,7 +104,6 @@ final class ProjectStore {
                 }
             }
 
-            // 3. Reap orphan layer-*.png files (layers deleted since last save).
             if let entries = try? fm.contentsOfDirectory(
                 at: dir,
                 includingPropertiesForKeys: nil,
@@ -148,8 +118,6 @@ final class ProjectStore {
                 }
             }
 
-            // 4. Finally, the index — `project.json` is written last so it
-            //    only ever references sidecars already on disk.
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             encoder.dateEncodingStrategy = .iso8601

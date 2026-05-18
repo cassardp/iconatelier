@@ -2,13 +2,10 @@ import SwiftUI
 
 // MARK: - Border (apply toggle + conditional controls)
 
-/// Tuned defaults applied the first time the user enables a border. Width
-/// units differ between shape (×200) and text (×500) layers so the same
-/// "30%" visual yields two different raw values.
 enum BorderDefaults {
-    /// 0.10 → "20%" with the parametric-shape units (`$0 * 200`).
+
     static let shapeWidth: Double = 0.10
-    /// 0.04 → "20%" with the text units (`$0 * 500`).
+
     static let textWidth: Double = 0.04
     static let color: Color = .black
     static let position: BorderPosition = .outer
@@ -41,9 +38,6 @@ struct BorderPanelContent: View {
         }
     }
 
-    /// Binding driving the section-header toggle. Enabling installs the
-    /// tuned defaults for the layer kind; disabling collapses the width to
-    /// zero (and the rows above auto-hide).
     static func enabledBinding(
         layer: Layer,
         project: IconProject,
@@ -103,8 +97,6 @@ private struct LineCapRow: View {
 
 // MARK: - Shadow (apply toggle + conditional controls)
 
-/// Tuned defaults applied the first time the user enables a shadow. Picks a
-/// soft, slightly-down drop shadow that reads as "pro" out of the box.
 enum ShadowDefaults {
     static let opacity: Double = 0.35
     static let radius: Double = 0.06
@@ -174,8 +166,6 @@ struct ShadowPanelContent: View {
         }
     }
 
-    /// Binding driving the section-header toggle. Enabling restores the
-    /// tuned soft-drop defaults; disabling zeros the opacity (rows auto-hide).
     static func enabledBinding(layer: Layer, project: IconProject) -> Binding<Bool> {
         Binding(
             get: { layer.shadowOpacity > 0 },
@@ -197,22 +187,11 @@ struct ShadowPanelContent: View {
 
 // MARK: - Transform (apply toggle + Stretch X/Y sliders)
 
-/// Tuned defaults applied the first time the user enables Transform. Picks
-/// a clearly visible (but not extreme) horizontal stretch so the section's
-/// activation is immediately obvious — mirrors the "enable = visible
-/// default" pattern shared by Border and Shadow.
 enum TransformDefaults {
     static let stretchX: Double = 1.5
     static let stretchY: Double = 1.0
 }
 
-/// Stretch X/Y sliders for the parametric `.transform` wrapper. The wrapper
-/// is only visible when the deepest family supports it (polygon/star/
-/// ellipse/drop) — see `ShapeSpec.supportsTransform`.
-///
-/// Note: bringing both sliders back to 1.0 manually collapses the wrapper
-/// (identity is stripped by `applyingTransform`), which auto-disables the
-/// section. Toggling the section back on restores the tuned defaults.
 struct TransformPanelContent: View {
     @Bindable var layer: Layer
     let project: IconProject
@@ -223,10 +202,6 @@ struct TransformPanelContent: View {
         }
     }
 
-    /// Binding driving the section-header toggle. Enabling wraps the live
-    /// base spec in a `.transform` carrying the tuned defaults; disabling
-    /// strips the wrapper by applying identity (which `applyingTransform`
-    /// collapses away).
     static func enabledBinding(layer: Layer, project: IconProject) -> Binding<Bool> {
         Binding(
             get: { layer.shapeSpec?.transformParams != nil },
@@ -287,16 +262,6 @@ struct TransformPanelContent: View {
 
 // MARK: - Radial repeat (apply toggle + conditional sliders)
 
-/// Toggle + 4 sliders for the radial-repeat wrap, driven through
-/// `layer.shapeSpec`. Used by both parametric shapes (where the spec also
-/// carries the base polygon) and text layers (where the base is a sentinel
-/// — only the repeat params matter; the actual base is the live
-/// `TextGlyphShape` at render time).
-///
-/// `wrapBase` provides the base to wrap when enabling the toggle.
-/// `disabledShapeSpec` decides what `shapeSpec` becomes when disabling —
-/// for parametric shapes it returns the unwrapped polygon; for text it
-/// returns nil so the layer goes back to "no spec at all".
 struct RadialRepeatPanelContent: View {
     @Bindable var layer: Layer
     let project: IconProject
@@ -307,9 +272,6 @@ struct RadialRepeatPanelContent: View {
         }
     }
 
-    /// Binding driving the section-header toggle. Enabling wraps the live
-    /// base spec in a default radial-repeat; disabling unwraps it back to
-    /// the underlying shape (or nil for text layers, per `disabledShapeSpec`).
     static func enabledBinding(
         layer: Layer,
         project: IconProject,

@@ -64,7 +64,7 @@ struct ExportSheet: View {
     }
 
     private var heroIconTile: some View {
-        // iOS app icon corner mask: ~22.37% of the side — continuous curve.
+
         let side: CGFloat = 180
         let radius = side * 0.2237
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)

@@ -1,25 +1,9 @@
 import Foundation
 
 // MARK: - Export bundle format
-//
-// The export is a .zip wrapping a single timestamped folder that mirrors
-// the on-disk store layout (`Documents/Projects/{uuid}/`):
-//
-//     IconAtelier-YYYY-MM-DD-HHmm/
-//         {uuid}/
-//             project.json
-//             thumbnail.png        (optional)
-//             layer-{uuid}.png     (one per image-bearing layer)
-//         {uuid}/
-//             ...
-//
-// No manifest file — the structure is self-describing and a project's UUID
-// lives both in its directory name and in `project.json`. Importing is the
-// inverse: drop each `{uuid}/` directory into the store as-is.
 
 enum LibraryExporter {
-    /// Builds the bundle directory then zips it. Returns the URL of the
-    /// final `.zip` file in the temporary directory.
+
     @MainActor
     static func buildBundle(projects: [IconProject]) throws -> URL {
         let fm = FileManager.default
@@ -33,8 +17,6 @@ enum LibraryExporter {
         }
         try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
 
-        // Make sure the loose work directory is always cleaned up, even if a
-        // PNG write throws midway through the loop.
         defer { try? fm.removeItem(at: workDir) }
 
         let encoder = JSONEncoder()

@@ -1,20 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// Compact square editor for a 2-stop linear gradient — POC for the
-/// "carré + handles" interaction pattern.
-///
-/// The square is intentionally small and filled with the standard panel
-/// row gray (`PanelStyle.rowFill`) rather than a live preview of the
-/// gradient: the gradient is already visible on the icon canvas above
-/// the sheet, so the pad only needs to convey the *geometry* (where
-/// start and end sit, and what color each stop carries). Each handle is
-/// a native `ColorPicker` swatch — tapping it opens the system color
-/// picker, while a simultaneous `DragGesture` with a 10pt minimum
-/// distance handles repositioning without stealing taps.
-///
-/// Scope: handles `paint.gradientColors[0]` (start) and `…[last]` (end).
-/// Mid stops are not represented in this pad.
 struct LinearGradientPad: View {
     @Binding var paint: Paint
     let onBeginEditing: () -> Void
@@ -23,10 +9,7 @@ struct LinearGradientPad: View {
     private static let padSize: CGFloat = 140
     private static let handleSize: CGFloat = 26
     private static let dragMinimumDistance: CGFloat = 10
-    /// Same overshoot range as `MeshGradientPad` so the three pads behave
-    /// consistently — handles can drift a quarter-pad past every edge
-    /// for softer gradients while staying inside the bordered block the
-    /// pad lives in (see `PaintEditor.gradientPadBlock`).
+
     private static let pointRange: ClosedRange<Double> = -0.25 ... 1.25
 
     var body: some View {
@@ -78,10 +61,7 @@ struct LinearGradientPad: View {
         size: CGFloat
     ) -> some View {
         let center = position(for: point.wrappedValue.unitPoint, size: size)
-        // The native ColorPicker swatch handles the tap-to-edit flow; we
-        // wrap it in a styled ring so the handle reads as a draggable
-        // affordance over any gradient color, and pad the hit area out
-        // to ~44pt for comfortable touch dragging.
+
         ColorPicker(
             "",
             selection: Binding(
@@ -132,8 +112,6 @@ struct LinearGradientPad: View {
     }
 
     // MARK: - State (single drag-in-flight flag, shared by both handles
-    // — only one handle can be dragged at a time since fingers can't
-    // simultaneously own two `ColorPicker`-backed views.)
 
     @State private var isDragging = false
 

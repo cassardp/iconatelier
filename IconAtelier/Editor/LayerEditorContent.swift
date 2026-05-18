@@ -73,9 +73,7 @@ struct LayerEditorContent: View {
 
     @ViewBuilder
     private func borderSection(for layer: Layer) -> some View {
-        // Text glyphs are thin paths so the width scale is denser (×500);
-        // parametric shapes use the wider ×200 scale for the same "0–100%"
-        // visual reading.
+
         let isText = layer.kind == .text
         let widthDefault = isText ? BorderDefaults.textWidth : BorderDefaults.shapeWidth
         let widthRange: ClosedRange<Double> = isText ? 0 ... 0.2 : 0 ... 0.5
@@ -127,11 +125,7 @@ struct LayerEditorContent: View {
 
     @ViewBuilder
     private func radialRepeatSection(for layer: Layer) -> some View {
-        // Text layers carry no parametric base — `.iosSquircle` is a non-
-        // rendering sentinel that lets the radial-repeat params hang off
-        // `layer.shapeSpec`; the actual base is the glyph path at render
-        // time. For shapes, we wrap the live spec and unwrap back to the
-        // underlying family on disable.
+
         let isText = layer.kind == .text
 
         PanelSection(

@@ -42,8 +42,6 @@ enum IconRenderer {
         return renderer.uiImage
     }
 
-    /// Grayscale luminance map on a solid black background — format expected
-    /// by the iOS 18 `tinted` app icon slot.
     @MainActor
     static func renderTinted(_ project: IconProject, side: CGFloat) -> UIImage? {
         guard let foreground = render(project, side: side, includeBackground: false),

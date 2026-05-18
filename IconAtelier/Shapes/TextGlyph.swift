@@ -2,31 +2,17 @@ import SwiftUI
 import CoreText
 import UIKit
 
-// Builds a SwiftUI Shape from the glyph paths of a single line of text using
-// Core Text. The path is the union of every glyph's outline, normalized to
-// fill the shape's `rect` while preserving aspect ratio. Once we have a path,
-// it slots into the same border/stroke/repeat pipeline as the parametric
-// shapes — no Text view involved.
-//
-// Core Text uses a Y-up coordinate system (text grows upward from the
-// baseline). SwiftUI / UIKit use Y-down. The transform below folds the
-// Y-flip into the same affine pass that scales-to-fit and centers.
 struct TextGlyphShape: Shape {
     let text: String
     let weight: LayerFontWeight
     let design: LayerFontDesign
-    // Tiny inner inset so a thick stroke doesn't get clipped at the edge of
-    // the layer's frame.
+
     var insetFraction: CGFloat = 0.02
 
     func path(in rect: CGRect) -> Path {
         let trimmed = text
         guard !trimmed.isEmpty else { return Path() }
 
-        // Arbitrary reference size — the path gets uniformly rescaled to
-        // fit `rect` below, so the absolute font size doesn't matter for
-        // the final geometry. Picking 100 keeps the working numbers in a
-        // friendly range for debugging.
         let referenceSize: CGFloat = 100
         let font = uiFont(size: referenceSize, weight: weight, design: design)
 
@@ -66,16 +52,9 @@ struct TextGlyphShape: Shape {
         let scaledW = glyphBox.width * scale
         let scaledH = glyphBox.height * scale
         let offsetX = target.midX - scaledW / 2
-        // After the (1, -1) Y-flip, the glyph occupies y ∈ [−scaledH, 0].
-        // Translating by `target.midY + scaledH / 2` shifts that range to
-        // `[target.midY − scaledH/2, target.midY + scaledH/2]` — centered.
+
         let offsetY = target.midY + scaledH / 2
 
-        // CGAffineTransform uses row vectors: a point is applied as
-        // `p' = p * M`, so for `M = t1 * t2` (returned by
-        // `t1.concatenating(t2)`) t1 runs first, then t2. The chain below
-        // therefore reads in execution order: subtract glyph origin → scale
-        // + flip Y → translate to target center.
         var transform = CGAffineTransform(translationX: -glyphBox.minX, y: -glyphBox.minY)
             .concatenating(CGAffineTransform(scaleX: scale, y: -scale))
             .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))

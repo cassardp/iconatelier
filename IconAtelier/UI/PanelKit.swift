@@ -12,8 +12,7 @@ enum PanelStyle {
 }
 
 extension Color {
-    /// Page background sitting between `.systemBackground` (pure white) and
-    /// `.secondarySystemBackground`, with an adaptive dark-mode counterpart.
+
     static let appPageBackground = Color(uiColor: UIColor { trait in
         trait.userInterfaceStyle == .dark
             ? UIColor(white: 0.07, alpha: 1)
@@ -36,15 +35,10 @@ struct SectionDivider: View {
 
 struct PanelSection<Content: View>: View {
     let title: String
-    /// Optional on/off toggle pinned to the trailing edge of the header. Used
-    /// for "feature" sections (Border, Shadow, Transform, Radial repeat) where
-    /// the section's rows only make sense when the feature is enabled — the
-    /// toggle replaces a dedicated "Apply" row inside the section.
+
     var isOn: Binding<Bool>? = nil
     @ViewBuilder var content: () -> Content
 
-    /// True when the section is expanded. Sections without a toggle are
-    /// always expanded; sections with a toggle expand only when on.
     private var isExpanded: Bool { isOn?.wrappedValue ?? true }
 
     var body: some View {
@@ -62,10 +56,6 @@ struct PanelSection<Content: View>: View {
             }
             .padding(.horizontal, 4)
 
-            // When the section is collapsed (toggle off), the content block
-            // is removed entirely so the parent VStack's spacing settles
-            // around the header alone — no phantom bottom padding from a
-            // padded-but-empty VStack.
             if isExpanded {
                 VStack(spacing: 7) {
                     content()
@@ -78,10 +68,6 @@ struct PanelSection<Content: View>: View {
 
 // MARK: - Compact icon-only action button
 
-/// Square icon-only button sized to align with the PanelKit row height
-/// (52pt) and using the same `rowFill` background as `ActionRow`,
-/// `DialSliderRow`, and friends — so it sits naturally alongside other
-/// rows when grouped in an `HStack`.
 struct CompactActionButton: View {
     enum Role {
         case standard
@@ -173,8 +159,6 @@ struct ActionRow: View {
 
 // MARK: - Toggle
 
-/// Custom on/off switch matched to PanelKit tokens. Sits in a single row pill
-/// so it visually belongs with `DialSliderRow` and `PanelSegmentedRow`.
 struct PanelToggle: View {
     enum Size {
         case regular
@@ -233,8 +217,6 @@ struct PanelToggle: View {
     }
 }
 
-/// Labeled row that hosts a `PanelToggle`. Mirrors the chrome of
-/// `DialSliderRow` so toggle parameters slot into the same vertical rhythm.
 struct PanelToggleRow: View {
     let label: String
     @Binding var isOn: Bool
@@ -258,9 +240,6 @@ struct PanelToggleRow: View {
 
 // MARK: - Segmented control
 
-/// Generic segmented control with an animated selection pill. Use when the
-/// option set is small (2–5 items) and equally weighted. For longer lists,
-/// prefer `PanelMenu`.
 struct PanelSegmentedControl<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
@@ -317,10 +296,6 @@ struct PanelSegmentedControl<Value: Hashable>: View {
 
 // MARK: - Segmented control with leading label
 
-/// Labeled row pairing a caption with a `PanelSegmentedControl`. Mirrors
-/// the historical `PanelMenuRow` shape — label on the left, control on
-/// the right inside the same row pill — so a segmented picker keeps a
-/// clear purpose in the panel without a separate caption row.
 struct PanelSegmentedRow<Value: Hashable>: View {
     let label: String
     let options: [Value]
@@ -353,10 +328,6 @@ struct PanelSegmentedRow<Value: Hashable>: View {
 
 // MARK: - Menu (standalone, full-width)
 
-/// Standalone pop-up menu shaped as a full-width row, without a separate
-/// left-side label. Use when the current value is self-evident (a font
-/// family showing "Serif" speaks for itself) and an extra label would
-/// just take vertical space.
 struct PanelMenu<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
@@ -405,8 +376,6 @@ struct PanelMenu<Value: Hashable>: View {
 
 // MARK: - Color picker row
 
-/// Labeled row wrapping a native `ColorPicker`. Mirrors the chrome of
-/// the other panel rows so color editing slots into the same vertical rhythm.
 struct ColorPickerRow: View {
     let title: String
     @Binding var color: Color
@@ -448,11 +417,7 @@ struct DialSliderRow: View {
     let range: ClosedRange<Double>
     let valueText: (Double) -> String
     var defaultValue: Double? = nil
-    // When true, the slider position maps to value via a log curve over the
-    // range, so equal screen distance covers equal multiplicative steps.
-    // Required for exponent-like parameters (e.g. Gielis n1/n2/n3) whose
-    // perceptually-interesting region spans several orders of magnitude.
-    // Range must be strictly positive when enabled.
+
     var logarithmic: Bool = false
     let onBeginEditing: () -> Void
 
@@ -578,9 +543,7 @@ struct ScrollSafeHorizontalPan: UIGestureRecognizerRepresentable {
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            // Ancestor pans (ScrollView, sheet drag-to-dismiss) are made to
-            // require this recognizer to fail before they activate — so they
-            // must not run simultaneously.
+
             false
         }
     }
@@ -638,21 +601,11 @@ final class AxisLockedPanRecognizer: UIPanGestureRecognizer {
         let dy = abs(t.y)
         if max(dx, dy) > 4 {
             didDecide = true
-            // Vertical motion → fail so the ScrollView's pan can scroll.
+
             if dy > dx { state = .failed }
         }
     }
 
-    /// Make the *immediate* ancestor `UIScrollView`'s pan wait for this
-    /// recognizer's verdict before it can scroll vertically. Stops at the
-    /// first scroll view found — walking further would gate every pan up
-    /// the chain (including UIKit recognizers under a presented sheet,
-    /// e.g. the editor canvas's drag/magnify/rotate), and `require(toFail:)`
-    /// is permanent: once linked, those recognizers stay blocked because
-    /// this dial-slider recognizer never receives the unrelated touches
-    /// and so never transitions out of `.possible`. Caused a hang where
-    /// the canvas drag would die after touching any slider until the
-    /// project was reopened.
     private func linkAncestorPans() {
         var ancestor: UIView? = view?.superview
         while let v = ancestor {
