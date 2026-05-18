@@ -476,9 +476,10 @@ struct ContentView: View {
             }
             _ = key
             generationStartDate = Date()
-            withAnimation(.easeInOut(duration: 0.55)) {
-                isGenerating = true
-            }
+            // The overlay drives its own iris-reveal choreography on appear;
+            // here we just toggle the state without an outer animation so the
+            // entrance is immediate and the iris owns the visual reveal.
+            isGenerating = true
             let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
             let subjectText = trimmedSubject.isEmpty
                 ? "the subject shown in the reference image"
