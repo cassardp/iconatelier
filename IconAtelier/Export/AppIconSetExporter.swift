@@ -22,22 +22,24 @@ enum AppIconSetExporter {
         case fileWriteFailed
     }
 
-    /// Writes a `.appiconset` directory in a fresh temp folder and returns its URL.
-    /// The directory contains a `Contents.json` declaring the requested platforms
-    /// (iOS / macOS / watchOS) and the corresponding 1024×1024 PNGs. Drag the
-    /// folder into Xcode's asset catalog to use it. Dark and tinted only apply
-    /// to the iOS slot.
+    /// Writes a `.appiconset` directory then zips it. The archive expands to a
+    /// `{baseName}.appiconset/` folder containing `Contents.json` (declaring
+    /// the requested platforms — iOS / macOS / watchOS) and the corresponding
+    /// 1024×1024 PNGs. Drag the unzipped folder into Xcode's asset catalog.
+    /// Dark and tinted only apply to the iOS slot.
     static func writeAppIconSet(
         variants: Variants,
         platforms: Platforms,
         baseName: String
     ) throws -> URL {
+        let fm = FileManager.default
         let cleanName = sanitize(baseName)
-        let directory = FileManager.default.temporaryDirectory
+        let workDir = fm.temporaryDirectory
             .appendingPathComponent("IconAtelier-\(UUID().uuidString)", isDirectory: true)
-            .appendingPathComponent("\(cleanName).appiconset", isDirectory: true)
+        let directory = workDir.appendingPathComponent("\(cleanName).appiconset", isDirectory: true)
 
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: workDir) }
 
         // Light (any appearance) — required, shared across platforms
         let lightFile = "icon-1024.png"
@@ -85,7 +87,7 @@ enum AppIconSetExporter {
         )
         try data.write(to: directory.appendingPathComponent("Contents.json"))
 
-        return directory
+        return try ZipWriter.zip(directory: directory, named: "\(cleanName).appiconset.zip")
     }
 
     // MARK: - Helpers

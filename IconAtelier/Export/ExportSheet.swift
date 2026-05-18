@@ -6,160 +6,154 @@ struct ExportSheet: View {
 
     let project: IconProject
 
-    @State private var includeDark: Bool = true
-    @State private var includeTinted: Bool = true
-
-    @State private var includeIOS: Bool = true
-    @State private var includeMacOS: Bool = false
-    @State private var includeWatchOS: Bool = false
-
     @State private var lightImage: UIImage?
     @State private var darkImage: UIImage?
     @State private var tintedImage: UIImage?
 
-    @State private var preparedURL: URL?
+    @State private var iconSetURL: URL?
     @State private var lightPNGURL: URL?
+    @State private var playStoreURL: URL?
+    @State private var faviconsURL: URL?
     @State private var error: String?
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    HStack(alignment: .top, spacing: 12) {
-                        VariantPreview(
-                            title: "Light",
-                            image: lightImage,
-                            style: .light,
-                            isSelected: .constant(true),
-                            isLocked: true
-                        )
-                        VariantPreview(
-                            title: "Dark",
-                            image: darkImage,
-                            style: .dark,
-                            isSelected: $includeDark,
-                            isLocked: false
-                        )
-                        VariantPreview(
-                            title: "Tinted",
-                            image: tintedImage,
-                            style: .tinted,
-                            isSelected: $includeTinted,
-                            isLocked: false
-                        )
-                    }
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                } footer: {
-                    Text("Tap a variant to include or exclude it. Light is always included.")
-                }
-
-                Section {
-                    Toggle("iOS", isOn: $includeIOS)
-                    Toggle("macOS", isOn: $includeMacOS)
-                    Toggle("watchOS", isOn: $includeWatchOS)
-                } header: {
-                    Text("Platforms")
-                } footer: {
-                    Text("visionOS isn't supported — its app icons use a layered .solidimagestack format with two or three parallax layers.")
-                }
-
-                Section {
-                    if let preparedURL, hasAnyPlatform {
-                        ShareLink(
-                            item: preparedURL,
-                            preview: SharePreview(
-                                "\(project.title) AppIcon",
-                                image: lightImage.map { Image(uiImage: $0) } ?? Image(systemName: "app")
-                            )
-                        ) {
-                            Label("Save Icon Set", systemImage: "square.and.arrow.up")
-                        }
-                    } else if !hasAnyPlatform {
-                        Label("Select at least one platform", systemImage: "exclamationmark.circle")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Label("Preparing…", systemImage: "hourglass")
-                            .foregroundStyle(.secondary)
-                    }
-                } footer: {
-                    Text("Exports an .appiconset folder. Drag it into your Xcode project's asset catalog.")
-                }
-
-                Section {
-                    if let lightPNGURL {
-                        ShareLink(
-                            item: lightPNGURL,
-                            preview: SharePreview(
-                                "\(project.title) Icon",
-                                image: lightImage.map { Image(uiImage: $0) } ?? Image(systemName: "app")
-                            )
-                        ) {
-                            Label("Share Icon PNG", systemImage: "photo")
-                        }
-                    } else {
-                        Label("Preparing…", systemImage: "hourglass")
-                            .foregroundStyle(.secondary)
-                    }
-                } footer: {
-                    Text("Shares the 1024×1024 light icon as a single PNG file.")
-                }
-
-                if let error {
-                    Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    heroPreview
+                    formatsSection
+                    if let error {
                         Text(error)
-                            .foregroundStyle(.red)
                             .font(.footnote)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 4)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 32)
             }
+            .scrollIndicators(.hidden)
+            .background(Color.appPageBackground.ignoresSafeArea())
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }
             .task { regenerate() }
-            .onChange(of: includeDark) { _, _ in rebuildURL() }
-            .onChange(of: includeTinted) { _, _ in rebuildURL() }
-            .onChange(of: includeIOS) { _, _ in rebuildURL() }
-            .onChange(of: includeMacOS) { _, _ in rebuildURL() }
-            .onChange(of: includeWatchOS) { _, _ in rebuildURL() }
         }
     }
 
-    private var hasAnyPlatform: Bool {
-        includeIOS || includeMacOS || includeWatchOS
+    // MARK: - Hero preview
+
+    private var heroPreview: some View {
+        VStack(spacing: 14) {
+            heroIconTile
+            VStack(spacing: 2) {
+                Text(project.title.isEmpty ? "Untitled Icon" : project.title)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(1)
+                Text("1024 × 1024 master")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
     }
 
-    private var selectedPlatforms: AppIconSetExporter.Platforms {
-        var result: AppIconSetExporter.Platforms = []
-        if includeIOS { result.insert(.iOS) }
-        if includeMacOS { result.insert(.macOS) }
-        if includeWatchOS { result.insert(.watchOS) }
-        return result
+    private var heroIconTile: some View {
+        // iOS app icon corner mask: ~22.37% of the side — continuous curve.
+        let side: CGFloat = 180
+        let radius = side * 0.2237
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+
+        return ZStack {
+            if let lightImage {
+                Image(uiImage: lightImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color(uiColor: .secondarySystemBackground)
+                ProgressView()
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(shape)
+        .overlay(shape.stroke(Color.primary.opacity(0.06), lineWidth: 1))
     }
+
+    // MARK: - Export format list
+
+    private var formatsSection: some View {
+        PanelSection(title: "Export Format") {
+            VStack(spacing: 8) {
+                ExportFormatCard(
+                    title: "Apple App Icon Set",
+                    subtitle: "iOS · macOS · watchOS — Light + Dark + Tinted",
+                    systemImage: "applelogo",
+                    url: iconSetURL,
+                    previewTitle: "\(displayTitle) AppIcon",
+                    previewImage: previewImage
+                )
+                ExportFormatCard(
+                    title: "Single PNG",
+                    subtitle: "1024 × 1024 light icon",
+                    systemImage: "photo",
+                    url: lightPNGURL,
+                    previewTitle: "\(displayTitle) Icon",
+                    previewImage: previewImage
+                )
+                ExportFormatCard(
+                    title: "Google Play Pack",
+                    subtitle: "512 hi-res + 5 mipmap densities",
+                    systemImage: "play.rectangle.fill",
+                    url: playStoreURL,
+                    previewTitle: "\(displayTitle) Play Store",
+                    previewImage: previewImage
+                )
+                ExportFormatCard(
+                    title: "Web Favicons",
+                    subtitle: ".ico, apple-touch-icon, PWA manifest",
+                    systemImage: "globe",
+                    url: faviconsURL,
+                    previewTitle: "\(displayTitle) Favicons",
+                    previewImage: previewImage
+                )
+            }
+        }
+    }
+
+    // MARK: - Derived
+
+    private var displayTitle: String {
+        project.title.isEmpty ? "AppIcon" : project.title
+    }
+
+    private var previewImage: Image {
+        lightImage.map { Image(uiImage: $0) } ?? Image(systemName: "app")
+    }
+
+    // MARK: - Rendering / writes
 
     private func regenerate() {
-        lightImage = IconRenderer.render(project, side: 1024, includeBackground: true)
-        darkImage = IconRenderer.render(project, side: 1024, includeBackground: false)
-        tintedImage = IconRenderer.renderTinted(project, side: 1024)
-        rebuildLightPNG()
-        rebuildURL()
+        lightImage   = IconRenderer.render(project, side: 1024, includeBackground: true)
+        darkImage    = IconRenderer.render(project, side: 1024, includeBackground: false)
+        tintedImage  = IconRenderer.renderTinted(project, side: 1024)
+        rebuildSinglePNG()
+        rebuildPlayStore()
+        rebuildFavicons()
+        rebuildAppleSet()
     }
 
-    private func rebuildLightPNG() {
+    private func rebuildSinglePNG() {
         guard let light = lightImage, let data = light.pngData() else {
             lightPNGURL = nil
             return
         }
-        let baseName = project.title.isEmpty ? "AppIcon" : project.title
-        let safeName = baseName
-            .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_")).inverted)
-            .joined(separator: "_")
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(safeName).png")
+            .appendingPathComponent("\(sanitizedFilename(displayTitle)).png")
         do {
             if FileManager.default.fileExists(atPath: url.path) {
                 try FileManager.default.removeItem(at: url)
@@ -171,88 +165,114 @@ struct ExportSheet: View {
         }
     }
 
-    private func rebuildURL() {
-        guard let light = lightImage, hasAnyPlatform else {
-            preparedURL = nil
+    private func rebuildPlayStore() {
+        guard let light = lightImage else {
+            playStoreURL = nil
             return
         }
         do {
-            let url = try AppIconSetExporter.writeAppIconSet(
-                variants: .init(
-                    light: light,
-                    dark: includeIOS && includeDark ? darkImage : nil,
-                    tinted: includeIOS && includeTinted ? tintedImage : nil
-                ),
-                platforms: selectedPlatforms,
-                baseName: project.title.isEmpty ? "AppIcon" : project.title
+            playStoreURL = try PlayStoreIconExporter.writeBundle(light: light, baseName: displayTitle)
+        } catch {
+            playStoreURL = nil
+        }
+    }
+
+    private func rebuildFavicons() {
+        guard let light = lightImage else {
+            faviconsURL = nil
+            return
+        }
+        do {
+            faviconsURL = try FaviconExporter.writeBundle(light: light, baseName: displayTitle)
+        } catch {
+            faviconsURL = nil
+        }
+    }
+
+    private func rebuildAppleSet() {
+        guard let light = lightImage else {
+            iconSetURL = nil
+            return
+        }
+        do {
+            iconSetURL = try AppIconSetExporter.writeAppIconSet(
+                variants: .init(light: light, dark: darkImage, tinted: tintedImage),
+                platforms: [.iOS, .macOS, .watchOS],
+                baseName: displayTitle
             )
-            preparedURL = url
             error = nil
         } catch {
             self.error = error.localizedDescription
-            preparedURL = nil
+            iconSetURL = nil
         }
+    }
+
+    private func sanitizedFilename(_ raw: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(.init(charactersIn: "-_"))
+        let chars = raw.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" }
+        let cleaned = String(chars).trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return cleaned.isEmpty ? "AppIcon" : cleaned
     }
 }
 
-private struct VariantPreview: View {
-    enum Style {
-        case light
-        case dark
-        case tinted
-    }
+// MARK: - Format card
 
+private struct ExportFormatCard: View {
     let title: String
-    let image: UIImage?
-    let style: Style
-    @Binding var isSelected: Bool
-    let isLocked: Bool
+    let subtitle: String
+    let systemImage: String
+    let url: URL?
+    let previewTitle: String
+    let previewImage: Image
 
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                background
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                }
+        if let url {
+            ShareLink(
+                item: url,
+                preview: SharePreview(previewTitle, image: previewImage)
+            ) {
+                cardContent(isReady: true)
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(.rect(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.25),
-                            lineWidth: isSelected ? 2 : 1)
-            )
-            .opacity(isLocked || isSelected ? 1 : 0.4)
-
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(isSelected ? Color.primary : .secondary)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard !isLocked else { return }
-            isSelected.toggle()
+            .buttonStyle(.plain)
+        } else {
+            cardContent(isReady: false)
         }
     }
 
-    @ViewBuilder
-    private var background: some View {
-        switch style {
-        case .light:
-            Color.clear
-        case .dark:
-            LinearGradient(
-                colors: [Color(red: 0.192, green: 0.192, blue: 0.192),
-                         Color(red: 0.078, green: 0.078, blue: 0.078)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        case .tinted:
-            Color.black
+    private func cardContent(isReady: Bool) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(width: 38, height: 38)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(PanelStyle.rowFillActive)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                Text(isReady ? subtitle : "Preparing…")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "square.and.arrow.up")
+                .font(.body.weight(.medium))
+                .foregroundStyle(isReady ? Color.primary : Color.secondary.opacity(0.4))
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                .fill(PanelStyle.rowFill)
+        )
+        .opacity(isReady ? 1 : 0.55)
     }
 }
