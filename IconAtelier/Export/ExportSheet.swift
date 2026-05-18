@@ -18,6 +18,7 @@ struct ExportSheet: View {
     @State private var tintedImage: UIImage?
 
     @State private var preparedURL: URL?
+    @State private var lightPNGURL: URL?
     @State private var error: String?
 
     var body: some View {
@@ -85,6 +86,25 @@ struct ExportSheet: View {
                     Text("Exports an .appiconset folder. Drag it into your Xcode project's asset catalog.")
                 }
 
+                Section {
+                    if let lightPNGURL {
+                        ShareLink(
+                            item: lightPNGURL,
+                            preview: SharePreview(
+                                "\(project.title) Icon",
+                                image: lightImage.map { Image(uiImage: $0) } ?? Image(systemName: "app")
+                            )
+                        ) {
+                            Label("Share Icon PNG", systemImage: "photo")
+                        }
+                    } else {
+                        Label("Preparing…", systemImage: "hourglass")
+                            .foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text("Shares the 1024×1024 light icon as a single PNG file.")
+                }
+
                 if let error {
                     Section {
                         Text(error)
@@ -125,7 +145,30 @@ struct ExportSheet: View {
         lightImage = IconRenderer.render(project, side: 1024, includeBackground: true)
         darkImage = IconRenderer.render(project, side: 1024, includeBackground: false)
         tintedImage = IconRenderer.renderTinted(project, side: 1024)
+        rebuildLightPNG()
         rebuildURL()
+    }
+
+    private func rebuildLightPNG() {
+        guard let light = lightImage, let data = light.pngData() else {
+            lightPNGURL = nil
+            return
+        }
+        let baseName = project.title.isEmpty ? "AppIcon" : project.title
+        let safeName = baseName
+            .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_")).inverted)
+            .joined(separator: "_")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(safeName).png")
+        do {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            try data.write(to: url)
+            lightPNGURL = url
+        } catch {
+            lightPNGURL = nil
+        }
     }
 
     private func rebuildURL() {
