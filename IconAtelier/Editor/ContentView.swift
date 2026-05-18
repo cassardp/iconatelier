@@ -99,8 +99,10 @@ struct ContentView: View {
                     } action: { newFrame in
                         layersBarFrame = newFrame
                     }
-                    Color.clear.frame(height: fanButtonRowHeight)
-                    Color.clear.frame(height: bottomSpacer)
+                    Color.clear
+                        .frame(height: fanButtonRowHeight + bottomSpacer)
+                        .contentShape(Rectangle())
+                        .gesture(swipeUpToEditGesture)
                 }
                 .frame(width: geo.size.width, height: visibleHeight)
                 .overlay {
@@ -291,6 +293,23 @@ struct ContentView: View {
             persistSnapshotInBackground()
             project.clearHistory()
         }
+    }
+
+    // MARK: - Swipe up to open EditSheet
+
+    private var swipeUpToEditGesture: some Gesture {
+        DragGesture(minimumDistance: 16)
+            .onEnded { value in
+                guard !showEditSheet, !fanIsOpen else { return }
+                let dy = value.translation.height
+                let predictedDY = value.predictedEndTranslation.height
+                let horizontal = abs(value.translation.width)
+                let isUpward = dy < -40 || predictedDY < -120
+                let isMostlyVertical = abs(dy) > horizontal
+                guard isUpward, isMostlyVertical else { return }
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                presentEditSheet()
+            }
     }
 
     // MARK: - Lasso multi-selection
