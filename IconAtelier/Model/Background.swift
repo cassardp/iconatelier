@@ -9,7 +9,7 @@ typealias BackgroundKind = PaintKind
 
 @Observable
 final class Background: Codable {
-    var kindRaw: String = BackgroundKind.solid.rawValue
+    var kind: BackgroundKind = .solid
 
     var storedSolidColor: StoredColor = StoredColor(r: 0.92, g: 0.92, b: 0.94, a: 1.0)
     var storedGradientColors: [StoredColor] = []
@@ -31,7 +31,7 @@ final class Background: Codable {
         gradientCenter: UnitPoint = .center,
         meshColors: [Color]? = nil
     ) {
-        self.kindRaw = kind.rawValue
+        self.kind = kind
         self.storedSolidColor = StoredColor(solidColor)
         self.storedGradientColors = gradientColors.map { StoredColor($0) }
         self.storedLinearStart = StoredPoint(linearStart)
@@ -43,8 +43,10 @@ final class Background: Codable {
 
     // MARK: - Codable
 
+    // JSON key for `kind` stays `kindRaw` so existing on-disk projects keep
+    // decoding unchanged after the SwiftData → Codable migration.
     private enum CodingKeys: String, CodingKey {
-        case kindRaw
+        case kind = "kindRaw"
         case storedSolidColor, storedGradientColors
         case storedLinearStart, storedLinearEnd, storedGradientCenter
         case radialSpread
@@ -54,7 +56,9 @@ final class Background: Codable {
 
     required init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        kindRaw = try c.decodeIfPresent(String.self, forKey: .kindRaw) ?? BackgroundKind.solid.rawValue
+        // `try?` covers both a missing key and an unknown raw value — fall
+        // back to the default rather than failing the whole project load.
+        kind = (try? c.decodeIfPresent(BackgroundKind.self, forKey: .kind)) ?? .solid
         storedSolidColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedSolidColor)
             ?? StoredColor(r: 0.92, g: 0.92, b: 0.94, a: 1.0)
         storedGradientColors = try c.decodeIfPresent([StoredColor].self, forKey: .storedGradientColors) ?? []
@@ -69,7 +73,7 @@ final class Background: Codable {
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(kindRaw, forKey: .kindRaw)
+        try c.encode(kind, forKey: .kind)
         try c.encode(storedSolidColor, forKey: .storedSolidColor)
         try c.encode(storedGradientColors, forKey: .storedGradientColors)
         try c.encode(storedLinearStart, forKey: .storedLinearStart)
@@ -81,12 +85,10 @@ final class Background: Codable {
         try c.encode(isHidden, forKey: .isHidden)
     }
 
-    // MARK: - Bridged properties (Color, UnitPoint, UIImage)
-
-    var kind: BackgroundKind {
-        get { BackgroundKind(rawValue: kindRaw) ?? .solid }
-        set { kindRaw = newValue.rawValue }
-    }
+    // MARK: - Bridged properties (Color, UnitPoint)
+    //
+    // Only types that don't natively round-trip through Codable on their own
+    // (`Color`, `UnitPoint`) keep a bridge. `kind` is stored directly above.
 
     var solidColor: Color {
         get { storedSolidColor.color }
@@ -139,7 +141,7 @@ final class Background: Codable {
             )
         }
         set {
-            kindRaw = newValue.kind.rawValue
+            kind = newValue.kind
             storedSolidColor = newValue.solidColor
             storedGradientColors = newValue.gradientColors
             storedLinearStart = newValue.linearStart
@@ -195,7 +197,7 @@ extension Background {
     }
 
     func apply(_ s: BackgroundSnapshot) {
-        kindRaw = s.kind.rawValue
+        kind = s.kind
         storedSolidColor = s.solidColor
         storedGradientColors = s.gradientColors
         storedLinearStart = s.linearStart

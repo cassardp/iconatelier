@@ -580,19 +580,19 @@ struct ContentView: View {
     private var exportSignature: Int {
         var hasher = Hasher()
         if let bg = project.background {
-            hasher.combine(bg.kindRaw)
+            hasher.combine(bg.kind)
             hasher.combine(bg.isHidden)
         }
         for layer in project.layers {
             hasher.combine(layer.uuid)
-            hasher.combine(layer.kindRaw)
+            hasher.combine(layer.kind)
             hasher.combine(layer.imagePNG?.hashValue ?? 0)
             hasher.combine(layer.text)
             hasher.combine(layer.shapeSpec)
             hasher.combine(layer.cornerRadius)
             hasher.combine(layer.borderWidth)
             hasher.combine(layer.storedBorderColor)
-            hasher.combine(layer.borderPositionRaw)
+            hasher.combine(layer.borderPosition)
             hasher.combine(layer.storedTintColor)
             hasher.combine(layer.storedFillPaint)
             hasher.combine(layer.scaleValue)

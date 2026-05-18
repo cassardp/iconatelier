@@ -90,7 +90,7 @@ enum LayerFontDesign: String, CaseIterable, Codable {
 final class Layer: Codable, Identifiable {
     var uuid: UUID = UUID()
     var name: String = ""
-    var kindRaw: String = LayerKind.image.rawValue
+    var kind: LayerKind = .image
 
     /// In-memory PNG payload. Persisted by `ProjectStore` to a sibling
     /// `layer-{uuid}.png` file rather than serialized inline in the JSON
@@ -108,8 +108,8 @@ final class Layer: Codable, Identifiable {
     var imagePNGDirty: Bool = true
 
     var text: String = "Aa"
-    var fontWeightRaw: String = LayerFontWeight.bold.rawValue
-    var fontDesignRaw: String = LayerFontDesign.rounded.rawValue
+    var fontWeight: LayerFontWeight = .bold
+    var fontDesign: LayerFontDesign = .rounded
 
     var storedTintColor: StoredColor = StoredColor.white
 
@@ -124,9 +124,9 @@ final class Layer: Codable, Identifiable {
     var cornerRadius: Double = 0
     var borderWidth: Double = 0
     var storedBorderColor: StoredColor = StoredColor.black
-    var borderPositionRaw: String = BorderPosition.center.rawValue
+    var borderPosition: BorderPosition = .center
     var fillEnabled: Bool = true
-    var lineCapRaw: String = LayerLineCap.round.rawValue
+    var lineCap: LayerLineCap = .round
 
     var offsetW: Double = 0
     var offsetH: Double = 0
@@ -160,11 +160,11 @@ final class Layer: Codable, Identifiable {
     ) {
         self.uuid = uuid
         self.name = name
-        self.kindRaw = kind.rawValue
+        self.kind = kind
         self.imagePNG = image?.pngData()
         self.text = text
-        self.fontWeightRaw = fontWeight.rawValue
-        self.fontDesignRaw = fontDesign.rawValue
+        self.fontWeight = fontWeight
+        self.fontDesign = fontDesign
         self.storedTintColor = StoredColor(tintColor)
         self.shapeSpec = shapeSpec
     }
@@ -176,12 +176,20 @@ final class Layer: Codable, Identifiable {
     // on load. Keeping blobs out of the JSON keeps `project.json` small
     // enough to inspect by hand.
 
+    // JSON key names retain the historical `*Raw` suffix from the SwiftData
+    // era so existing on-disk projects keep decoding unchanged. The Swift-side
+    // property names are the natural typed ones.
     private enum CodingKeys: String, CodingKey {
-        case uuid, name, kindRaw
-        case text, fontWeightRaw, fontDesignRaw
+        case uuid, name
+        case kind = "kindRaw"
+        case text
+        case fontWeight = "fontWeightRaw"
+        case fontDesign = "fontDesignRaw"
         case storedTintColor, storedFillPaint, shapeSpec
-        case cornerRadius, borderWidth, storedBorderColor, borderPositionRaw
-        case fillEnabled, lineCapRaw
+        case cornerRadius, borderWidth, storedBorderColor
+        case borderPosition = "borderPositionRaw"
+        case fillEnabled
+        case lineCap = "lineCapRaw"
         case offsetW, offsetH, scaleValue, rotationRadians, opacity
         case shadowOpacity, shadowRadius, shadowOffsetX, shadowOffsetY, storedShadowColor
         case isHidden, isLocked, isFlippedHorizontally, isFlippedVertically
@@ -191,19 +199,22 @@ final class Layer: Codable, Identifiable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        kindRaw = try c.decodeIfPresent(String.self, forKey: .kindRaw) ?? LayerKind.image.rawValue
+        // `try?` swallows both a missing key and an unknown raw value (e.g. a
+        // legacy "emoji" kind from before that case was dropped) — fall back
+        // to the default rather than crashing on stale projects.
+        kind = (try? c.decodeIfPresent(LayerKind.self, forKey: .kind)) ?? .image
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? "Aa"
-        fontWeightRaw = try c.decodeIfPresent(String.self, forKey: .fontWeightRaw) ?? LayerFontWeight.bold.rawValue
-        fontDesignRaw = try c.decodeIfPresent(String.self, forKey: .fontDesignRaw) ?? LayerFontDesign.rounded.rawValue
+        fontWeight = (try? c.decodeIfPresent(LayerFontWeight.self, forKey: .fontWeight)) ?? .bold
+        fontDesign = (try? c.decodeIfPresent(LayerFontDesign.self, forKey: .fontDesign)) ?? .rounded
         storedTintColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedTintColor) ?? StoredColor.white
         storedFillPaint = try c.decodeIfPresent(Paint.self, forKey: .storedFillPaint)
         shapeSpec = try c.decodeIfPresent(ShapeSpec.self, forKey: .shapeSpec)
         cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 0
         borderWidth = try c.decodeIfPresent(Double.self, forKey: .borderWidth) ?? 0
         storedBorderColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedBorderColor) ?? StoredColor.black
-        borderPositionRaw = try c.decodeIfPresent(String.self, forKey: .borderPositionRaw) ?? BorderPosition.center.rawValue
+        borderPosition = (try? c.decodeIfPresent(BorderPosition.self, forKey: .borderPosition)) ?? .center
         fillEnabled = try c.decodeIfPresent(Bool.self, forKey: .fillEnabled) ?? true
-        lineCapRaw = try c.decodeIfPresent(String.self, forKey: .lineCapRaw) ?? LayerLineCap.round.rawValue
+        lineCap = (try? c.decodeIfPresent(LayerLineCap.self, forKey: .lineCap)) ?? .round
         offsetW = try c.decodeIfPresent(Double.self, forKey: .offsetW) ?? 0
         offsetH = try c.decodeIfPresent(Double.self, forKey: .offsetH) ?? 0
         scaleValue = try c.decodeIfPresent(Double.self, forKey: .scaleValue) ?? 1.0
@@ -224,19 +235,19 @@ final class Layer: Codable, Identifiable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(uuid, forKey: .uuid)
         try c.encode(name, forKey: .name)
-        try c.encode(kindRaw, forKey: .kindRaw)
+        try c.encode(kind, forKey: .kind)
         try c.encode(text, forKey: .text)
-        try c.encode(fontWeightRaw, forKey: .fontWeightRaw)
-        try c.encode(fontDesignRaw, forKey: .fontDesignRaw)
+        try c.encode(fontWeight, forKey: .fontWeight)
+        try c.encode(fontDesign, forKey: .fontDesign)
         try c.encode(storedTintColor, forKey: .storedTintColor)
         try c.encodeIfPresent(storedFillPaint, forKey: .storedFillPaint)
         try c.encodeIfPresent(shapeSpec, forKey: .shapeSpec)
         try c.encode(cornerRadius, forKey: .cornerRadius)
         try c.encode(borderWidth, forKey: .borderWidth)
         try c.encode(storedBorderColor, forKey: .storedBorderColor)
-        try c.encode(borderPositionRaw, forKey: .borderPositionRaw)
+        try c.encode(borderPosition, forKey: .borderPosition)
         try c.encode(fillEnabled, forKey: .fillEnabled)
-        try c.encode(lineCapRaw, forKey: .lineCapRaw)
+        try c.encode(lineCap, forKey: .lineCap)
         try c.encode(offsetW, forKey: .offsetW)
         try c.encode(offsetH, forKey: .offsetH)
         try c.encode(scaleValue, forKey: .scaleValue)
@@ -254,24 +265,10 @@ final class Layer: Codable, Identifiable {
     }
 
     // MARK: - Bridged properties
-
-    var kind: LayerKind {
-        // Fallback to .image if the stored raw value no longer maps to a
-        // known case (e.g. legacy "emoji" layers from before the kind was
-        // dropped). Keeps the app from crashing on stale projects.
-        get { LayerKind(rawValue: kindRaw) ?? .image }
-        set { kindRaw = newValue.rawValue }
-    }
-
-    var fontWeight: LayerFontWeight {
-        get { LayerFontWeight(rawValue: fontWeightRaw) ?? .bold }
-        set { fontWeightRaw = newValue.rawValue }
-    }
-
-    var fontDesign: LayerFontDesign {
-        get { LayerFontDesign(rawValue: fontDesignRaw) ?? .rounded }
-        set { fontDesignRaw = newValue.rawValue }
-    }
+    //
+    // Only types that don't round-trip through Codable on their own
+    // (`UIImage`, `Color`, `CGSize`, `CGFloat`, `Angle`) keep a bridge.
+    // Enums are stored directly above — no `*Raw` indirection.
 
     var image: UIImage? {
         get { imagePNG.flatMap { UIImage(data: $0) } }
@@ -306,16 +303,6 @@ final class Layer: Codable, Identifiable {
     var borderColor: Color {
         get { storedBorderColor.color }
         set { storedBorderColor = StoredColor(newValue) }
-    }
-
-    var borderPosition: BorderPosition {
-        get { BorderPosition(rawValue: borderPositionRaw) ?? .center }
-        set { borderPositionRaw = newValue.rawValue }
-    }
-
-    var lineCap: LayerLineCap {
-        get { LayerLineCap(rawValue: lineCapRaw) ?? .round }
-        set { lineCapRaw = newValue.rawValue }
     }
 
     /// Shape/text fill description. When no Paint has been stored yet,
@@ -407,21 +394,21 @@ extension Layer {
     }
 
     func apply(_ s: LayerSnapshot) {
-        kindRaw = s.kind.rawValue
+        kind = s.kind
         name = s.name
         imagePNG = s.imagePNG
         text = s.text
-        fontWeightRaw = s.fontWeight.rawValue
-        fontDesignRaw = s.fontDesign.rawValue
+        fontWeight = s.fontWeight
+        fontDesign = s.fontDesign
         storedTintColor = s.tintColor
         storedFillPaint = s.storedFillPaint
         shapeSpec = s.shapeSpec
         cornerRadius = s.cornerRadius
         borderWidth = s.borderWidth
         storedBorderColor = s.borderColor
-        borderPositionRaw = s.borderPosition.rawValue
+        borderPosition = s.borderPosition
         fillEnabled = s.fillEnabled
-        lineCapRaw = s.lineCap.rawValue
+        lineCap = s.lineCap
         offsetW = s.offsetW
         offsetH = s.offsetH
         scaleValue = s.scaleValue
