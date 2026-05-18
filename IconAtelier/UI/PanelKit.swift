@@ -643,16 +643,22 @@ final class AxisLockedPanRecognizer: UIPanGestureRecognizer {
         }
     }
 
-    /// Make every pan recognizer up the view chain (ScrollView, sheet
-    /// drag-to-dismiss, …) wait for this recognizer's verdict before they
-    /// activate. Once we either succeed (horizontal) or fail (vertical),
-    /// they react accordingly — they no longer steal vertical movement
-    /// while we're tracking a horizontal slider drag.
+    /// Make the *immediate* ancestor `UIScrollView`'s pan wait for this
+    /// recognizer's verdict before it can scroll vertically. Stops at the
+    /// first scroll view found — walking further would gate every pan up
+    /// the chain (including UIKit recognizers under a presented sheet,
+    /// e.g. the editor canvas's drag/magnify/rotate), and `require(toFail:)`
+    /// is permanent: once linked, those recognizers stay blocked because
+    /// this dial-slider recognizer never receives the unrelated touches
+    /// and so never transitions out of `.possible`. Caused a hang where
+    /// the canvas drag would die after touching any slider until the
+    /// project was reopened.
     private func linkAncestorPans() {
         var ancestor: UIView? = view?.superview
         while let v = ancestor {
-            for gr in v.gestureRecognizers ?? [] where gr is UIPanGestureRecognizer {
-                gr.require(toFail: self)
+            if let scroll = v as? UIScrollView {
+                scroll.panGestureRecognizer.require(toFail: self)
+                return
             }
             ancestor = v.superview
         }
