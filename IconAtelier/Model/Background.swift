@@ -18,6 +18,9 @@ final class Background: Codable {
     var storedGradientCenter: StoredPoint = StoredPoint(x: 0.5, y: 0.5)
     var radialSpread: Double = 0.75
     var storedMeshColors: [StoredColor] = []
+    /// Stored 4 mesh corner positions (TL/TR/BL/BR). Empty when the field
+    /// is missing on disk — the renderer falls back to the identity grid.
+    var storedMeshCornerPoints: [StoredPoint] = []
     var meshRotationDegrees: Double = 0
 
     var isHidden: Bool = false
@@ -50,7 +53,7 @@ final class Background: Codable {
         case storedSolidColor, storedGradientColors
         case storedLinearStart, storedLinearEnd, storedGradientCenter
         case radialSpread
-        case storedMeshColors, meshRotationDegrees
+        case storedMeshColors, storedMeshCornerPoints, meshRotationDegrees
         case isHidden
     }
 
@@ -67,6 +70,7 @@ final class Background: Codable {
         storedGradientCenter = try c.decodeIfPresent(StoredPoint.self, forKey: .storedGradientCenter) ?? StoredPoint(x: 0.5, y: 0.5)
         radialSpread = try c.decodeIfPresent(Double.self, forKey: .radialSpread) ?? 0.75
         storedMeshColors = try c.decodeIfPresent([StoredColor].self, forKey: .storedMeshColors) ?? []
+        storedMeshCornerPoints = try c.decodeIfPresent([StoredPoint].self, forKey: .storedMeshCornerPoints) ?? []
         meshRotationDegrees = try c.decodeIfPresent(Double.self, forKey: .meshRotationDegrees) ?? 0
         isHidden = try c.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
     }
@@ -81,6 +85,7 @@ final class Background: Codable {
         try c.encode(storedGradientCenter, forKey: .storedGradientCenter)
         try c.encode(radialSpread, forKey: .radialSpread)
         try c.encode(storedMeshColors, forKey: .storedMeshColors)
+        try c.encode(storedMeshCornerPoints, forKey: .storedMeshCornerPoints)
         try c.encode(meshRotationDegrees, forKey: .meshRotationDegrees)
         try c.encode(isHidden, forKey: .isHidden)
     }
@@ -137,6 +142,7 @@ final class Background: Codable {
                 gradientCenter: storedGradientCenter,
                 radialSpread: radialSpread,
                 meshColors: storedMeshColors,
+                meshCornerPoints: storedMeshCornerPoints,
                 meshRotationDegrees: meshRotationDegrees
             )
         }
@@ -149,6 +155,7 @@ final class Background: Codable {
             storedGradientCenter = newValue.gradientCenter
             radialSpread = newValue.radialSpread
             storedMeshColors = newValue.meshColors
+            storedMeshCornerPoints = newValue.meshCornerPoints
             meshRotationDegrees = newValue.meshRotationDegrees
         }
     }
@@ -176,6 +183,7 @@ struct BackgroundSnapshot {
     let gradientCenter: StoredPoint
     let radialSpread: Double
     let meshColors: [StoredColor]
+    let meshCornerPoints: [StoredPoint]
     let meshRotationDegrees: Double
     let isHidden: Bool
 }
@@ -191,6 +199,7 @@ extension Background {
             gradientCenter: storedGradientCenter,
             radialSpread: radialSpread,
             meshColors: storedMeshColors,
+            meshCornerPoints: storedMeshCornerPoints,
             meshRotationDegrees: meshRotationDegrees,
             isHidden: isHidden
         )
@@ -205,6 +214,7 @@ extension Background {
         storedGradientCenter = s.gradientCenter
         radialSpread = s.radialSpread
         storedMeshColors = s.meshColors
+        storedMeshCornerPoints = s.meshCornerPoints
         meshRotationDegrees = s.meshRotationDegrees
         isHidden = s.isHidden
     }

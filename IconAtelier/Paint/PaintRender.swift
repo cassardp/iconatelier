@@ -37,10 +37,8 @@ func PaintFill<S: Shape>(_ shape: S, paint: Paint, side: CGFloat) -> some View {
             )
         )
     case .meshGradient:
-        let colors = paint.meshColors.map { $0.color }
-        let safeColors = colors.count == 9
-            ? colors
-            : Paint.defaultMeshStoredColors.map { $0.color }
+        let colors9 = paint.meshColors.map { $0.color }
+        let colors25 = Paint.mesh25Colors(from: colors9)
         // Same scale-then-rotate trick as BackgroundView: scaling by
         // |cos|+|sin| ensures the rotated mesh still covers the full
         // side×side frame at any angle without exposing transparent
@@ -49,14 +47,10 @@ func PaintFill<S: Shape>(_ shape: S, paint: Paint, side: CGFloat) -> some View {
         let rad = angle * .pi / 180
         let cover = abs(cos(rad)) + abs(sin(rad))
         MeshGradient(
-            width: 3,
-            height: 3,
-            points: [
-                [0,   0  ], [0.5, 0  ], [1,   0  ],
-                [0,   0.5], [0.5, 0.5], [1,   0.5],
-                [0,   1  ], [0.5, 1  ], [1,   1  ]
-            ],
-            colors: safeColors
+            width: 5,
+            height: 5,
+            points: Paint.mesh25Points(corners: paint.meshCornerPoints),
+            colors: colors25
         )
         .scaleEffect(cover)
         .rotationEffect(.degrees(angle))

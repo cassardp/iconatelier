@@ -27,7 +27,7 @@ struct IconCanvasView: View {
         var isSnapped: Bool = false
     }
 
-    private static let snapThreshold: CGFloat = 4
+    private static let snapThreshold: CGFloat = 6
     private static let rotationSnapThreshold: Double = 5
 
     static func normalized(_ angle: Angle) -> Angle {
@@ -423,14 +423,10 @@ struct BackgroundView: View {
             let rad = angle * .pi / 180
             let scale = abs(cos(rad)) + abs(sin(rad))
             MeshGradient(
-                width: 3,
-                height: 3,
-                points: [
-                    [0,   0  ], [0.5, 0  ], [1,   0  ],
-                    [0,   0.5], [0.5, 0.5], [1,   0.5],
-                    [0,   1  ], [0.5, 1  ], [1,   1  ]
-                ],
-                colors: background.meshColors
+                width: 5,
+                height: 5,
+                points: Paint.mesh25Points(corners: background.storedMeshCornerPoints),
+                colors: Paint.mesh25Colors(from: background.meshColors)
             )
             .scaleEffect(scale)
             .rotationEffect(.degrees(angle))

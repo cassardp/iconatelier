@@ -92,38 +92,47 @@ enum BackgroundPresets {
     ]
 
     static let radial: [RadialPreset] = [
+        // 3-stops narratives (sunset-style gradients)
         .init(name: "Glow",
-              colors: [Color(hex: 0xFFD60A), Color(hex: 0xFF9500)]),
-        .init(name: "Cherry",
-              colors: [Color(hex: 0xF45C43), Color(hex: 0xEB3349)]),
-        .init(name: "Tide",
-              colors: [Color(hex: 0x64D2FF), Color(hex: 0x5856D6)]),
-        .init(name: "Lush",
-              colors: [Color(hex: 0xA8E063), Color(hex: 0x56AB2F)]),
-        .init(name: "Bubblegum",
-              colors: [Color(hex: 0xFF66B3), Color(hex: 0xAF52DE)]),
-        .init(name: "Aubergine",
-              colors: [Color(hex: 0xAA076B), Color(hex: 0x61045F)]),
-        .init(name: "Dusk",
-              colors: [Color(hex: 0xFFD89B), Color(hex: 0x19547B)]),
-        .init(name: "Lavender",
-              colors: [Color(hex: 0xD4C5F9), Color(hex: 0x5E5CE6)]),
-        .init(name: "Mint",
-              colors: [Color(hex: 0xB4EC51), Color(hex: 0x429321)]),
-        .init(name: "Coral",
-              colors: [Color(hex: 0xFFB199), Color(hex: 0xFF0844)]),
-        .init(name: "Gold",
-              colors: [Color(hex: 0xFFE259), Color(hex: 0xFFA751)]),
+              colors: [Color(hex: 0xFFE94A), Color(hex: 0xFF6B00), Color(hex: 0x8B1A0E)]),
         .init(name: "Volcano",
-              colors: [Color(hex: 0xF12711), Color(hex: 0x1A1A2E)]),
+              colors: [Color(hex: 0xFFEB3B), Color(hex: 0xFF3D00), Color(hex: 0x0A0A0A)]),
+        .init(name: "Dusk",
+              colors: [Color(hex: 0xFFD89B), Color(hex: 0xFF6B35), Color(hex: 0x0E2A47)]),
+        .init(name: "Coral",
+              colors: [Color(hex: 0xFFE5DA), Color(hex: 0xFF6E5B), Color(hex: 0x2D0A05)]),
+
+        // Saturated halo (vivid center → dark monochrome edge)
+        .init(name: "Cherry",
+              colors: [Color(hex: 0xFF3D5C), Color(hex: 0x1A0006)]),
         .init(name: "Magenta",
-              colors: [Color(hex: 0xEE0979), Color(hex: 0xFF6A00)]),
+              colors: [Color(hex: 0xFF00C8), Color(hex: 0x1B003A)]),
+        .init(name: "Gold",
+              colors: [Color(hex: 0xFFD700), Color(hex: 0x5D3A00)]),
+
+        // Cross-hue saturated (two contrasting vivid hues)
+        .init(name: "Bubblegum",
+              colors: [Color(hex: 0xFF4DA6), Color(hex: 0x4A0080)]),
         .init(name: "Forest",
-              colors: [Color(hex: 0x71B280), Color(hex: 0x134E5E)]),
+              colors: [Color(hex: 0xD4FF4A), Color(hex: 0x0A2E1F)]),
+        .init(name: "Mint",
+              colors: [Color(hex: 0x00E5C4), Color(hex: 0x001A14)]),
+
+        // Pastel center → saturated edge
+        .init(name: "Tide",
+              colors: [Color(hex: 0xE8F5FF), Color(hex: 0x0A3A8F)]),
+        .init(name: "Lavender",
+              colors: [Color(hex: 0xFFFFFF), Color(hex: 0x6B4FCF)]),
         .init(name: "Cream",
-              colors: [Color(hex: 0xFCE38A), Color(hex: 0xF38181)]),
+              colors: [Color(hex: 0xFFF4D6), Color(hex: 0xFF4D6D)]),
         .init(name: "Pale Sky",
-              colors: [Color(hex: 0xE0EAFC), Color(hex: 0x7B9ACC)]),
+              colors: [Color(hex: 0xFFFFFF), Color(hex: 0x3D5A8C)]),
+
+        // Inverted (dark center → luminous edge — "eclipse")
+        .init(name: "Aubergine",
+              colors: [Color(hex: 0x1A0014), Color(hex: 0xC13584)]),
+        .init(name: "Lush",
+              colors: [Color(hex: 0x0A2E1A), Color(hex: 0xC6FF00)]),
     ]
 
     static let mesh: [MeshPreset] = [
