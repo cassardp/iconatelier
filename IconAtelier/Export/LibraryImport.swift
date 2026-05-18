@@ -1,17 +1,12 @@
 import Foundation
 
-// MARK: - Importer service
-
 enum LibraryImportError: LocalizedError {
-    case missingManifest
-    case invalidManifest(String)
+    case noProjectsFound
 
     var errorDescription: String? {
         switch self {
-        case .missingManifest:
-            return "The archive doesn't contain a manifest.json file."
-        case .invalidManifest(let detail):
-            return "The manifest is invalid: \(detail)"
+        case .noProjectsFound:
+            return "The archive doesn't contain any IconAtelier project."
         }
     }
 }
@@ -22,6 +17,10 @@ struct LibraryImportSummary: Sendable {
 }
 
 enum LibraryImporter {
+    /// Reads each `project.json` from the archive, rehydrates the matching
+    /// out-of-band PNG sidecars (thumbnail + layer images), and hands the
+    /// assembled `IconProject` to the store. Projects whose UUID already
+    /// exists in the library are skipped.
     @MainActor
     static func importBundle(
         from zipURL: URL,
@@ -29,151 +28,52 @@ enum LibraryImporter {
     ) throws -> LibraryImportSummary {
         let entries = try ZipReader.extract(zipURL: zipURL)
 
-        // NSFileCoordinator(.forUploading) wraps the bundle in a top-level
-        // folder named after the export directory. Detect that prefix once
-        // and strip it from every lookup.
-        var manifestData: Data?
-        var prefix: String = ""
-        for entry in entries where entry.name.hasSuffix("manifest.json") {
-            let name = entry.name
-            manifestData = entry.data
-            prefix = name.hasSuffix("/manifest.json")
-                ? String(name.dropLast("manifest.json".count))
-                : ""
-            break
-        }
-
-        guard let manifestData else { throw LibraryImportError.missingManifest }
-
-        var fileMap: [String: Data] = [:]
-        fileMap.reserveCapacity(entries.count)
+        // Group every entry by its parent directory. A project is then any
+        // directory whose file map contains `project.json`. This handles
+        // both NSFileCoordinator-wrapped bundles (`IconAtelier-…/{uuid}/…`)
+        // and flat ones (`{uuid}/…`) without a special prefix-stripping step.
+        var byDir: [String: [String: Data]] = [:]
         for entry in entries {
-            let name = entry.name
-            guard !name.hasSuffix("manifest.json") else { continue }
-            let key = (!prefix.isEmpty && name.hasPrefix(prefix))
-                ? String(name.dropFirst(prefix.count))
-                : name
-            fileMap[key] = entry.data
+            guard let lastSlash = entry.name.lastIndex(of: "/") else { continue }
+            let dir = String(entry.name[..<lastSlash])
+            let filename = String(entry.name[entry.name.index(after: lastSlash)...])
+            byDir[dir, default: [:]][filename] = entry.data
         }
+
+        let projectDirs = byDir.filter { $0.value["project.json"] != nil }
+        guard !projectDirs.isEmpty else { throw LibraryImportError.noProjectsFound }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        let manifest: LibraryExport
-        do {
-            manifest = try decoder.decode(LibraryExport.self, from: manifestData)
-        } catch {
-            throw LibraryImportError.invalidManifest(error.localizedDescription)
-        }
-
         let existingUUIDs = Set(store.projects.map(\.uuid))
-
         var imported = 0
         var skipped = 0
 
-        for dto in manifest.projects {
-            guard !existingUUIDs.contains(dto.uuid) else {
+        for (_, files) in projectDirs {
+            guard let jsonData = files["project.json"],
+                  let project = try? decoder.decode(IconProject.self, from: jsonData)
+            else { continue }
+
+            guard !existingUUIDs.contains(project.uuid) else {
                 skipped += 1
                 continue
             }
-            let project = makeProject(from: dto, fileMap: fileMap)
+
+            if let thumb = files["thumbnail.png"] {
+                project.thumbnailPNG = thumb
+            }
+            for layer in project.layers {
+                let filename = "layer-\(layer.uuid.uuidString).png"
+                if let data = files[filename] {
+                    layer.imagePNG = data
+                }
+            }
+
             store.add(project)
             imported += 1
         }
 
         return LibraryImportSummary(importedCount: imported, skippedCount: skipped)
-    }
-
-    // MARK: - DTO → model
-
-    private static func makeProject(
-        from dto: ProjectExport,
-        fileMap: [String: Data]
-    ) -> IconProject {
-        let project = IconProject(title: dto.title)
-        project.uuid = dto.uuid
-        project.createdAt = dto.createdAt
-        project.updatedAt = dto.updatedAt
-        project.thumbnailPNG = dto.thumbnail.flatMap { fileMap[$0] }
-
-        project.appName = dto.appName
-        project.appStoreURL = dto.appStoreURL
-        project.appBundleID = dto.appBundleID
-
-        project.notes = dto.notes
-        project.tags = dto.tags
-        project.authorName = dto.authorName
-
-        project.isPublic = dto.isPublic
-        project.publishedID = dto.publishedID
-        project.publishedAt = dto.publishedAt
-
-        if let bgDTO = dto.background {
-            project.background = makeBackground(from: bgDTO, fileMap: fileMap)
-        }
-
-        project.rawLayers = dto.layers.map { makeLayer(from: $0, fileMap: fileMap) }
-
-        return project
-    }
-
-    private static func makeBackground(
-        from dto: BackgroundExport,
-        fileMap: [String: Data]
-    ) -> Background {
-        let bg = Background()
-        bg.kindRaw = dto.kind
-        bg.storedSolidColor = dto.solidColor
-        bg.storedGradientColors = dto.gradientColors
-        bg.storedLinearStart = dto.linearStart
-        bg.storedLinearEnd = dto.linearEnd
-        bg.storedGradientCenter = dto.gradientCenter
-        bg.storedMeshColors = dto.meshColors
-        bg.meshRotationDegrees = dto.meshRotationDegrees
-        bg.isHidden = dto.isHidden
-        return bg
-    }
-
-    private static func makeLayer(
-        from dto: LayerExport,
-        fileMap: [String: Data]
-    ) -> Layer {
-        // Legacy bundles may carry layers tagged "emoji" — that case has
-        // been removed, so we coerce to .image (the safest neutral kind)
-        // and drop the emoji payload silently.
-        let layer = Layer(
-            uuid: dto.uuid,
-            kind: LayerKind(rawValue: dto.kind) ?? .image,
-            name: dto.name
-        )
-        layer.orderIndex = dto.orderIndex
-        layer.imagePNG = dto.image.flatMap { fileMap[$0] }
-        layer.text = dto.text
-        layer.fontWeightRaw = dto.fontWeight
-        layer.fontDesignRaw = dto.fontDesign
-        layer.storedTintColor = dto.tintColor
-        layer.offsetW = dto.offsetW
-        layer.offsetH = dto.offsetH
-        layer.scaleValue = dto.scaleValue
-        layer.rotationRadians = dto.rotationRadians
-        layer.opacity = dto.opacity
-        layer.shadowOpacity = dto.shadowOpacity
-        layer.shadowRadius = dto.shadowRadius
-        layer.shadowOffsetX = dto.shadowOffsetX
-        layer.shadowOffsetY = dto.shadowOffsetY
-        layer.storedShadowColor = dto.shadowColor
-        layer.isHidden = dto.isHidden
-        layer.isLocked = dto.isLocked
-        layer.isFlippedHorizontally = dto.isFlippedHorizontally
-        layer.isFlippedVertically = dto.isFlippedVertically
-        layer.cornerRadius = dto.cornerRadius
-        layer.borderWidth = dto.borderWidth
-        layer.storedBorderColor = dto.borderColor
-        layer.borderPositionRaw = dto.borderPosition
-        layer.shapeSpecJSON = dto.shapeSpecJSON
-        layer.fillEnabled = dto.fillEnabled ?? true
-        layer.lineCapRaw = dto.lineCap ?? LayerLineCap.round.rawValue
-        layer.fillPaintJSON = dto.fillPaintJSON
-        return layer
     }
 }

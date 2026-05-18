@@ -54,7 +54,10 @@ final class IconProject: Codable, Identifiable {
 
     var background: Background?
 
-    var rawLayers: [Layer] = []
+    /// Ordered list of layers. The array's order IS the rendering / UI order
+    /// (bottom-most first). No separate `orderIndex` is maintained — the
+    /// array position is the single source of truth.
+    var layers: [Layer] = []
 
     @ObservationIgnored private var undoStack: [IconProjectSnapshot] = []
     @ObservationIgnored private var redoStack: [IconProjectSnapshot] = []
@@ -77,7 +80,7 @@ final class IconProject: Codable, Identifiable {
         case appName, appStoreURL, appBundleID
         case notes, tags, authorName
         case isPublic, publishedID, publishedAt
-        case background, rawLayers
+        case background, layers
     }
 
     required init(from decoder: Decoder) throws {
@@ -96,7 +99,7 @@ final class IconProject: Codable, Identifiable {
         publishedID = try c.decodeIfPresent(String.self, forKey: .publishedID)
         publishedAt = try c.decodeIfPresent(Date.self, forKey: .publishedAt)
         background = try c.decodeIfPresent(Background.self, forKey: .background)
-        rawLayers = try c.decodeIfPresent([Layer].self, forKey: .rawLayers) ?? []
+        layers = try c.decodeIfPresent([Layer].self, forKey: .layers) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -115,7 +118,7 @@ final class IconProject: Codable, Identifiable {
         try c.encodeIfPresent(publishedID, forKey: .publishedID)
         try c.encodeIfPresent(publishedAt, forKey: .publishedAt)
         try c.encodeIfPresent(background, forKey: .background)
-        try c.encode(rawLayers, forKey: .rawLayers)
+        try c.encode(layers, forKey: .layers)
     }
 
     func ensureBackground() {
@@ -130,25 +133,17 @@ final class IconProject: Codable, Identifiable {
         return bg
     }
 
-    // MARK: - Layers (ordered)
-
-    var layers: [Layer] {
-        get { rawLayers.sorted(by: { $0.orderIndex < $1.orderIndex }) }
-        set {
-            for (i, l) in newValue.enumerated() { l.orderIndex = i }
-            rawLayers = newValue
-        }
-    }
+    // MARK: - Layers
 
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
 
     func layer(withID uuid: UUID?) -> Layer? {
         guard let uuid else { return nil }
-        return rawLayers.first { $0.uuid == uuid }
+        return layers.first { $0.uuid == uuid }
     }
 
-    var hasContent: Bool { !rawLayers.isEmpty }
+    var hasContent: Bool { !layers.isEmpty }
 
     // MARK: - Snapshot / undo
 
@@ -168,25 +163,23 @@ final class IconProject: Codable, Identifiable {
             background = bg
         }
 
-        let existingByUUID = Dictionary(uniqueKeysWithValues: rawLayers.map { ($0.uuid, $0) })
+        let existingByUUID = Dictionary(uniqueKeysWithValues: layers.map { ($0.uuid, $0) })
         var rebuilt: [Layer] = []
 
-        for (i, snap) in snapshot.layers.enumerated() {
+        for snap in snapshot.layers {
             if let existing = existingByUUID[snap.uuid] {
                 existing.apply(snap)
-                existing.orderIndex = i
                 rebuilt.append(existing)
             } else {
                 let layer = Layer(uuid: snap.uuid, kind: snap.kind, name: snap.name)
                 layer.apply(snap)
-                layer.orderIndex = i
                 rebuilt.append(layer)
             }
         }
 
         // Layers absent from the snapshot are simply dropped — ARC reclaims
-        // them since `rawLayers` was the only strong reference.
-        rawLayers = rebuilt
+        // them since `layers` was the only strong reference.
+        layers = rebuilt
     }
 
     func recordUndo() {
@@ -229,13 +222,12 @@ final class IconProject: Codable, Identifiable {
 
     @discardableResult
     private func append(_ layer: Layer) -> Layer {
-        layer.orderIndex = rawLayers.count
-        rawLayers.append(layer)
+        layers.append(layer)
         return layer
     }
 
     private func nextName(for kind: LayerKind, baseFallback: String) -> String {
-        let n = rawLayers.filter { $0.kind == kind }.count + 1
+        let n = layers.filter { $0.kind == kind }.count + 1
         return n == 1 ? baseFallback : "\(baseFallback) \(n)"
     }
 
@@ -280,11 +272,7 @@ final class IconProject: Codable, Identifiable {
 
     func remove(_ layer: Layer) {
         recordUndo()
-        let removedUUID = layer.uuid
-        var ordered = layers
-        ordered.removeAll { $0.uuid == removedUUID }
-        for (i, l) in ordered.enumerated() { l.orderIndex = i }
-        rawLayers = ordered
+        layers.removeAll { $0.uuid == layer.uuid }
     }
 
     func duplicated() -> IconProject {
@@ -302,16 +290,13 @@ final class IconProject: Codable, Identifiable {
         bg.apply((background ?? Background()).snapshot())
         copy.background = bg
 
-        var copiedLayers: [Layer] = []
-        for (i, layer) in layers.enumerated() {
+        copy.layers = layers.map { layer in
             let snap = layer.snapshot()
             let newLayer = Layer(kind: snap.kind, name: snap.name)
             newLayer.apply(snap)
             newLayer.uuid = UUID()
-            newLayer.orderIndex = i
-            copiedLayers.append(newLayer)
+            return newLayer
         }
-        copy.rawLayers = copiedLayers
         return copy
     }
 
@@ -323,23 +308,17 @@ final class IconProject: Codable, Identifiable {
         copy.apply(snap)
         copy.uuid = UUID() // new identity for the copy
 
-        var ordered = layers
-        if let idx = ordered.firstIndex(where: { $0.uuid == layer.uuid }) {
-            ordered.insert(copy, at: idx + 1)
+        if let idx = layers.firstIndex(where: { $0.uuid == layer.uuid }) {
+            layers.insert(copy, at: idx + 1)
         } else {
-            ordered.append(copy)
+            layers.append(copy)
         }
-        for (i, l) in ordered.enumerated() { l.orderIndex = i }
-        rawLayers = ordered
         return copy
     }
 
     func move(from source: IndexSet, to destination: Int) {
         recordUndo()
-        var ordered = layers
-        ordered.move(fromOffsets: source, toOffset: destination)
-        for (i, l) in ordered.enumerated() { l.orderIndex = i }
-        rawLayers = ordered
+        layers.move(fromOffsets: source, toOffset: destination)
     }
 
     // MARK: - Boolean operations
@@ -353,9 +332,7 @@ final class IconProject: Codable, Identifiable {
         _ op: BooleanOpKind,
         on layerUUIDs: Set<UUID>
     ) -> Layer? {
-        let targets = rawLayers
-            .filter { layerUUIDs.contains($0.uuid) && !$0.isHidden }
-            .sorted { $0.orderIndex < $1.orderIndex }
+        let targets = layers.filter { layerUUIDs.contains($0.uuid) && !$0.isHidden }
         guard targets.count >= 2 else { return nil }
 
         // Try the vector path first — if every source is a parametric shape
@@ -391,16 +368,25 @@ final class IconProject: Codable, Identifiable {
 
         recordUndo()
 
-        let bottomIndex = targets.first?.orderIndex ?? 0
+        let bottomUUID = targets.first?.uuid
         let removeUUIDs = Set(targets.map(\.uuid))
-
         var remaining = layers.filter { !removeUUIDs.contains($0.uuid) }
 
-        let insertAt = min(bottomIndex, remaining.count)
+        // Insert at the position the bottom-most source occupied in the
+        // pruned array. firstIndex is recomputed against `remaining` so the
+        // shift caused by earlier removals is implicit.
+        let insertAt: Int
+        if let bottomUUID,
+           let originalIdx = layers.firstIndex(where: { $0.uuid == bottomUUID }) {
+            // Count how many removed layers preceded the bottom in the
+            // original array — that's the number of slots already consumed.
+            let priorRemoved = layers.prefix(originalIdx).filter { removeUUIDs.contains($0.uuid) }.count
+            insertAt = min(originalIdx - priorRemoved, remaining.count)
+        } else {
+            insertAt = remaining.count
+        }
         remaining.insert(newLayer, at: insertAt)
-
-        for (i, l) in remaining.enumerated() { l.orderIndex = i }
-        rawLayers = remaining
+        layers = remaining
 
         return newLayer
     }

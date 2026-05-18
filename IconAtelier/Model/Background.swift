@@ -84,7 +84,7 @@ final class Background: Codable {
     // MARK: - Bridged properties (Color, UnitPoint, UIImage)
 
     var kind: BackgroundKind {
-        get { BackgroundKind(rawValue: kindRaw)! }
+        get { BackgroundKind(rawValue: kindRaw) ?? .solid }
         set { kindRaw = newValue.rawValue }
     }
 

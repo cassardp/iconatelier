@@ -10,10 +10,11 @@ import os
 ///     layer-{uuid}.png    # per-layer PNG payloads (out-of-band)
 ///     thumbnail.png       # gallery vignette
 ///
-/// JSON writes are atomic; PNG writes are atomic and reconciled with the
-/// in-memory `rawLayers` list on every save (orphaned `layer-*.png` files
-/// are removed). The store keeps every project loaded in memory — IconAtelier
-/// is single-user and the libraries are small.
+/// All writes are atomic. PNG sidecars are written first, then `project.json`
+/// last: the JSON is the index of truth, so a mid-save crash can leave PNG
+/// orphans (cleaned up on the next save) but never produce a JSON that
+/// references a missing image. The store keeps every project loaded in
+/// memory — IconAtelier is single-user and the libraries are small.
 @MainActor
 @Observable
 final class ProjectStore {
@@ -63,7 +64,7 @@ final class ProjectStore {
             }
             project.thumbnailPNGDirty = false
 
-            for layer in project.rawLayers {
+            for layer in project.layers {
                 let layerURL = dir.appendingPathComponent("layer-\(layer.uuid.uuidString).png")
                 if let imageData = try? Data(contentsOf: layerURL) {
                     layer.imagePNG = imageData
@@ -91,24 +92,21 @@ final class ProjectStore {
         return project
     }
 
-    /// Writes the project's JSON + PNG sidecars to disk, atomically per file,
-    /// and removes any orphaned `layer-*.png` files that no longer match a
-    /// layer in `rawLayers`. Updates `updatedAt` as a side effect.
+    /// Writes the project's PNG sidecars first, then `project.json` last.
+    /// All writes are atomic per file. The JSON is written last so it never
+    /// references a sidecar that doesn't exist yet: a mid-save crash can
+    /// leave orphan PNGs (which the next save will reap) but never an
+    /// inconsistent index. Updates `updatedAt` as a side effect.
     func save(_ project: IconProject) {
         project.updatedAt = .now
         let dir = directory(for: project.uuid)
         do {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
 
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            encoder.dateEncodingStrategy = .iso8601
-            let jsonData = try encoder.encode(project)
-            try jsonData.write(to: dir.appendingPathComponent("project.json"), options: .atomic)
-
-            // Thumbnail — skip the write if the blob is clean *and* the
-            // file already exists on disk. The dirty flag is reset only on
-            // a successful write so a failed write retries next time.
+            // 1. Thumbnail sidecar — skip the write if the blob is clean
+            //    *and* the file already exists on disk. The dirty flag is
+            //    reset only on a successful write so a failed write retries
+            //    next time.
             let thumbURL = dir.appendingPathComponent("thumbnail.png")
             if let thumb = project.thumbnailPNG {
                 if project.thumbnailPNGDirty || !fm.fileExists(atPath: thumbURL.path) {
@@ -119,9 +117,9 @@ final class ProjectStore {
                 try? fm.removeItem(at: thumbURL)
             }
 
-            // Layer PNGs — same skip logic per layer.
+            // 2. Layer PNG sidecars — same skip logic per layer.
             var keepFilenames: Set<String> = ["project.json", "thumbnail.png"]
-            for layer in project.rawLayers {
+            for layer in project.layers {
                 let filename = "layer-\(layer.uuid.uuidString).png"
                 let url = dir.appendingPathComponent(filename)
                 if let data = layer.imagePNG {
@@ -135,7 +133,7 @@ final class ProjectStore {
                 }
             }
 
-            // Remove orphaned layer-*.png files (layers deleted since last save).
+            // 3. Reap orphan layer-*.png files (layers deleted since last save).
             if let entries = try? fm.contentsOfDirectory(
                 at: dir,
                 includingPropertiesForKeys: nil,
@@ -149,12 +147,17 @@ final class ProjectStore {
                     }
                 }
             }
+
+            // 4. Finally, the index — `project.json` is written last so it
+            //    only ever references sidecars already on disk.
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            encoder.dateEncodingStrategy = .iso8601
+            let jsonData = try encoder.encode(project)
+            try jsonData.write(to: dir.appendingPathComponent("project.json"), options: .atomic)
         } catch {
             logger.error("Failed to save project \(project.uuid.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
-
-        // Re-sort by createdAt to match @Query(order: .reverse) semantics.
-        projects.sort { $0.createdAt > $1.createdAt }
     }
 
     func delete(_ project: IconProject) {

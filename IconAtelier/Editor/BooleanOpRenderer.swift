@@ -60,9 +60,7 @@ enum BooleanOpRenderer {
         layers: [Layer],
         op: BooleanOpKind
     ) -> BooleanVectorResult? {
-        let visible = layers
-            .filter { !$0.isHidden }
-            .sorted { $0.orderIndex < $1.orderIndex }
+        let visible = layers.filter { !$0.isHidden }
         guard visible.count >= 2 else { return nil }
 
         let canvasSide = workingPixelSide
@@ -165,9 +163,7 @@ enum BooleanOpRenderer {
         layers: [Layer],
         op: BooleanOpKind
     ) -> BooleanOpResult? {
-        let visible = layers
-            .filter { !$0.isHidden }
-            .sorted { $0.orderIndex < $1.orderIndex }
+        let visible = layers.filter { !$0.isHidden }
         guard visible.count >= 2 else { return nil }
 
         let side = workingPixelSide

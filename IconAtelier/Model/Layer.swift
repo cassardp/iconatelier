@@ -91,7 +91,6 @@ final class Layer: Codable, Identifiable {
     var uuid: UUID = UUID()
     var name: String = ""
     var kindRaw: String = LayerKind.image.rawValue
-    var orderIndex: Int = 0
 
     /// In-memory PNG payload. Persisted by `ProjectStore` to a sibling
     /// `layer-{uuid}.png` file rather than serialized inline in the JSON
@@ -114,13 +113,12 @@ final class Layer: Codable, Identifiable {
 
     var storedTintColor: StoredColor = StoredColor.white
 
-    /// JSON-encoded `Paint` used as the fill for shape and text layers.
-    /// `nil` means "fall back to a solid Paint built from `tintColor`" —
-    /// keeps freshly-added layers (and pre-Paint records) rendering as
-    /// before without forcing a migration step.
-    var fillPaintJSON: Data?
+    /// Backing storage for `fillPaint`. `nil` means "fall back to a solid
+    /// Paint built from `tintColor`" — keeps freshly-added layers (and
+    /// pre-Paint records) rendering as before without forcing a migration.
+    var storedFillPaint: Paint?
 
-    var shapeSpecJSON: Data?
+    var shapeSpec: ShapeSpec?
 
     // Shape-level styling (applies to .parametricShape layers).
     var cornerRadius: Double = 0
@@ -168,7 +166,7 @@ final class Layer: Codable, Identifiable {
         self.fontWeightRaw = fontWeight.rawValue
         self.fontDesignRaw = fontDesign.rawValue
         self.storedTintColor = StoredColor(tintColor)
-        self.shapeSpecJSON = shapeSpec.flatMap { try? JSONEncoder().encode($0) }
+        self.shapeSpec = shapeSpec
     }
 
     // MARK: - Codable
@@ -179,9 +177,9 @@ final class Layer: Codable, Identifiable {
     // enough to inspect by hand.
 
     private enum CodingKeys: String, CodingKey {
-        case uuid, name, kindRaw, orderIndex
+        case uuid, name, kindRaw
         case text, fontWeightRaw, fontDesignRaw
-        case storedTintColor, fillPaintJSON, shapeSpecJSON
+        case storedTintColor, storedFillPaint, shapeSpec
         case cornerRadius, borderWidth, storedBorderColor, borderPositionRaw
         case fillEnabled, lineCapRaw
         case offsetW, offsetH, scaleValue, rotationRadians, opacity
@@ -194,13 +192,12 @@ final class Layer: Codable, Identifiable {
         uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         kindRaw = try c.decodeIfPresent(String.self, forKey: .kindRaw) ?? LayerKind.image.rawValue
-        orderIndex = try c.decodeIfPresent(Int.self, forKey: .orderIndex) ?? 0
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? "Aa"
         fontWeightRaw = try c.decodeIfPresent(String.self, forKey: .fontWeightRaw) ?? LayerFontWeight.bold.rawValue
         fontDesignRaw = try c.decodeIfPresent(String.self, forKey: .fontDesignRaw) ?? LayerFontDesign.rounded.rawValue
         storedTintColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedTintColor) ?? StoredColor.white
-        fillPaintJSON = try c.decodeIfPresent(Data.self, forKey: .fillPaintJSON)
-        shapeSpecJSON = try c.decodeIfPresent(Data.self, forKey: .shapeSpecJSON)
+        storedFillPaint = try c.decodeIfPresent(Paint.self, forKey: .storedFillPaint)
+        shapeSpec = try c.decodeIfPresent(ShapeSpec.self, forKey: .shapeSpec)
         cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 0
         borderWidth = try c.decodeIfPresent(Double.self, forKey: .borderWidth) ?? 0
         storedBorderColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedBorderColor) ?? StoredColor.black
@@ -228,13 +225,12 @@ final class Layer: Codable, Identifiable {
         try c.encode(uuid, forKey: .uuid)
         try c.encode(name, forKey: .name)
         try c.encode(kindRaw, forKey: .kindRaw)
-        try c.encode(orderIndex, forKey: .orderIndex)
         try c.encode(text, forKey: .text)
         try c.encode(fontWeightRaw, forKey: .fontWeightRaw)
         try c.encode(fontDesignRaw, forKey: .fontDesignRaw)
         try c.encode(storedTintColor, forKey: .storedTintColor)
-        try c.encodeIfPresent(fillPaintJSON, forKey: .fillPaintJSON)
-        try c.encodeIfPresent(shapeSpecJSON, forKey: .shapeSpecJSON)
+        try c.encodeIfPresent(storedFillPaint, forKey: .storedFillPaint)
+        try c.encodeIfPresent(shapeSpec, forKey: .shapeSpec)
         try c.encode(cornerRadius, forKey: .cornerRadius)
         try c.encode(borderWidth, forKey: .borderWidth)
         try c.encode(storedBorderColor, forKey: .storedBorderColor)
@@ -268,12 +264,12 @@ final class Layer: Codable, Identifiable {
     }
 
     var fontWeight: LayerFontWeight {
-        get { LayerFontWeight(rawValue: fontWeightRaw)! }
+        get { LayerFontWeight(rawValue: fontWeightRaw) ?? .bold }
         set { fontWeightRaw = newValue.rawValue }
     }
 
     var fontDesign: LayerFontDesign {
-        get { LayerFontDesign(rawValue: fontDesignRaw)! }
+        get { LayerFontDesign(rawValue: fontDesignRaw) ?? .rounded }
         set { fontDesignRaw = newValue.rawValue }
     }
 
@@ -313,7 +309,7 @@ final class Layer: Codable, Identifiable {
     }
 
     var borderPosition: BorderPosition {
-        get { BorderPosition(rawValue: borderPositionRaw)! }
+        get { BorderPosition(rawValue: borderPositionRaw) ?? .center }
         set { borderPositionRaw = newValue.rawValue }
     }
 
@@ -322,34 +318,16 @@ final class Layer: Codable, Identifiable {
         set { lineCapRaw = newValue.rawValue }
     }
 
-    var shapeSpec: ShapeSpec? {
-        get {
-            guard let data = shapeSpecJSON else { return nil }
-            return try? JSONDecoder().decode(ShapeSpec.self, from: data)
-        }
-        set {
-            shapeSpecJSON = newValue.flatMap { try? JSONEncoder().encode($0) }
-        }
-    }
-
     /// Shape/text fill description. When no Paint has been stored yet,
     /// falls back to a solid Paint built from `tintColor` so the layer
-    /// renders identically to its pre-Paint state. The setter clears the
-    /// JSON when assigned the "tintColor-equivalent" solid so we don't
-    /// drift from the simple-color UI for image layers.
+    /// renders identically to its pre-Paint state. The setter keeps
+    /// `storedTintColor` in sync with the solid case so code paths still
+    /// reading `tintColor` (image colorMultiply, snapshot hashing, …)
+    /// reflect the active fill.
     var fillPaint: Paint {
-        get {
-            if let data = fillPaintJSON,
-               let p = try? JSONDecoder().decode(Paint.self, from: data) {
-                return p
-            }
-            return .solid(tintColor)
-        }
+        get { storedFillPaint ?? .solid(tintColor) }
         set {
-            fillPaintJSON = try? JSONEncoder().encode(newValue)
-            // Keep tintColor in sync with the solid case so any code path
-            // still reading `tintColor` (image colorMultiply, snapshot
-            // hashing, …) reflects the active fill.
+            storedFillPaint = newValue
             if newValue.kind == .solid {
                 storedTintColor = newValue.solidColor
             }
@@ -368,8 +346,8 @@ struct LayerSnapshot {
     let fontWeight: LayerFontWeight
     let fontDesign: LayerFontDesign
     let tintColor: StoredColor
-    let fillPaintJSON: Data?
-    let shapeSpecJSON: Data?
+    let storedFillPaint: Paint?
+    let shapeSpec: ShapeSpec?
     let cornerRadius: Double
     let borderWidth: Double
     let borderColor: StoredColor
@@ -390,7 +368,6 @@ struct LayerSnapshot {
     let isLocked: Bool
     let isFlippedHorizontally: Bool
     let isFlippedVertically: Bool
-    let orderIndex: Int
 }
 
 extension Layer {
@@ -404,8 +381,8 @@ extension Layer {
             fontWeight: fontWeight,
             fontDesign: fontDesign,
             tintColor: storedTintColor,
-            fillPaintJSON: fillPaintJSON,
-            shapeSpecJSON: shapeSpecJSON,
+            storedFillPaint: storedFillPaint,
+            shapeSpec: shapeSpec,
             cornerRadius: cornerRadius,
             borderWidth: borderWidth,
             borderColor: storedBorderColor,
@@ -425,8 +402,7 @@ extension Layer {
             isHidden: isHidden,
             isLocked: isLocked,
             isFlippedHorizontally: isFlippedHorizontally,
-            isFlippedVertically: isFlippedVertically,
-            orderIndex: orderIndex
+            isFlippedVertically: isFlippedVertically
         )
     }
 
@@ -438,8 +414,8 @@ extension Layer {
         fontWeightRaw = s.fontWeight.rawValue
         fontDesignRaw = s.fontDesign.rawValue
         storedTintColor = s.tintColor
-        fillPaintJSON = s.fillPaintJSON
-        shapeSpecJSON = s.shapeSpecJSON
+        storedFillPaint = s.storedFillPaint
+        shapeSpec = s.shapeSpec
         cornerRadius = s.cornerRadius
         borderWidth = s.borderWidth
         storedBorderColor = s.borderColor
@@ -460,6 +436,5 @@ extension Layer {
         isLocked = s.isLocked
         isFlippedHorizontally = s.isFlippedHorizontally
         isFlippedVertically = s.isFlippedVertically
-        orderIndex = s.orderIndex
     }
 }
