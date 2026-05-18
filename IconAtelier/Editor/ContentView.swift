@@ -224,8 +224,14 @@ struct ContentView: View {
             ExportSheet(project: project)
         }
         .sheet(isPresented: $showPromptSheet) {
-            AIPromptSheet { subject, style in
-                handlePromptSubmitted(subject: subject, style: style)
+            AIPromptSheet { subject, style, material, reference, transparent in
+                handlePromptSubmitted(
+                    subject: subject,
+                    style: style,
+                    material: material,
+                    reference: reference,
+                    transparent: transparent
+                )
             }
         }
         .alert(
@@ -446,7 +452,13 @@ struct ContentView: View {
         showEditSheet = true
     }
 
-    private func handlePromptSubmitted(subject: String, style: AIStyle?) {
+    private func handlePromptSubmitted(
+        subject: String,
+        style: AIStyle?,
+        material: AIMaterial?,
+        reference: UIImage?,
+        transparent: Bool
+    ) {
         Task { @MainActor in
             guard let key = await APIKeyStore.shared.load(), !key.isEmpty else {
                 showNoAPIKeyAlert = true
@@ -454,14 +466,25 @@ struct ContentView: View {
             }
             isGenerating = true
             defer { isGenerating = false }
+            let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subjectText = trimmedSubject.isEmpty
+                ? "the subject shown in the reference image"
+                : trimmedSubject
+            let materialClause = material.map { ". Surface and material: \($0.promptFragment)" } ?? ""
             let finalPrompt: String
             if let style {
-                finalPrompt = "\(subject), isolated on transparent background, rendered as \(style.promptFragment)"
+                let isolation = transparent ? "isolated on transparent background, " : ""
+                finalPrompt = "\(subjectText), \(isolation)rendered as \(style.promptFragment)\(materialClause)"
             } else {
-                finalPrompt = subject
+                finalPrompt = "\(subjectText)\(materialClause)"
             }
             do {
-                let image = try await OpenAIImageService().generateOverlay(prompt: finalPrompt)
+                let references = reference.map { [$0] } ?? []
+                let image = try await OpenAIImageService().generateOverlay(
+                    prompt: finalPrompt,
+                    transparent: transparent,
+                    references: references
+                )
                 withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
                     let layer = project.addGeneratedImage(image: image)
                     session.selectLayer(layer.uuid)

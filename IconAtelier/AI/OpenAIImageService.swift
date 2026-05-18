@@ -32,13 +32,32 @@ struct OpenAIImageService {
         )
     }
 
-    func generateOverlay(prompt: String, references: [UIImage] = []) async throws -> UIImage {
+    func generateOverlay(
+        prompt: String,
+        transparent: Bool = true,
+        references: [UIImage] = []
+    ) async throws -> UIImage {
         try await run(
             model: "gpt-image-1.5",
-            prompt: Self.wrapOverlayPrompt(prompt),
-            background: "transparent",
+            prompt: transparent
+                ? Self.wrapOverlayPrompt(prompt)
+                : Self.wrapOpaqueSubjectPrompt(prompt),
+            background: transparent ? "transparent" : "opaque",
             references: references
         )
+    }
+
+    static func wrapOpaqueSubjectPrompt(_ userPrompt: String) -> String {
+        """
+        A single centered subject rendered in the visual style of a premium iOS app icon glyph or illustration (simplified confident shapes, clean lines, dense saturated palette, soft polished lighting, App Store quality): \(userPrompt).
+
+        STRICT REQUIREMENTS (must be respected):
+        - One clearly defined subject centered in the square frame.
+        - The image fills the entire square frame edge to edge. No outer border, no frame, no rounded corners drawn into the image, no vignette letterboxing, no padding around the image.
+        - No text, no letters, no numbers, no logos, no watermark, no signature, no UI chrome.
+        - Polished icon-quality rendering: clean lighting, consistent style throughout, no random clutter, no noisy artifacts.
+        - Square 1:1 composition.
+        """
     }
 
     static func wrapOverlayPrompt(_ userPrompt: String) -> String {
