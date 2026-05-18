@@ -39,8 +39,7 @@ struct ShapeContentSection: View {
                     get: { layer.fillPaint },
                     set: { layer.fillPaint = $0 }
                 ),
-                onBeginEditing: { project.recordUndo() },
-                sectioned: false
+                onBeginEditing: { project.recordUndo() }
             )
         }
     }

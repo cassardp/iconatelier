@@ -1,30 +1,21 @@
 import SwiftUI
 
 /// Reusable editor for a `Paint` value — kind picker, geometry pad,
-/// per-kind controls (mesh angle), and presets. Used both by the
-/// background editor and by the shape/text fill section so a layer fill
-/// can be any of the same gradients the canvas background supports.
+/// per-kind controls (mesh angle), and presets. Used by the background
+/// editor and by the shape/text fill sections so a layer fill can be
+/// any of the same gradients the canvas background supports.
 ///
-/// Layout, top → bottom:
-///   1. **Primary block** — segmented Type picker glued to the per-kind
-///      geometry body without a divider: a `ColorPickerRow` for solid,
-///      or the matching pad for the three gradient kinds. Each pad gets
-///      its own vertical padding so colored handles have touch-room
-///      above and below — they can drift past the pad edges (linear up
-///      to ±50%, mesh up to ±25%). The mesh angle slider sits under the
-///      mesh pad inside this same block.
-///   2. **Presets** — its own titled section, after a `SectionDivider`.
-///      Hidden for solid.
+/// Always emits its rows bare — the caller is responsible for wrapping
+/// in a `PanelSection` with whatever title fits the context
+/// ("Background", "Fill", etc.). For the background editor the
+/// canonical title flips between Color and Gradient based on the
+/// current kind; use `PaintEditor.sectionTitle(for:)` to compute it.
 ///
-/// Two layout modes:
-/// - `sectioned: true` (background editor) — top-level. The primary
-///   block is wrapped in a titled `PanelSection` ("Color" or "Gradient")
-///   so it reads as a real section in the panel.
-/// - `sectioned: false` (shape/text fill, embedded in a parent "Fill"
-///   `PanelSection`) — segmented + geometry emitted bare, no inner
-///   title (parent's title speaks for them). The divider before Presets
-///   is kept so the geometry/presets rhythm stays consistent with the
-///   sectioned mode.
+/// Top → bottom:
+///   1. Kind segmented control
+///   2. Presets thumbnails (gradients only)
+///   3. The pad (or solid color row) — bordered block
+///   4. Mesh angle slider (mesh only)
 struct PaintEditor: View {
     @Binding var paint: Paint
     /// Called once per discrete edit (start of a slider drag, color
@@ -32,24 +23,25 @@ struct PaintEditor: View {
     /// `project.recordUndo()` — its own coalescing window dedupes the
     /// rapid-fire calls a `ColorPicker` produces.
     let onBeginEditing: () -> Void
-    /// `true` for the background editor (top-level, gets section
-    /// dividers). `false` when embedded inside a parent `PanelSection`
-    /// like the shape "Fill" — no inner dividers, lighter rhythm.
-    var sectioned: Bool = true
 
     var body: some View {
-        if sectioned {
-            PanelSection(title: primarySectionTitle) {
-                editorRows
-            }
-        } else {
-            // Flat mode: parent (e.g. "Fill") already owns the section
-            // title — don't stack a second "Gradient"/"Color" header
-            // inside it.
-            VStack(spacing: 14) {
-                editorRows
-            }
+        // 12pt between the kind picker, presets row, and pad block —
+        // these are heavy, visually rich rows (segmented control,
+        // gradient thumbnails, large bordered pad), so they need more
+        // breathing room than `PanelSection`'s default 7pt row rhythm
+        // (which is tuned for slider stacks). Same value in every
+        // context — background editor or layer fill — so the editor
+        // reads identically wherever it's embedded.
+        VStack(spacing: 14) {
+            editorRows
         }
+    }
+
+    /// Canonical section title for the background editor — "Color"
+    /// when solid, "Gradient" otherwise. Other callers ("Fill", …)
+    /// pass their own title.
+    static func sectionTitle(for kind: PaintKind) -> String {
+        kind == .solid ? "Color" : "Gradient"
     }
 
     /// Rows shared by sectioned and flat modes, in their canonical
@@ -73,12 +65,6 @@ struct PaintEditor: View {
         if paint.kind == .meshGradient {
             meshAngleSlider
         }
-    }
-
-    /// Header label for the primary section (sectioned mode only).
-    /// "Color" for solid, "Gradient" for the three gradient kinds.
-    private var primarySectionTitle: String {
-        paint.kind == .solid ? "Color" : "Gradient"
     }
 
     // MARK: - Type picker

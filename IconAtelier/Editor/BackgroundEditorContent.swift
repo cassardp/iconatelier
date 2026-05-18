@@ -10,13 +10,15 @@ struct BackgroundEditorContent: View {
             VStack(spacing: 18) {
                 BackgroundActionsRow(project: project, session: session)
                 SectionDivider()
-                PaintEditor(
-                    paint: Binding(
-                        get: { background.paint },
-                        set: { background.paint = $0 }
-                    ),
-                    onBeginEditing: { project.recordUndo() }
-                )
+                PanelSection(title: PaintEditor.sectionTitle(for: background.paint.kind)) {
+                    PaintEditor(
+                        paint: Binding(
+                            get: { background.paint },
+                            set: { background.paint = $0 }
+                        ),
+                        onBeginEditing: { project.recordUndo() }
+                    )
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 28)
