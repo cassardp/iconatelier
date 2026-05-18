@@ -1,14 +1,13 @@
 import SwiftUI
-import SwiftData
 import UIKit
 
-enum LayerKind: String, Equatable, CaseIterable {
+enum LayerKind: String, Equatable, CaseIterable, Codable {
     case image
     case text
     case parametricShape
 }
 
-enum LayerFontWeight: String, CaseIterable {
+enum LayerFontWeight: String, CaseIterable, Codable {
     case regular
     case medium
     case semibold
@@ -26,7 +25,7 @@ enum LayerFontWeight: String, CaseIterable {
     }
 }
 
-enum BorderPosition: String, CaseIterable {
+enum BorderPosition: String, CaseIterable, Codable {
     case inner
     case center
     case outer
@@ -40,7 +39,7 @@ enum BorderPosition: String, CaseIterable {
     }
 }
 
-enum LayerLineCap: String, CaseIterable {
+enum LayerLineCap: String, CaseIterable, Codable {
     case butt
     case round
     case square
@@ -62,7 +61,7 @@ enum LayerLineCap: String, CaseIterable {
     }
 }
 
-enum LayerFontDesign: String, CaseIterable {
+enum LayerFontDesign: String, CaseIterable, Codable {
     case `default`
     case serif
     case rounded
@@ -87,14 +86,27 @@ enum LayerFontDesign: String, CaseIterable {
     }
 }
 
-@Model
-final class Layer {
+@Observable
+final class Layer: Codable, Identifiable {
     var uuid: UUID = UUID()
     var name: String = ""
     var kindRaw: String = LayerKind.image.rawValue
     var orderIndex: Int = 0
 
-    @Attribute(.externalStorage) var imagePNG: Data?
+    /// In-memory PNG payload. Persisted by `ProjectStore` to a sibling
+    /// `layer-{uuid}.png` file rather than serialized inline in the JSON
+    /// (excluded from `CodingKeys`).
+    var imagePNG: Data? {
+        didSet { imagePNGDirty = true }
+    }
+
+    /// Set every time `imagePNG` is mutated; `ProjectStore.save` uses it to
+    /// skip rewriting the layer's PNG sidecar when nothing about the blob
+    /// has changed. Defaults to true so freshly-built layers always get a
+    /// first write to disk; the store resets it to false right after a
+    /// successful write (or after rehydration on load).
+    @ObservationIgnored
+    var imagePNGDirty: Bool = true
 
     var text: String = "Aa"
     var fontWeightRaw: String = LayerFontWeight.bold.rawValue
@@ -135,7 +147,7 @@ final class Layer {
     var isFlippedHorizontally: Bool = false
     var isFlippedVertically: Bool = false
 
-    var project: IconProject?
+    var id: UUID { uuid }
 
     init(
         uuid: UUID = UUID(),
@@ -157,6 +169,92 @@ final class Layer {
         self.fontDesignRaw = fontDesign.rawValue
         self.storedTintColor = StoredColor(tintColor)
         self.shapeSpecJSON = shapeSpec.flatMap { try? JSONEncoder().encode($0) }
+    }
+
+    // MARK: - Codable
+    //
+    // `imagePNG` is intentionally excluded from JSON. `ProjectStore` writes
+    // it out to a `layer-{uuid}.png` sibling file on save and rehydrates it
+    // on load. Keeping blobs out of the JSON keeps `project.json` small
+    // enough to inspect by hand.
+
+    private enum CodingKeys: String, CodingKey {
+        case uuid, name, kindRaw, orderIndex
+        case text, fontWeightRaw, fontDesignRaw
+        case storedTintColor, fillPaintJSON, shapeSpecJSON
+        case cornerRadius, borderWidth, storedBorderColor, borderPositionRaw
+        case fillEnabled, lineCapRaw
+        case offsetW, offsetH, scaleValue, rotationRadians, opacity
+        case shadowOpacity, shadowRadius, shadowOffsetX, shadowOffsetY, storedShadowColor
+        case isHidden, isLocked, isFlippedHorizontally, isFlippedVertically
+    }
+
+    required init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        kindRaw = try c.decodeIfPresent(String.self, forKey: .kindRaw) ?? LayerKind.image.rawValue
+        orderIndex = try c.decodeIfPresent(Int.self, forKey: .orderIndex) ?? 0
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? "Aa"
+        fontWeightRaw = try c.decodeIfPresent(String.self, forKey: .fontWeightRaw) ?? LayerFontWeight.bold.rawValue
+        fontDesignRaw = try c.decodeIfPresent(String.self, forKey: .fontDesignRaw) ?? LayerFontDesign.rounded.rawValue
+        storedTintColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedTintColor) ?? StoredColor.white
+        fillPaintJSON = try c.decodeIfPresent(Data.self, forKey: .fillPaintJSON)
+        shapeSpecJSON = try c.decodeIfPresent(Data.self, forKey: .shapeSpecJSON)
+        cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 0
+        borderWidth = try c.decodeIfPresent(Double.self, forKey: .borderWidth) ?? 0
+        storedBorderColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedBorderColor) ?? StoredColor.black
+        borderPositionRaw = try c.decodeIfPresent(String.self, forKey: .borderPositionRaw) ?? BorderPosition.center.rawValue
+        fillEnabled = try c.decodeIfPresent(Bool.self, forKey: .fillEnabled) ?? true
+        lineCapRaw = try c.decodeIfPresent(String.self, forKey: .lineCapRaw) ?? LayerLineCap.round.rawValue
+        offsetW = try c.decodeIfPresent(Double.self, forKey: .offsetW) ?? 0
+        offsetH = try c.decodeIfPresent(Double.self, forKey: .offsetH) ?? 0
+        scaleValue = try c.decodeIfPresent(Double.self, forKey: .scaleValue) ?? 1.0
+        rotationRadians = try c.decodeIfPresent(Double.self, forKey: .rotationRadians) ?? 0
+        opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? 1.0
+        shadowOpacity = try c.decodeIfPresent(Double.self, forKey: .shadowOpacity) ?? 0
+        shadowRadius = try c.decodeIfPresent(Double.self, forKey: .shadowRadius) ?? 0.04
+        shadowOffsetX = try c.decodeIfPresent(Double.self, forKey: .shadowOffsetX) ?? 0
+        shadowOffsetY = try c.decodeIfPresent(Double.self, forKey: .shadowOffsetY) ?? 0.02
+        storedShadowColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedShadowColor) ?? StoredColor.black
+        isHidden = try c.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        isFlippedHorizontally = try c.decodeIfPresent(Bool.self, forKey: .isFlippedHorizontally) ?? false
+        isFlippedVertically = try c.decodeIfPresent(Bool.self, forKey: .isFlippedVertically) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(uuid, forKey: .uuid)
+        try c.encode(name, forKey: .name)
+        try c.encode(kindRaw, forKey: .kindRaw)
+        try c.encode(orderIndex, forKey: .orderIndex)
+        try c.encode(text, forKey: .text)
+        try c.encode(fontWeightRaw, forKey: .fontWeightRaw)
+        try c.encode(fontDesignRaw, forKey: .fontDesignRaw)
+        try c.encode(storedTintColor, forKey: .storedTintColor)
+        try c.encodeIfPresent(fillPaintJSON, forKey: .fillPaintJSON)
+        try c.encodeIfPresent(shapeSpecJSON, forKey: .shapeSpecJSON)
+        try c.encode(cornerRadius, forKey: .cornerRadius)
+        try c.encode(borderWidth, forKey: .borderWidth)
+        try c.encode(storedBorderColor, forKey: .storedBorderColor)
+        try c.encode(borderPositionRaw, forKey: .borderPositionRaw)
+        try c.encode(fillEnabled, forKey: .fillEnabled)
+        try c.encode(lineCapRaw, forKey: .lineCapRaw)
+        try c.encode(offsetW, forKey: .offsetW)
+        try c.encode(offsetH, forKey: .offsetH)
+        try c.encode(scaleValue, forKey: .scaleValue)
+        try c.encode(rotationRadians, forKey: .rotationRadians)
+        try c.encode(opacity, forKey: .opacity)
+        try c.encode(shadowOpacity, forKey: .shadowOpacity)
+        try c.encode(shadowRadius, forKey: .shadowRadius)
+        try c.encode(shadowOffsetX, forKey: .shadowOffsetX)
+        try c.encode(shadowOffsetY, forKey: .shadowOffsetY)
+        try c.encode(storedShadowColor, forKey: .storedShadowColor)
+        try c.encode(isHidden, forKey: .isHidden)
+        try c.encode(isLocked, forKey: .isLocked)
+        try c.encode(isFlippedHorizontally, forKey: .isFlippedHorizontally)
+        try c.encode(isFlippedVertically, forKey: .isFlippedVertically)
     }
 
     // MARK: - Bridged properties

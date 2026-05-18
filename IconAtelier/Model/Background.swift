@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import UIKit
 
 // Legacy alias — `Background` and the rest of the codebase were written
@@ -8,8 +7,8 @@ import UIKit
 // every reference through `PaintKind`.
 typealias BackgroundKind = PaintKind
 
-@Model
-final class Background {
+@Observable
+final class Background: Codable {
     var kindRaw: String = BackgroundKind.solid.rawValue
 
     var storedSolidColor: StoredColor = StoredColor(r: 0.92, g: 0.92, b: 0.94, a: 1.0)
@@ -22,8 +21,6 @@ final class Background {
     var meshRotationDegrees: Double = 0
 
     var isHidden: Bool = false
-
-    var project: IconProject?
 
     init(
         kind: BackgroundKind = .solid,
@@ -42,6 +39,46 @@ final class Background {
         self.storedGradientCenter = StoredPoint(gradientCenter)
         self.storedMeshColors = (meshColors ?? Background.defaultMeshColors).map { StoredColor($0) }
         self.isHidden = false
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case kindRaw
+        case storedSolidColor, storedGradientColors
+        case storedLinearStart, storedLinearEnd, storedGradientCenter
+        case radialSpread
+        case storedMeshColors, meshRotationDegrees
+        case isHidden
+    }
+
+    required init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kindRaw = try c.decodeIfPresent(String.self, forKey: .kindRaw) ?? BackgroundKind.solid.rawValue
+        storedSolidColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedSolidColor)
+            ?? StoredColor(r: 0.92, g: 0.92, b: 0.94, a: 1.0)
+        storedGradientColors = try c.decodeIfPresent([StoredColor].self, forKey: .storedGradientColors) ?? []
+        storedLinearStart = try c.decodeIfPresent(StoredPoint.self, forKey: .storedLinearStart) ?? StoredPoint(x: 0, y: 0)
+        storedLinearEnd = try c.decodeIfPresent(StoredPoint.self, forKey: .storedLinearEnd) ?? StoredPoint(x: 1, y: 1)
+        storedGradientCenter = try c.decodeIfPresent(StoredPoint.self, forKey: .storedGradientCenter) ?? StoredPoint(x: 0.5, y: 0.5)
+        radialSpread = try c.decodeIfPresent(Double.self, forKey: .radialSpread) ?? 0.75
+        storedMeshColors = try c.decodeIfPresent([StoredColor].self, forKey: .storedMeshColors) ?? []
+        meshRotationDegrees = try c.decodeIfPresent(Double.self, forKey: .meshRotationDegrees) ?? 0
+        isHidden = try c.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(kindRaw, forKey: .kindRaw)
+        try c.encode(storedSolidColor, forKey: .storedSolidColor)
+        try c.encode(storedGradientColors, forKey: .storedGradientColors)
+        try c.encode(storedLinearStart, forKey: .storedLinearStart)
+        try c.encode(storedLinearEnd, forKey: .storedLinearEnd)
+        try c.encode(storedGradientCenter, forKey: .storedGradientCenter)
+        try c.encode(radialSpread, forKey: .radialSpread)
+        try c.encode(storedMeshColors, forKey: .storedMeshColors)
+        try c.encode(meshRotationDegrees, forKey: .meshRotationDegrees)
+        try c.encode(isHidden, forKey: .isHidden)
     }
 
     // MARK: - Bridged properties (Color, UnitPoint, UIImage)

@@ -1,10 +1,9 @@
 import SwiftUI
-import SwiftData
 import UniformTypeIdentifiers
 
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @Environment(ProjectStore.self) private var store
 
     @State private var apiKey: String = ""
     @State private var didLoadKey: Bool = false
@@ -176,10 +175,7 @@ struct SettingsSheet: View {
         Task { @MainActor in
             defer { isExporting = false }
             do {
-                let descriptor = FetchDescriptor<IconProject>(
-                    sortBy: [SortDescriptor(\.createdAt)]
-                )
-                let projects = try modelContext.fetch(descriptor)
+                let projects = store.projects.sorted { $0.createdAt < $1.createdAt }
                 let url = try LibraryExporter.buildBundle(projects: projects)
                 let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
                 exportFile = ExportFile(
@@ -205,7 +201,7 @@ struct SettingsSheet: View {
             do {
                 let summary = try LibraryImporter.importBundle(
                     from: url,
-                    into: modelContext
+                    into: store
                 )
                 importResult = ImportResult(
                     importedCount: summary.importedCount,

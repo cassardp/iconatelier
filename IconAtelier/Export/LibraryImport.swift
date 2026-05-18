@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 // MARK: - Importer service
 
@@ -26,7 +25,7 @@ enum LibraryImporter {
     @MainActor
     static func importBundle(
         from zipURL: URL,
-        into modelContext: ModelContext
+        into store: ProjectStore
     ) throws -> LibraryImportSummary {
         let entries = try ZipReader.extract(zipURL: zipURL)
 
@@ -67,23 +66,19 @@ enum LibraryImporter {
             throw LibraryImportError.invalidManifest(error.localizedDescription)
         }
 
-        let existingUUIDs = Set(
-            try modelContext.fetch(FetchDescriptor<IconProject>()).map(\.uuid)
-        )
+        let existingUUIDs = Set(store.projects.map(\.uuid))
 
         var imported = 0
         var skipped = 0
 
-        try modelContext.transaction {
-            for dto in manifest.projects {
-                guard !existingUUIDs.contains(dto.uuid) else {
-                    skipped += 1
-                    continue
-                }
-                let project = makeProject(from: dto, fileMap: fileMap)
-                modelContext.insert(project)
-                imported += 1
+        for dto in manifest.projects {
+            guard !existingUUIDs.contains(dto.uuid) else {
+                skipped += 1
+                continue
             }
+            let project = makeProject(from: dto, fileMap: fileMap)
+            store.add(project)
+            imported += 1
         }
 
         return LibraryImportSummary(importedCount: imported, skippedCount: skipped)

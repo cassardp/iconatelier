@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import UIKit
 
 struct IconProjectSnapshot {
@@ -7,15 +6,27 @@ struct IconProjectSnapshot {
     let layers: [LayerSnapshot]
 }
 
-@Model
-final class IconProject {
+@Observable
+final class IconProject: Codable, Identifiable {
     /// Stable identifier for sync, sharing, and gallery publication.
     var uuid: UUID = UUID()
 
     var title: String = "Untitled"
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
-    @Attribute(.externalStorage) var thumbnailPNG: Data?
+
+    /// In-memory thumbnail. `ProjectStore` persists it to a sibling
+    /// `thumbnail.png` file rather than serialising the PNG inline
+    /// (excluded from `CodingKeys`).
+    var thumbnailPNG: Data? {
+        didSet { thumbnailPNGDirty = true }
+    }
+
+    /// Set every time `thumbnailPNG` is mutated; `ProjectStore.save` uses it
+    /// to skip rewriting `thumbnail.png` when the blob hasn't changed. See
+    /// `Layer.imagePNGDirty` for the same pattern at the layer level.
+    @ObservationIgnored
+    var thumbnailPNGDirty: Bool = true
 
     // MARK: - Target app metadata
     /// Display name of the app this icon is designed for (may differ from `title`).
@@ -41,22 +52,70 @@ final class IconProject {
     /// Timestamp of the most recent successful publish.
     var publishedAt: Date?
 
-    @Relationship(deleteRule: .cascade, inverse: \Background.project)
     var background: Background?
 
-    @Relationship(deleteRule: .cascade, inverse: \Layer.project)
     var rawLayers: [Layer] = []
 
-    @Transient private var undoStack: [IconProjectSnapshot] = []
-    @Transient private var redoStack: [IconProjectSnapshot] = []
-    @Transient private var lastRecordedAt: Date?
+    @ObservationIgnored private var undoStack: [IconProjectSnapshot] = []
+    @ObservationIgnored private var redoStack: [IconProjectSnapshot] = []
+    @ObservationIgnored private var lastRecordedAt: Date?
     private static let maxUndoSteps = 50
     private static let coalesceWindow: TimeInterval = 0.5
+
+    var id: UUID { uuid }
 
     init(title: String = "Untitled") {
         self.title = title
         self.createdAt = .now
         self.updatedAt = .now
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case uuid, title, createdAt, updatedAt
+        case appName, appStoreURL, appBundleID
+        case notes, tags, authorName
+        case isPublic, publishedID, publishedAt
+        case background, rawLayers
+    }
+
+    required init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Untitled"
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
+        appName = try c.decodeIfPresent(String.self, forKey: .appName)
+        appStoreURL = try c.decodeIfPresent(URL.self, forKey: .appStoreURL)
+        appBundleID = try c.decodeIfPresent(String.self, forKey: .appBundleID)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        authorName = try c.decodeIfPresent(String.self, forKey: .authorName)
+        isPublic = try c.decodeIfPresent(Bool.self, forKey: .isPublic) ?? false
+        publishedID = try c.decodeIfPresent(String.self, forKey: .publishedID)
+        publishedAt = try c.decodeIfPresent(Date.self, forKey: .publishedAt)
+        background = try c.decodeIfPresent(Background.self, forKey: .background)
+        rawLayers = try c.decodeIfPresent([Layer].self, forKey: .rawLayers) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(uuid, forKey: .uuid)
+        try c.encode(title, forKey: .title)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(updatedAt, forKey: .updatedAt)
+        try c.encodeIfPresent(appName, forKey: .appName)
+        try c.encodeIfPresent(appStoreURL, forKey: .appStoreURL)
+        try c.encodeIfPresent(appBundleID, forKey: .appBundleID)
+        try c.encodeIfPresent(notes, forKey: .notes)
+        try c.encode(tags, forKey: .tags)
+        try c.encodeIfPresent(authorName, forKey: .authorName)
+        try c.encode(isPublic, forKey: .isPublic)
+        try c.encodeIfPresent(publishedID, forKey: .publishedID)
+        try c.encodeIfPresent(publishedAt, forKey: .publishedAt)
+        try c.encodeIfPresent(background, forKey: .background)
+        try c.encode(rawLayers, forKey: .rawLayers)
     }
 
     func ensureBackground() {
@@ -109,13 +168,10 @@ final class IconProject {
             background = bg
         }
 
-        let context = modelContext
         let existingByUUID = Dictionary(uniqueKeysWithValues: rawLayers.map { ($0.uuid, $0) })
         var rebuilt: [Layer] = []
-        var seen: Set<UUID> = []
 
         for (i, snap) in snapshot.layers.enumerated() {
-            seen.insert(snap.uuid)
             if let existing = existingByUUID[snap.uuid] {
                 existing.apply(snap)
                 existing.orderIndex = i
@@ -128,12 +184,8 @@ final class IconProject {
             }
         }
 
-        // Remove layers no longer in snapshot
-        if let context {
-            for layer in rawLayers where !seen.contains(layer.uuid) {
-                context.delete(layer)
-            }
-        }
+        // Layers absent from the snapshot are simply dropped — ARC reclaims
+        // them since `rawLayers` was the only strong reference.
         rawLayers = rebuilt
     }
 
@@ -233,9 +285,6 @@ final class IconProject {
         ordered.removeAll { $0.uuid == removedUUID }
         for (i, l) in ordered.enumerated() { l.orderIndex = i }
         rawLayers = ordered
-        if let context = modelContext {
-            context.delete(layer)
-        }
     }
 
     func duplicated() -> IconProject {
@@ -350,11 +399,6 @@ final class IconProject {
         let insertAt = min(bottomIndex, remaining.count)
         remaining.insert(newLayer, at: insertAt)
 
-        if let context = modelContext {
-            for layer in targets {
-                context.delete(layer)
-            }
-        }
         for (i, l) in remaining.enumerated() { l.orderIndex = i }
         rawLayers = remaining
 

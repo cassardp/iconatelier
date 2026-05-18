@@ -1,10 +1,9 @@
 import SwiftUI
-import SwiftData
 import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(ProjectStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -279,12 +278,15 @@ struct ContentView: View {
             }
         }
         .onChange(of: exportSignature) { _, _ in
+            // Thumbnail is refreshed in-memory so the gallery is up to date
+            // when we navigate back. Actual persistence is debounced until
+            // the project closes or the app backgrounds.
             IconRenderer.updateThumbnail(project)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 IconRenderer.updateThumbnail(project)
-                try? modelContext.save()
+                store.save(project)
             }
         }
         .onAppear {
@@ -554,13 +556,13 @@ struct ContentView: View {
 
     private func persistSnapshotInBackground() {
         let projectRef = project
-        let ctx = modelContext
+        let storeRef = store
         Task { @MainActor in
             // Yield once so the dismiss/zoom-out animation can start before
             // the synchronous ImageRenderer pass blocks the main actor.
             await Task.yield()
             IconRenderer.updateThumbnail(projectRef)
-            try? ctx.save()
+            storeRef.save(projectRef)
         }
     }
 

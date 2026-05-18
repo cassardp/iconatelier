@@ -1,11 +1,10 @@
 import SwiftUI
-import SwiftData
 import ImageIO
 
 struct GalleryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \IconProject.createdAt, order: .reverse)
-    private var projects: [IconProject]
+    @Environment(ProjectStore.self) private var store
+
+    private var projects: [IconProject] { store.projects }
 
     @State private var path = NavigationPath()
     @State private var renameTarget: IconProject?
@@ -155,7 +154,10 @@ struct GalleryView: View {
                 Button("Save") {
                     if let project = renameTarget {
                         let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty { project.title = trimmed }
+                        if !trimmed.isEmpty {
+                            project.title = trimmed
+                            store.save(project)
+                        }
                     }
                     renameTarget = nil
                 }
@@ -270,14 +272,11 @@ struct GalleryView: View {
     }
 
     private func deleteSelected() {
-        let targets = projects.filter { selectedUUIDs.contains($0.uuid) }
+        let toDelete = selectedUUIDs
         withAnimation(.smooth(duration: 0.35)) {
-            for project in targets {
-                modelContext.delete(project)
-            }
+            store.delete(uuids: toDelete)
             isSelecting = false
         }
-        try? modelContext.save()
         selectedUUIDs.removeAll()
     }
 
@@ -288,21 +287,18 @@ struct GalleryView: View {
         textLayer.fontWeight = .heavy
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
-        modelContext.insert(project)
-        try? modelContext.save()
+        store.add(project)
     }
 
     private func duplicate(_ project: IconProject) {
         let copy = project.duplicated()
-        modelContext.insert(copy)
-        try? modelContext.save()
+        store.add(copy)
     }
 
     private func delete(_ project: IconProject) {
         withAnimation(.smooth(duration: 0.35)) {
-            modelContext.delete(project)
+            store.delete(project)
         }
-        try? modelContext.save()
     }
 }
 
