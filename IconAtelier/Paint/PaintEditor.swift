@@ -39,29 +39,39 @@ struct PaintEditor: View {
 
     var body: some View {
         if sectioned {
-            VStack(spacing: 18) {
-                PanelSection(title: primarySectionTitle) {
-                    kindPickerRow
-                    geometryBlock
-                }
-                if hasPresets {
-                    SectionDivider()
-                    presetsSection
-                }
+            PanelSection(title: primarySectionTitle) {
+                editorRows
             }
         } else {
             // Flat mode: parent (e.g. "Fill") already owns the section
             // title — don't stack a second "Gradient"/"Color" header
-            // inside it. Segmented + geometry stand alone, divider kept
-            // before presets so the rhythm matches the sectioned mode.
+            // inside it.
             VStack(spacing: 14) {
-                kindPickerRow
-                geometryBlock
-                if hasPresets {
-                    SectionDivider()
-                    presetsSection
-                }
+                editorRows
             }
+        }
+    }
+
+    /// Rows shared by sectioned and flat modes, in their canonical
+    /// top→bottom order:
+    ///   1. Kind segmented control
+    ///   2. Presets thumbnails (gradients only — no "Presets" title
+    ///      because the parent section header already speaks for them)
+    ///   3. The pad (or solid color row) — its bordered block is the
+    ///      visual end-of-section delimiter; no divider is appended
+    ///      after it
+    ///   4. Mesh only: angle slider, placed directly under the pad
+    ///      block (no divider — the bordered block already separates
+    ///      it from the pad)
+    @ViewBuilder
+    private var editorRows: some View {
+        kindPickerRow
+        if hasPresets {
+            presetsSection
+        }
+        geometryBlock
+        if paint.kind == .meshGradient {
+            meshAngleSlider
         }
     }
 
@@ -91,35 +101,60 @@ struct PaintEditor: View {
 
     // MARK: - Geometry
 
-    /// Per-kind editor body. Padding is applied directly on each pad
-    /// (not on the whole block) so the mesh pad keeps its bottom
-    /// breathing room *between the pad and the angle slider* — wrapping
-    /// the whole `VStack` in padding would put the bottom buffer below
-    /// the angle slider instead, leaving the pad's bottom handles
-    /// pressed against the slider.
+    /// Per-kind editor body. Each gradient pad is wrapped in a bordered
+    /// "block" — a thin stroke around the area where the color-picker
+    /// handles live, so the pad reads as a self-contained card instead
+    /// of floating bare in the panel. The mesh angle slider sits
+    /// *outside* this block (see `editorRows`) so the slider gets real
+    /// breathing room from the bottom handles that can drift past the
+    /// pad edge.
     @ViewBuilder
     private var geometryBlock: some View {
         switch paint.kind {
         case .solid:
             solidColorRow
         case .linearGradient:
-            LinearGradientPad(paint: $paint, onBeginEditing: onBeginEditing)
-                .padding(.vertical, padVerticalPadding)
+            gradientPadBlock {
+                LinearGradientPad(paint: $paint, onBeginEditing: onBeginEditing)
+            }
         case .radialGradient:
-            RadialGradientPad(paint: $paint, onBeginEditing: onBeginEditing)
-                .padding(.vertical, padVerticalPadding)
+            gradientPadBlock {
+                RadialGradientPad(paint: $paint, onBeginEditing: onBeginEditing)
+            }
         case .meshGradient:
-            VStack(spacing: 0) {
+            gradientPadBlock {
                 MeshGradientPad(paint: $paint, onBeginEditing: onBeginEditing)
-                    .padding(.vertical, padVerticalPadding)
-                meshAngleSlider
             }
         }
     }
 
-    /// Top/bottom padding around a gradient pad — buys touch-room for
-    /// handles that can drift past the pad's outer edge.
-    private let padVerticalPadding: CGFloat = 12
+    /// Wraps a gradient pad in the bordered "block" used by all three
+    /// gradient editors. Vertical padding clears the outward-drifting
+    /// color-picker handles so the stroke truly wraps the reachable
+    /// picker zone — the handles are conceptually tethered to the
+    /// block and can't extend past it.
+    @ViewBuilder
+    private func gradientPadBlock<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(.vertical, padBlockVerticalPadding)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: PanelStyle.cornerRadius,
+                    style: .continuous
+                )
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            }
+    }
+
+    /// Top/bottom padding inside the gradient pad block. Sized to fully
+    /// clear the linear/mesh pads' outward-drifting handles — overshoot
+    /// is 0.25 × 140pt ≈ 35pt past the pad edge, plus a 13pt handle
+    /// radius — so the stroke wraps the reachable color-picker zone
+    /// on every side instead of cutting through it.
+    private let padBlockVerticalPadding: CGFloat = 48
 
     // MARK: - Presets
 
@@ -133,11 +168,11 @@ struct PaintEditor: View {
         case .solid:
             EmptyView()
         case .linearGradient:
-            PanelSection(title: "Presets") { linearPresetsRow }
+            linearPresetsRow
         case .radialGradient:
-            PanelSection(title: "Presets") { radialPresetsRow }
+            radialPresetsRow
         case .meshGradient:
-            PanelSection(title: "Presets") { meshPresetsRow }
+            meshPresetsRow
         }
     }
 

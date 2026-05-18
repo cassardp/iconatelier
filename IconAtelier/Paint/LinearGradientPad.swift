@@ -24,9 +24,10 @@ struct LinearGradientPad: View {
     private static let handleSize: CGFloat = 26
     private static let dragMinimumDistance: CGFloat = 10
     /// Same overshoot range as `MeshGradientPad` so the three pads behave
-    /// consistently — handles can float half a pad past every edge for
-    /// softer gradients without leaving the panel.
-    private static let pointRange: ClosedRange<Double> = -0.5 ... 1.5
+    /// consistently — handles can drift a quarter-pad past every edge
+    /// for softer gradients while staying inside the bordered block the
+    /// pad lives in (see `PaintEditor.gradientPadBlock`).
+    private static let pointRange: ClosedRange<Double> = -0.25 ... 1.25
 
     var body: some View {
         let size = Self.padSize
