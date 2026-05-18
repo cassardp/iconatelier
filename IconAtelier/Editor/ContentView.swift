@@ -18,9 +18,13 @@ struct ContentView: View {
     @State private var showImportPicker: Bool = false
     @State private var showPromptSheet: Bool = false
     @State private var isGenerating: Bool = false
+    @State private var generationStartDate: Date?
+    @State private var generationTask: Task<Void, Never>?
     @State private var generationError: String?
     @State private var showNoAPIKeyAlert: Bool = false
     @State private var wasEditSheetOpenBeforeExport = false
+
+    private static let generationTimeoutSeconds: Int = 90
 
     // Lasso multi-selection (Phase 1)
     @State private var canvasFrame: CGRect = .zero
@@ -206,6 +210,7 @@ struct ContentView: View {
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .toolbar(isGenerating ? .hidden : .visible, for: .navigationBar)
         .sheet(isPresented: $showEditSheet) {
             EditSheet(
                 project: project,
@@ -255,7 +260,10 @@ struct ContentView: View {
         }
         .overlay {
             if isGenerating {
-                generatingOverlay
+                GeneratingOverlay(
+                    startDate: generationStartDate,
+                    total: Self.generationTimeoutSeconds
+                )
             }
         }
         .fileImporter(
@@ -461,13 +469,16 @@ struct ContentView: View {
         reference: UIImage?,
         transparent: Bool
     ) {
-        Task { @MainActor in
+        let task = Task { @MainActor in
             guard let key = await APIKeyStore.shared.load(), !key.isEmpty else {
                 showNoAPIKeyAlert = true
                 return
             }
-            isGenerating = true
-            defer { isGenerating = false }
+            _ = key
+            generationStartDate = Date()
+            withAnimation(.easeInOut(duration: 0.55)) {
+                isGenerating = true
+            }
             let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
             let subjectText = trimmedSubject.isEmpty
                 ? "the subject shown in the reference image"
@@ -480,6 +491,8 @@ struct ContentView: View {
             } else {
                 finalPrompt = "\(subjectText)\(materialClause)"
             }
+
+            let outcome: Result<UIImage, Error>
             do {
                 let references = reference.map { [$0] } ?? []
                 let image = try await OpenAIImageService().generateOverlay(
@@ -487,32 +500,39 @@ struct ContentView: View {
                     transparent: transparent,
                     references: references
                 )
+                outcome = .success(image)
+            } catch {
+                outcome = .failure(error)
+            }
+
+            withAnimation(.easeInOut(duration: 0.35)) {
+                isGenerating = false
+            }
+            generationStartDate = nil
+            generationTask = nil
+
+            switch outcome {
+            case .success(let image):
                 withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
                     let layer = project.addGeneratedImage(image: image)
                     session.selectLayer(layer.uuid)
                 }
                 presentEditSheet()
-            } catch {
-                generationError = error.localizedDescription
+            case .failure(let error):
+                if error is CancellationError
+                    || (error as? URLError)?.code == .cancelled {
+                    generationError = "Generation timed out after \(Self.generationTimeoutSeconds) seconds. Please try again."
+                } else {
+                    generationError = error.localizedDescription
+                }
             }
         }
-    }
+        generationTask = task
 
-    private var generatingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
-            VStack(spacing: 12) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                Text("Generating…")
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
-            }
-            .padding(24)
-            .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.generationTimeoutSeconds))
+            task.cancel()
         }
-        .transition(.opacity)
     }
 
     private func handleImportResult(_ result: Result<[URL], Error>) {
@@ -630,3 +650,4 @@ private struct LassoMarquee: View {
         }
     }
 }
+
