@@ -10,8 +10,6 @@ struct LayerEditorContent: View {
         ScrollView {
             VStack(spacing: 18) {
                 if let layer = project.layer(withID: session.selectedLayerUUID) {
-                    LayerActionsRow(project: project, session: session, layer: layer)
-                    SectionDivider()
                     layerSection(for: layer)
                     SectionDivider()
                     contentSection(for: layer)

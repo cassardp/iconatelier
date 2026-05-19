@@ -330,6 +330,28 @@ final class IconProject: Codable, Identifiable {
         layers.move(fromOffsets: source, toOffset: destination)
     }
 
+    func bringToFront(uuids: Set<UUID>) {
+        guard !uuids.isEmpty else { return }
+        let moving = layers.filter { uuids.contains($0.uuid) }
+        guard !moving.isEmpty else { return }
+        let tailUUIDs = layers.suffix(moving.count).map(\.uuid)
+        guard tailUUIDs != moving.map(\.uuid) else { return }
+        recordUndo()
+        let remaining = layers.filter { !uuids.contains($0.uuid) }
+        layers = remaining + moving
+    }
+
+    func sendToBack(uuids: Set<UUID>) {
+        guard !uuids.isEmpty else { return }
+        let moving = layers.filter { uuids.contains($0.uuid) }
+        guard !moving.isEmpty else { return }
+        let headUUIDs = layers.prefix(moving.count).map(\.uuid)
+        guard headUUIDs != moving.map(\.uuid) else { return }
+        recordUndo()
+        let remaining = layers.filter { !uuids.contains($0.uuid) }
+        layers = moving + remaining
+    }
+
     // MARK: - Boolean operations
 
     @MainActor

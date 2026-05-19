@@ -8,6 +8,7 @@ struct GalleryView: View {
 
     @State private var path = NavigationPath()
     @State private var renameTarget: IconProject?
+    @State private var exportTarget: IconProject?
     @State private var draftTitle: String = ""
     @State private var showSettings: Bool = false
     @State private var isSelecting: Bool = false
@@ -137,6 +138,9 @@ struct GalleryView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsSheet()
             }
+            .sheet(item: $exportTarget) { project in
+                ExportSheet(project: project)
+            }
             .navigationDestination(for: ProjectRoute.self) { route in
                 if let project = projects.first(where: { $0.uuid == route.projectUUID }) {
                     ContentView(project: project)
@@ -215,6 +219,12 @@ struct GalleryView: View {
                 } label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 }
+                Button {
+                    exportTarget = project
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .disabled(!project.hasContent)
                 Button(role: .destructive) {
                     delete(project)
                 } label: {

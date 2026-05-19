@@ -157,18 +157,6 @@ struct ContentView: View {
                             }
                             .accessibilityLabel(op.label)
                         }
-                        Button {
-                            copySelectedLayers()
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                        }
-                        .accessibilityLabel("Copy")
-                        Button {
-                            cutSelectedLayers()
-                        } label: {
-                            Image(systemName: "scissors")
-                        }
-                        .accessibilityLabel("Cut")
                     }
                 } else {
                     HStack(spacing: 20) {
@@ -201,22 +189,11 @@ struct ContentView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        showImportPicker = true
-                    } label: {
-                        Label("Import Image", systemImage: "square.and.arrow.down")
-                    }
-                    Button {
-                        presentExportSheet()
-                    } label: {
-                        Label("Export Icon", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(!project.hasContent)
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .accessibilityLabel("More")
+                EditActionsMenu(
+                    project: project,
+                    session: session,
+                    showImportPicker: $showImportPicker
+                )
             }
         }
         .navigationTitle(project.title)
@@ -413,33 +390,6 @@ struct ContentView: View {
         if let id = session.selectedLayerUUID, project.layer(withID: id) == nil {
             session.selectLayer(project.layers.last?.uuid)
         }
-    }
-
-    private func copySelectedLayers() {
-        let uuids = session.lassoSelectedLayerUUIDs
-        guard !uuids.isEmpty else { return }
-        let selected = project.layers.filter { uuids.contains($0.uuid) }
-        guard !selected.isEmpty else { return }
-        LayerClipboard.copy(selected)
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func cutSelectedLayers() {
-        let uuids = session.lassoSelectedLayerUUIDs
-        guard !uuids.isEmpty else { return }
-        let selected = project.layers.filter { uuids.contains($0.uuid) }
-        guard !selected.isEmpty else { return }
-        LayerClipboard.copy(selected)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            project.removeLayers(uuids: uuids)
-            session.clearLassoSelection()
-            if let top = project.layers.last {
-                session.selectLayer(top.uuid)
-            } else {
-                session.selectBackground()
-            }
-        }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     private func performBooleanOperation(_ op: BooleanOpKind) {
