@@ -227,8 +227,9 @@ struct BackgroundPresetsRow<Preset: Identifiable, Thumb: View>: View {
                     }
                 }
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 18)
             .padding(.vertical, 2)
         }
+        .padding(.horizontal, -16)
     }
 }

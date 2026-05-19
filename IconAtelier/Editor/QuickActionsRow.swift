@@ -72,7 +72,8 @@ struct LayerQuickActionsRow: View {
                         actions.flip(horizontal: false)
                     }
                 }
-                .padding(.trailing, PanelStyle.rowHeight + 56)
+                .padding(.leading, 16)
+                .padding(.trailing, PanelStyle.rowHeight + 56 + 16)
             }
 
             HStack(spacing: 0) {
@@ -97,9 +98,14 @@ struct LayerQuickActionsRow: View {
                     actions.delete()
                 }
                 .background(Color(.systemBackground))
+
+                Color(.systemBackground)
+                    .frame(width: 16)
+                    .allowsHitTesting(false)
             }
         }
         .frame(height: PanelStyle.rowHeight)
+        .padding(.horizontal, -16)
         .onAppear { canPaste = LayerClipboard.hasContent }
         .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
             canPaste = LayerClipboard.hasContent

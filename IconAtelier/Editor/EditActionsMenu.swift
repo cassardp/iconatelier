@@ -17,20 +17,6 @@ struct EditActionsMenu: View {
 
     @ViewBuilder
     private var menuContent: some View {
-        ControlGroup {
-            Button {
-                showImportPicker = true
-            } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-            Button {
-                presentExport()
-            } label: {
-                Label("Export", systemImage: "square.and.arrow.up")
-            }
-            .disabled(!project.hasContent)
-        }
-
         Button {
             withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
                 let layer = project.addShapeLayer(spec: .iosSquircle)
@@ -39,5 +25,20 @@ struct EditActionsMenu: View {
         } label: {
             Label("Add App Silhouette", systemImage: "app.fill")
         }
+
+        Button {
+            showImportPicker = true
+        } label: {
+            Label("Import Image", systemImage: "square.and.arrow.down")
+        }
+
+        Divider()
+
+        Button {
+            presentExport()
+        } label: {
+            Label("Export Icon", systemImage: "square.and.arrow.up")
+        }
+        .disabled(!project.hasContent)
     }
 }
