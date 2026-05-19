@@ -14,6 +14,8 @@ struct RadialPreset: Identifiable {
     let id = UUID()
     let name: String
     let colors: [Color]
+    var center: UnitPoint? = nil
+    var spread: Double? = nil
 }
 
 struct MeshPreset: Identifiable {
@@ -23,6 +25,8 @@ struct MeshPreset: Identifiable {
     let topRight: Color
     let bottomLeft: Color
     let bottomRight: Color
+    var cornerPoints: [UnitPoint]? = nil
+    var rotationDegrees: Double? = nil
 }
 
 // MARK: - Hex helper
@@ -195,6 +199,8 @@ struct BackgroundPresetsRow<Preset: Identifiable, Thumb: View>: View {
     let presets: [Preset]
     let thumbnail: (Preset) -> Thumb
     let onSelect: (Preset) -> Void
+    var canDelete: (Preset) -> Bool = { _ in false }
+    var onDelete: (Preset) -> Void = { _ in }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -212,6 +218,13 @@ struct BackgroundPresetsRow<Preset: Identifiable, Thumb: View>: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        if canDelete(preset) {
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                onDelete(preset)
+                            }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 2)
