@@ -107,37 +107,3 @@ struct LayerQuickActionsRow: View {
     }
 }
 
-struct BackgroundQuickActionsRow: View {
-    @Bindable var project: IconProject
-    let session: ProjectSession
-
-    @State private var canPaste: Bool = LayerClipboard.hasContent
-
-    var body: some View {
-        let actions = LayerActions(project: project, session: session)
-
-        HStack(spacing: 8) {
-            CompactActionButton(
-                title: "App Silhouette",
-                systemImage: "app.fill"
-            ) {
-                withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
-                    let layer = project.addShapeLayer(spec: .iosSquircle)
-                    session.selectLayer(layer.uuid)
-                }
-            }
-            CompactActionButton(
-                title: "Paste",
-                systemImage: "doc.on.clipboard",
-                enabled: canPaste
-            ) {
-                actions.paste()
-            }
-            Spacer(minLength: 0)
-        }
-        .onAppear { canPaste = LayerClipboard.hasContent }
-        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
-            canPaste = LayerClipboard.hasContent
-        }
-    }
-}

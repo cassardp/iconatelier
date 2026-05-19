@@ -28,6 +28,7 @@ struct ContentView: View {
 
     @State private var canvasFrame: CGRect = .zero
     @State private var layersBarFrame: CGRect = .zero
+    @State private var layerRowFrames: [UUID: CGRect] = [:]
     @State private var lassoRect: CGRect? = nil
     private static let editorSpaceName = "iconAtelierEditor"
 
@@ -86,7 +87,11 @@ struct ContentView: View {
                     LayersBar(
                         project: project,
                         session: session,
-                        onItemSelected: presentEditSheet
+                        onItemSelected: presentEditSheet,
+                        coordinateSpaceName: Self.editorSpaceName,
+                        onRowFrame: { uuid, frame in
+                            layerRowFrames[uuid] = frame
+                        }
                     )
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .named(Self.editorSpaceName))
@@ -96,7 +101,6 @@ struct ContentView: View {
                     Color.clear
                         .frame(height: fanButtonRowHeight + bottomSpacer)
                         .contentShape(Rectangle())
-                        .gesture(swipeUpToEditGesture)
                 }
                 .frame(width: geo.size.width, height: visibleHeight)
                 .overlay {
@@ -192,7 +196,8 @@ struct ContentView: View {
                 EditActionsMenu(
                     project: project,
                     session: session,
-                    showImportPicker: $showImportPicker
+                    showImportPicker: $showImportPicker,
+                    presentExport: presentExportSheet
                 )
             }
         }
@@ -296,23 +301,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Swipe up to open EditSheet
-
-    private var swipeUpToEditGesture: some Gesture {
-        DragGesture(minimumDistance: 16)
-            .onEnded { value in
-                guard !showEditSheet, !fanIsOpen else { return }
-                let dy = value.translation.height
-                let predictedDY = value.predictedEndTranslation.height
-                let horizontal = abs(value.translation.width)
-                let isUpward = dy < -40 || predictedDY < -120
-                let isMostlyVertical = abs(dy) > horizontal
-                guard isUpward, isMostlyVertical else { return }
-                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-                presentEditSheet()
-            }
-    }
-
     // MARK: - Lasso multi-selection
 
     private var lassoGesture: some Gesture {
@@ -333,7 +321,12 @@ struct ContentView: View {
                 lassoRect = rect
 
                 let canvasLocal = rect.offsetBy(dx: -canvasFrame.minX, dy: -canvasFrame.minY)
-                let newSelection = lassoHitTest(rect: canvasLocal, side: canvasFrame.width)
+                var newSelection = lassoHitTest(rect: canvasLocal, side: canvasFrame.width)
+                for (uuid, frame) in layerRowFrames where rect.intersects(frame) {
+                    if let layer = project.layer(withID: uuid), !layer.isLocked {
+                        newSelection.insert(layer.uuid)
+                    }
+                }
                 if newSelection != session.lassoSelectedLayerUUIDs {
                     if newSelection.count > session.lassoSelectedLayerUUIDs.count {
                         UISelectionFeedbackGenerator().selectionChanged()

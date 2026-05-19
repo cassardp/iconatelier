@@ -5,6 +5,8 @@ struct LayersBar: View {
     @Bindable var project: IconProject
     let session: ProjectSession
     let onItemSelected: () -> Void
+    let coordinateSpaceName: String
+    let onRowFrame: (UUID, CGRect) -> Void
 
     @State private var draggingUUID: UUID?
     @State private var dragOffset: CGFloat = 0
@@ -69,6 +71,11 @@ struct LayersBar: View {
 
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .named(coordinateSpaceName))
+            } action: { newFrame in
+                onRowFrame(layer.uuid, newFrame)
+            }
             .transition(.scale.combined(with: .opacity))
             .scaleEffect(isDragging ? 1.05 : 1.0)
             .shadow(
