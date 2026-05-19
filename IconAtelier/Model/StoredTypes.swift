@@ -24,6 +24,10 @@ nonisolated struct StoredColor: Codable, Hashable, Sendable {
     var color: Color {
         Color(red: r, green: g, blue: b, opacity: a)
     }
+
+    var luminance: Double {
+        0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
 }
 
 nonisolated struct StoredPoint: Codable, Hashable, Sendable {

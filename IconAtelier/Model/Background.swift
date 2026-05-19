@@ -114,6 +114,22 @@ final class Background: Codable {
         set { storedMeshColors = newValue.map { StoredColor($0) } }
     }
 
+    var averageLuminance: Double {
+        if isHidden { return 0.85 }
+        switch kind {
+        case .solid:
+            return storedSolidColor.luminance
+        case .linearGradient, .radialGradient:
+            let colors = storedGradientColors
+            guard !colors.isEmpty else { return 0.5 }
+            return colors.map(\.luminance).reduce(0, +) / Double(colors.count)
+        case .meshGradient:
+            let colors = storedMeshColors
+            guard !colors.isEmpty else { return 0.5 }
+            return colors.map(\.luminance).reduce(0, +) / Double(colors.count)
+        }
+    }
+
     // MARK: - Paint bridge
 
     var paint: Paint {
