@@ -206,7 +206,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 sides: sides,
                 bulge: 0,
                 roundness: roundness,
-                rotationDegrees: preset.canonical.rotationDegrees
+                rotationDegrees: preset.defaultPolygonRotation(forSides: sides)
             ))
         case let .star(preset, points, innerDepth, roundness):
             return AnyShape(StarPolygonShape(
@@ -240,7 +240,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                     sides: sides,
                     bulge: 0,
                     roundness: roundness,
-                    rotationDegrees: preset.canonical.rotationDegrees + rot,
+                    rotationDegrees: preset.defaultPolygonRotation(forSides: sides) + rot,
                     stretchX: sx,
                     stretchY: sy
                 ))
@@ -385,6 +385,11 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
     static let pickerOrder: [PolygonPreset] = [
         .square, .circle, .triangle, .star5, .flower6, .drop, .squircle
     ]
+
+    func defaultPolygonRotation(forSides sides: Int) -> Double {
+        guard family == .polygon, sides >= 3 else { return canonical.rotationDegrees }
+        return sides.isMultiple(of: 2) ? 180.0 / Double(sides) : 0
+    }
 }
 
 // MARK: - Codable
