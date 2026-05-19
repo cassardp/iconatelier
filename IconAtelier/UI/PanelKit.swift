@@ -91,7 +91,7 @@ struct CompactActionButton: View {
                 .frame(width: PanelStyle.rowHeight, height: PanelStyle.rowHeight)
                 .background(
                     RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
-                        .fill(PanelStyle.rowFill)
+                        .fill(backgroundFill)
                 )
                 .contentShape(
                     RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
@@ -104,7 +104,11 @@ struct CompactActionButton: View {
     }
 
     private var iconColor: Color {
-        role == .destructive ? .red : .primary
+        role == .destructive ? .white : .primary
+    }
+
+    private var backgroundFill: AnyShapeStyle {
+        role == .destructive ? AnyShapeStyle(Color.red) : AnyShapeStyle(PanelStyle.rowFill)
     }
 }
 

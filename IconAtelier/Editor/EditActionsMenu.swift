@@ -15,27 +15,32 @@ struct EditActionsMenu: View {
         .accessibilityLabel("More")
     }
 
+    private var actions: LayerActions {
+        LayerActions(project: project, session: session)
+    }
+
     @ViewBuilder
     private var menuContent: some View {
-        let canPaste = LayerClipboard.hasContent
+        let canPaste = actions.canPaste
+        let hasActiveLayers = actions.hasActiveLayers
 
         if hasActiveLayers || canPaste {
             ControlGroup {
                 if hasActiveLayers {
                     Button {
-                        copyActiveLayers()
+                        actions.copy()
                     } label: {
                         Label("Copy", systemImage: "doc.on.doc")
                     }
                     Button {
-                        cutActiveLayers()
+                        actions.cut()
                     } label: {
                         Label("Cut", systemImage: "scissors")
                     }
                 }
                 if canPaste {
                     Button {
-                        pasteFromClipboard()
+                        actions.paste()
                     } label: {
                         Label("Paste", systemImage: "doc.on.clipboard")
                     }
@@ -65,9 +70,9 @@ struct EditActionsMenu: View {
             }
             Divider()
         } else if hasActiveLayers {
-            if let single = singleActiveLayer {
+            if let single = actions.singleActiveLayer {
                 Button {
-                    project.toggleVisibility(single)
+                    actions.toggleVisibility(single)
                 } label: {
                     Label(
                         single.isHidden ? "Show" : "Hide",
@@ -76,27 +81,27 @@ struct EditActionsMenu: View {
                 }
             }
             Button {
-                duplicateActiveLayers()
+                actions.duplicate()
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
             Button {
-                bringActiveLayersToFront()
+                actions.bringToFront()
             } label: {
                 Label("Bring to Front", systemImage: "square.3.layers.3d.top.filled")
             }
             Button {
-                sendActiveLayersToBack()
+                actions.sendToBack()
             } label: {
                 Label("Send to Back", systemImage: "square.3.layers.3d.bottom.filled")
             }
             Button {
-                flipActiveLayers(horizontal: true)
+                actions.flip(horizontal: true)
             } label: {
                 Label("Flip Horizontal", systemImage: "arrow.left.and.right")
             }
             Button {
-                flipActiveLayers(horizontal: false)
+                actions.flip(horizontal: false)
             } label: {
                 Label("Flip Vertical", systemImage: "arrow.up.and.down")
             }
@@ -105,7 +110,7 @@ struct EditActionsMenu: View {
 
         if !project.layers.isEmpty {
             Button {
-                selectAllLayers()
+                actions.selectAll()
             } label: {
                 Label("Select All", systemImage: "square.on.square.dashed")
             }
@@ -119,156 +124,12 @@ struct EditActionsMenu: View {
         if hasActiveLayers {
             Divider()
             Button(role: .destructive) {
-                deleteActiveLayers()
+                actions.delete()
             } label: {
                 Label(
-                    activeLayerUUIDs.count > 1 ? "Delete Layers" : "Delete Layer",
+                    actions.activeLayerUUIDs.count > 1 ? "Delete Layers" : "Delete Layer",
                     systemImage: "trash"
                 )
-            }
-        }
-    }
-
-    // MARK: - Selection helpers
-
-    private var activeLayerUUIDs: [UUID] {
-        if session.isMultiSelecting {
-            return Array(session.lassoSelectedLayerUUIDs)
-        }
-        if !session.isBackgroundSelected,
-           let uuid = session.selectedLayerUUID,
-           project.layer(withID: uuid) != nil {
-            return [uuid]
-        }
-        return []
-    }
-
-    private var hasActiveLayers: Bool { !activeLayerUUIDs.isEmpty }
-
-    private var singleActiveLayer: Layer? {
-        guard activeLayerUUIDs.count == 1, let uuid = activeLayerUUIDs.first else { return nil }
-        return project.layer(withID: uuid)
-    }
-
-    // MARK: - Actions
-
-    private func copyActiveLayers() {
-        let uuids = Set(activeLayerUUIDs)
-        guard !uuids.isEmpty else { return }
-        let selected = project.layers.filter { uuids.contains($0.uuid) }
-        guard !selected.isEmpty else { return }
-        LayerClipboard.copy(selected)
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func cutActiveLayers() {
-        let uuids = Set(activeLayerUUIDs)
-        guard !uuids.isEmpty else { return }
-        let selected = project.layers.filter { uuids.contains($0.uuid) }
-        guard !selected.isEmpty else { return }
-        LayerClipboard.copy(selected)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            project.removeLayers(uuids: uuids)
-            session.clearLassoSelection()
-            if let top = project.layers.last {
-                session.selectLayer(top.uuid)
-            } else {
-                session.selectBackground()
-            }
-        }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
-
-    private func duplicateActiveLayers() {
-        let uuids = activeLayerUUIDs
-        guard !uuids.isEmpty else { return }
-        let sources = project.layers.filter { uuids.contains($0.uuid) }
-        guard !sources.isEmpty else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            var copies: [Layer] = []
-            for source in sources {
-                copies.append(project.duplicate(source))
-            }
-            session.clearLassoSelection()
-            if let last = copies.last {
-                session.selectLayer(last.uuid)
-            }
-        }
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func flipActiveLayers(horizontal: Bool) {
-        let uuids = Set(activeLayerUUIDs)
-        guard !uuids.isEmpty else { return }
-        let targets = project.layers.filter { uuids.contains($0.uuid) }
-        guard !targets.isEmpty else { return }
-        project.recordUndo()
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            for layer in targets {
-                if horizontal {
-                    layer.isFlippedHorizontally.toggle()
-                } else {
-                    layer.isFlippedVertically.toggle()
-                }
-            }
-        }
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func bringActiveLayersToFront() {
-        let uuids = Set(activeLayerUUIDs)
-        guard !uuids.isEmpty else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            project.bringToFront(uuids: uuids)
-        }
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func sendActiveLayersToBack() {
-        let uuids = Set(activeLayerUUIDs)
-        guard !uuids.isEmpty else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            project.sendToBack(uuids: uuids)
-        }
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func selectAllLayers() {
-        let uuids = Set(project.layers.map(\.uuid))
-        guard !uuids.isEmpty else { return }
-        if uuids.count >= 2 {
-            session.setLassoSelection(uuids)
-        } else if let only = uuids.first {
-            session.selectLayer(only)
-        }
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    private func deleteActiveLayers() {
-        let uuids = Set(activeLayerUUIDs)
-        guard !uuids.isEmpty else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            project.removeLayers(uuids: uuids)
-            session.clearLassoSelection()
-            if let top = project.layers.last {
-                session.selectLayer(top.uuid)
-            } else {
-                session.selectBackground()
-            }
-        }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-    }
-
-    private func pasteFromClipboard() {
-        guard let pasted = LayerClipboard.paste(), !pasted.isEmpty else {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            return
-        }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            let inserted = project.addPastedLayers(pasted)
-            if let top = inserted.last {
-                session.clearLassoSelection()
-                session.selectLayer(top.uuid)
             }
         }
     }
