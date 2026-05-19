@@ -11,13 +11,17 @@ struct IconCanvasView: View {
     @GestureState private var rotationSnap: RotationSnapState = RotationSnapState()
     @State private var didDragHitTest: Bool = false
 
-    enum SnapAxis: CaseIterable, Hashable {
-        case vertical, horizontal, diagonal, antiDiagonal
+    struct SnapGuide: Equatable {
+        enum Orientation: Hashable { case vertical, horizontal }
+        let orientation: Orientation
+        let position: CGFloat
+        let extentStart: CGFloat
+        let extentEnd: CGFloat
     }
 
     private struct DragSnapState: Equatable {
         var translation: CGSize = .zero
-        var activeAxes: Set<SnapAxis> = []
+        var objectGuides: [SnapGuide] = []
         var isActive: Bool = false
     }
 
@@ -27,68 +31,121 @@ struct IconCanvasView: View {
     }
 
     private static let rotationSnapThreshold: Double = 5
-    private static let gridSnapThreshold: CGFloat = 8
+    private static let objectSnapThreshold: CGFloat = 6
 
-    private static func signedDistance(of point: CGSize, to axis: SnapAxis) -> CGFloat {
-        switch axis {
-        case .vertical: return point.width
-        case .horizontal: return point.height
-        case .diagonal: return (point.height - point.width) / sqrt(2)
-        case .antiDiagonal: return (point.height + point.width) / sqrt(2)
+    private static func layerNormalizedBounds(_ layer: Layer) -> CGRect {
+        let baseFactor: CGFloat
+        switch layer.kind {
+        case .image: baseFactor = 0.7
+        case .text: baseFactor = 0.6
+        case .parametricShape: baseFactor = 0.5
         }
-    }
-
-    private static func project(_ point: CGSize, onto axis: SnapAxis) -> CGSize {
-        switch axis {
-        case .vertical:
-            return CGSize(width: 0, height: point.height)
-        case .horizontal:
-            return CGSize(width: point.width, height: 0)
-        case .diagonal:
-            let t = (point.width + point.height) / 2
-            return CGSize(width: t, height: t)
-        case .antiDiagonal:
-            let t = (point.width - point.height) / 2
-            return CGSize(width: t, height: -t)
-        }
-    }
-
-    private static func snappedToAxes(
-        translation: CGSize,
-        layerOffset: CGSize,
-        side: CGFloat
-    ) -> (effective: CGSize, activeAxes: Set<SnapAxis>) {
-        guard side > 0 else { return (translation, []) }
-        let thresholdFraction = gridSnapThreshold / side
-        let centerThresholdFraction = thresholdFraction * 1.5
-        let candidate = CGSize(
-            width: layerOffset.width + translation.width / side,
-            height: layerOffset.height + translation.height / side
-        )
-        let distanceToCenter = hypot(candidate.width, candidate.height)
-        if distanceToCenter < centerThresholdFraction {
-            let effective = CGSize(
-                width: -layerOffset.width * side,
-                height: -layerOffset.height * side
-            )
-            return (effective, Set(SnapAxis.allCases))
-        }
-        var best: (axis: SnapAxis, dist: CGFloat)?
-        for axis in SnapAxis.allCases {
-            let dist = abs(signedDistance(of: candidate, to: axis))
-            if best == nil || dist < best!.dist {
-                best = (axis, dist)
+        let frame = baseFactor * layer.scale
+        var width = frame
+        var height = frame
+        if layer.kind == .image,
+           let img = layer.image,
+           img.size.width > 0, img.size.height > 0 {
+            let aspect = img.size.width / img.size.height
+            if aspect >= 1 {
+                height = frame / aspect
+            } else {
+                width = frame * aspect
             }
         }
-        guard let chosen = best, chosen.dist < thresholdFraction else {
-            return (translation, [])
-        }
-        let snapped = project(candidate, onto: chosen.axis)
-        let effective = CGSize(
-            width: (snapped.width - layerOffset.width) * side,
-            height: (snapped.height - layerOffset.height) * side
+        return CGRect(
+            x: layer.offset.width - width / 2,
+            y: layer.offset.height - height / 2,
+            width: width,
+            height: height
         )
-        return (effective, [chosen.axis])
+    }
+
+    private static func snappedToLayerGuides(
+        translation: CGSize,
+        draggedBounds: CGRect,
+        others: [Layer],
+        side: CGFloat
+    ) -> (effective: CGSize, guides: [SnapGuide]) {
+        guard side > 0 else { return (translation, []) }
+        let threshold = objectSnapThreshold / side
+        let dx = translation.width / side
+        let dy = translation.height / side
+        let candidate = draggedBounds.offsetBy(dx: dx, dy: dy)
+        var xTargets: [(pos: CGFloat, source: CGRect, isLayerCenter: Bool)] = [
+            (-0.5, CGRect(x: -0.5, y: -0.5, width: 0, height: 1), false),
+            (0,    CGRect(x: 0,    y: -0.5, width: 0, height: 1), false),
+            (0.5,  CGRect(x: 0.5,  y: -0.5, width: 0, height: 1), false)
+        ]
+        var yTargets: [(pos: CGFloat, source: CGRect, isLayerCenter: Bool)] = [
+            (-0.5, CGRect(x: -0.5, y: -0.5, width: 1, height: 0), false),
+            (0,    CGRect(x: -0.5, y: 0,    width: 1, height: 0), false),
+            (0.5,  CGRect(x: -0.5, y: 0.5,  width: 1, height: 0), false)
+        ]
+        for other in others {
+            let b = layerNormalizedBounds(other)
+            xTargets.append((b.minX, b, false))
+            xTargets.append((b.midX, b, true))
+            xTargets.append((b.maxX, b, false))
+            yTargets.append((b.minY, b, false))
+            yTargets.append((b.midY, b, true))
+            yTargets.append((b.maxY, b, false))
+        }
+        let candXs: [CGFloat] = [candidate.minX, candidate.midX, candidate.maxX]
+        let candYs: [CGFloat] = [candidate.minY, candidate.midY, candidate.maxY]
+        func bestSnap(
+            candidates: [CGFloat],
+            targets: [(pos: CGFloat, source: CGRect, isLayerCenter: Bool)]
+        ) -> (delta: CGFloat, guideAt: CGFloat, source: CGRect)? {
+            var best: (delta: CGFloat, guideAt: CGFloat, source: CGRect)?
+            for c in candidates {
+                for t in targets where !t.isLayerCenter {
+                    let d = t.pos - c
+                    if abs(d) < threshold,
+                       best == nil || abs(d) < abs(best!.delta) {
+                        best = (d, t.pos, t.source)
+                    }
+                }
+            }
+            if best != nil { return best }
+            for c in candidates {
+                for t in targets where t.isLayerCenter {
+                    let d = t.pos - c
+                    if abs(d) < threshold,
+                       best == nil || abs(d) < abs(best!.delta) {
+                        best = (d, t.pos, t.source)
+                    }
+                }
+            }
+            return best
+        }
+        let bestX = bestSnap(candidates: candXs, targets: xTargets)
+        let bestY = bestSnap(candidates: candYs, targets: yTargets)
+        var effective = translation
+        var guides: [SnapGuide] = []
+        if let bx = bestX {
+            effective.width += bx.delta * side
+            let yMin = min(candidate.minY, bx.source.minY)
+            let yMax = max(candidate.maxY, bx.source.maxY)
+            guides.append(SnapGuide(
+                orientation: .vertical,
+                position: bx.guideAt,
+                extentStart: yMin,
+                extentEnd: yMax
+            ))
+        }
+        if let by = bestY {
+            effective.height += by.delta * side
+            let xMin = min(candidate.minX, by.source.minX)
+            let xMax = max(candidate.maxX, by.source.maxX)
+            guides.append(SnapGuide(
+                orientation: .horizontal,
+                position: by.guideAt,
+                extentStart: xMin,
+                extentEnd: xMax
+            ))
+        }
+        return (effective, guides)
     }
 
     static func normalized(_ angle: Angle) -> Angle {
@@ -227,40 +284,25 @@ struct IconCanvasView: View {
 
     @ViewBuilder
     private func gridOverlay(side: CGFloat) -> some View {
-        let showGrid = session.showGrid
-        let activeAxes = dragSnap.activeAxes
-        let neutralColor: Color = project.safeBackground.averageLuminance > 0.55
-            ? Color.black.opacity(0.25)
-            : Color.white.opacity(0.5)
         Canvas { context, size in
-            let neutral = GraphicsContext.Shading.color(neutralColor)
             let active = GraphicsContext.Shading.color(Color.iaSelectionYellow)
-            let cx = size.width / 2
-            let cy = size.height / 2
-            func endpoints(for axis: SnapAxis) -> (CGPoint, CGPoint) {
-                switch axis {
-                case .vertical:
-                    return (CGPoint(x: cx, y: 0), CGPoint(x: cx, y: size.height))
-                case .horizontal:
-                    return (CGPoint(x: 0, y: cy), CGPoint(x: size.width, y: cy))
-                case .diagonal:
-                    return (CGPoint(x: 0, y: 0), CGPoint(x: size.width, y: size.height))
-                case .antiDiagonal:
-                    return (CGPoint(x: 0, y: size.height), CGPoint(x: size.width, y: 0))
-                }
-            }
-            for axis in SnapAxis.allCases {
-                let isActive = activeAxes.contains(axis)
-                guard showGrid || isActive else { continue }
-                let (a, b) = endpoints(for: axis)
+            for guide in dragSnap.objectGuides {
                 var path = Path()
-                path.move(to: a)
-                path.addLine(to: b)
-                if isActive {
-                    context.stroke(path, with: active, lineWidth: 1.0)
-                } else {
-                    context.stroke(path, with: neutral, lineWidth: 0.5)
+                switch guide.orientation {
+                case .vertical:
+                    let x = size.width * (0.5 + guide.position)
+                    let y1 = size.height * (0.5 + guide.extentStart)
+                    let y2 = size.height * (0.5 + guide.extentEnd)
+                    path.move(to: CGPoint(x: x, y: y1))
+                    path.addLine(to: CGPoint(x: x, y: y2))
+                case .horizontal:
+                    let y = size.height * (0.5 + guide.position)
+                    let x1 = size.width * (0.5 + guide.extentStart)
+                    let x2 = size.width * (0.5 + guide.extentEnd)
+                    path.move(to: CGPoint(x: x1, y: y))
+                    path.addLine(to: CGPoint(x: x2, y: y))
                 }
+                context.stroke(path, with: active, lineWidth: 1.0)
             }
         }
         .frame(width: side, height: side)
@@ -379,33 +421,44 @@ struct IconCanvasView: View {
         return CGFloat(pixel[3]) / 255.0
     }
 
+    private func snapTargets() -> (draggedBounds: CGRect, others: [Layer])? {
+        if session.isMultiSelecting {
+            let ids = session.lassoSelectedLayerUUIDs
+            let selected = project.layers.filter { !$0.isLocked && ids.contains($0.uuid) }
+            guard !selected.isEmpty else { return nil }
+            var union: CGRect = .null
+            for l in selected { union = union.union(Self.layerNormalizedBounds(l)) }
+            let others = project.layers.filter { !ids.contains($0.uuid) }
+            return (union, others)
+        }
+        guard let layer = selectedOverlay, !layer.isLocked else { return nil }
+        let bounds = Self.layerNormalizedBounds(layer)
+        let others = project.layers.filter { $0.uuid != layer.uuid }
+        return (bounds, others)
+    }
+
     private func canvasGesture(side: CGFloat, canvasSize: CGSize) -> some Gesture {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
-                let pivotOffset: CGSize?
-                if session.isMultiSelecting {
-                    pivotOffset = multiGroupCentroid()
-                } else {
-                    pivotOffset = selectedOverlay?.offset
-                }
-                guard session.showGrid, let pivot = pivotOffset else {
+                guard session.showGrid, let targets = snapTargets() else {
                     state.translation = value.translation
-                    state.activeAxes = []
+                    state.objectGuides = []
                     state.isActive = true
                     return
                 }
-                let result = Self.snappedToAxes(
+                let result = Self.snappedToLayerGuides(
                     translation: value.translation,
-                    layerOffset: pivot,
+                    draggedBounds: targets.draggedBounds,
+                    others: targets.others,
                     side: side
                 )
-                let wasSnapped = !state.activeAxes.isEmpty
-                let isSnapped = !result.activeAxes.isEmpty
-                if (isSnapped && !wasSnapped) || (isSnapped && state.activeAxes != result.activeAxes) {
+                let guidesEnter = !result.guides.isEmpty
+                    && state.objectGuides.count != result.guides.count
+                if guidesEnter {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 state.translation = result.effective
-                state.activeAxes = result.activeAxes
+                state.objectGuides = result.guides
                 state.isActive = true
             }
             .onChanged { value in
@@ -427,10 +480,11 @@ struct IconCanvasView: View {
                 else { return }
                 if session.isMultiSelecting {
                     let effective: CGSize
-                    if session.showGrid, let pivot = multiGroupCentroid() {
-                        effective = Self.snappedToAxes(
+                    if session.showGrid, let targets = snapTargets() {
+                        effective = Self.snappedToLayerGuides(
                             translation: value.translation,
-                            layerOffset: pivot,
+                            draggedBounds: targets.draggedBounds,
+                            others: targets.others,
                             side: side
                         ).effective
                     } else {
@@ -439,10 +493,10 @@ struct IconCanvasView: View {
                     let dx = effective.width / side
                     let dy = effective.height / side
                     let ids = session.lassoSelectedLayerUUIDs
-                    let targets = project.layers.filter { ids.contains($0.uuid) }
-                    guard !targets.isEmpty else { return }
+                    let movedLayers = project.layers.filter { ids.contains($0.uuid) }
+                    guard !movedLayers.isEmpty else { return }
                     project.recordUndo()
-                    for layer in targets {
+                    for layer in movedLayers {
                         let nx = layer.offset.width + dx
                         let ny = layer.offset.height + dy
                         guard nx.isFinite, ny.isFinite else { continue }
@@ -456,10 +510,11 @@ struct IconCanvasView: View {
                 guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
                 let effective: CGSize
-                if session.showGrid {
-                    effective = Self.snappedToAxes(
+                if session.showGrid, let targets = snapTargets() {
+                    effective = Self.snappedToLayerGuides(
                         translation: value.translation,
-                        layerOffset: layer.offset,
+                        draggedBounds: targets.draggedBounds,
+                        others: targets.others,
                         side: side
                     ).effective
                 } else {
