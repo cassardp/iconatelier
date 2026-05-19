@@ -8,21 +8,17 @@ struct IconCanvasView: View {
 
     @GestureState private var dragSnap: DragSnapState = DragSnapState()
     @GestureState private var gestureScale: CGFloat = 1.0
-    @GestureState private var magnifySnap: MagnifySnapState = MagnifySnapState()
     @GestureState private var rotationSnap: RotationSnapState = RotationSnapState()
     @State private var didDragHitTest: Bool = false
 
-    private struct DragSnapState: Equatable {
-        var translation: CGSize = .zero
-        var snappedLinesX: Set<Int> = []
-        var snappedLinesY: Set<Int> = []
-        var isActive: Bool = false
+    enum SnapAxis: CaseIterable, Hashable {
+        case vertical, horizontal, diagonal, antiDiagonal
     }
 
-    private struct MagnifySnapState: Equatable {
-        var snappedLinesX: Set<Int> = []
-        var snappedLinesY: Set<Int> = []
-        var snappedCircle: Int? = nil
+    private struct DragSnapState: Equatable {
+        var translation: CGSize = .zero
+        var activeAxes: Set<SnapAxis> = []
+        var isActive: Bool = false
     }
 
     private struct RotationSnapState: Equatable {
@@ -33,238 +29,66 @@ struct IconCanvasView: View {
     private static let rotationSnapThreshold: Double = 5
     private static let gridSnapThreshold: CGFloat = 8
 
-    private static let gridLineIndices: [Int] = [1, 3, 5]
-    private static let gridDivisions: Int = 6
-
-    private static let gridOffsets: [CGFloat] = {
-        let step = 1.0 / CGFloat(gridDivisions)
-        return gridLineIndices.map { step * CGFloat($0) - 0.5 }
-    }()
-
-    private static let snapHalfSizes: [CGFloat] = [1.0 / 6.0, 1.0 / 3.0, 0.5]
-
-    private static let keylineCircleRadii: [CGFloat] = [0.4, 0.3125, 0.125]
-
-    private static func snappedMagnification(
-        rawMagnification: CGFloat,
-        layer: Layer,
-        side: CGFloat
-    ) -> (magnification: CGFloat, snappedLinesX: Set<Int>, snappedLinesY: Set<Int>, snappedCircle: Int?) {
-        guard side > 0, rawMagnification.isFinite, rawMagnification > 0 else {
-            return (rawMagnification, [], [], nil)
-        }
-        let visual = visualHalfSize(layer)
-        let baseHalf = max(visual.width, visual.height)
-        guard baseHalf > 0 else { return (rawMagnification, [], [], nil) }
-        let currentHalf = baseHalf * rawMagnification
-        let thresholdFraction = gridSnapThreshold / side
-
-        var bestLine: (value: CGFloat, dist: CGFloat)?
-        for value in snapHalfSizes {
-            let dist = abs(value - currentHalf)
-            if bestLine == nil || dist < bestLine!.dist {
-                bestLine = (value, dist)
-            }
-        }
-        var bestCircle: (value: CGFloat, idx: Int, dist: CGFloat)?
-        for (idx, value) in keylineCircleRadii.enumerated() {
-            let dist = abs(value - currentHalf)
-            if bestCircle == nil || dist < bestCircle!.dist {
-                bestCircle = (value, idx, dist)
-            }
-        }
-
-        let lineDist = bestLine?.dist ?? .greatestFiniteMagnitude
-        let circleDist = bestCircle?.dist ?? .greatestFiniteMagnitude
-
-        if circleDist <= lineDist, let circle = bestCircle, circle.dist < thresholdFraction {
-            return (circle.value / baseHalf, [], [], circle.idx)
-        }
-
-        guard let line = bestLine, line.dist < thresholdFraction else {
-            return (rawMagnification, [], [], nil)
-        }
-
-        let half = line.value
-        let centerX = layer.offset.width
-        let centerY = layer.offset.height
-        let matchTolerance: CGFloat = 0.001
-        var snappedLinesX: Set<Int> = []
-        var snappedLinesY: Set<Int> = []
-        for (idx, gridLine) in gridOffsets.enumerated() {
-            if abs(abs(gridLine - centerX) - half) < matchTolerance {
-                snappedLinesX.insert(idx)
-            }
-            if abs(abs(gridLine - centerY) - half) < matchTolerance {
-                snappedLinesY.insert(idx)
-            }
-        }
-        return (half / baseHalf, snappedLinesX, snappedLinesY, nil)
-    }
-
-    private static func visualHalfSize(_ layer: Layer) -> CGSize {
-        let frameFactor: CGFloat
-        switch layer.kind {
-        case .image: frameFactor = 0.7
-        case .text: frameFactor = 0.6
-        case .parametricShape: frameFactor = 0.5
-        }
-        let frameHalf = frameFactor * layer.scale / 2
-
-        switch layer.kind {
-        case .text:
-            return CGSize(width: frameHalf, height: frameHalf)
-        case .parametricShape:
-            guard let spec = layer.shapeSpec, !spec.isOpenPath else {
-                return CGSize(width: frameHalf, height: frameHalf)
-            }
-            let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
-            let bbox = spec.anyShape().path(in: unit).boundingRect
-            guard bbox.width > 0, bbox.height > 0 else {
-                return CGSize(width: frameHalf, height: frameHalf)
-            }
-            let hw = max(0.5 - bbox.minX, bbox.maxX - 0.5)
-            let hh = max(0.5 - bbox.minY, bbox.maxY - 0.5)
-            let span = frameHalf * 2
-            return CGSize(width: hw * span, height: hh * span)
-        case .image:
-            guard let img = layer.image, let cg = img.cgImage else {
-                return CGSize(width: frameHalf, height: frameHalf)
-            }
-            let w = CGFloat(cg.width)
-            let h = CGFloat(cg.height)
-            guard w > 0, h > 0 else { return CGSize(width: frameHalf, height: frameHalf) }
-            let frameSide = frameHalf * 2
-            let aspect = w / h
-            let renderedW: CGFloat
-            let renderedH: CGFloat
-            if aspect >= 1 {
-                renderedW = frameSide
-                renderedH = frameSide / aspect
-            } else {
-                renderedW = frameSide * aspect
-                renderedH = frameSide
-            }
-            let bbox = opaqueUnitBounds(of: img)
-            let hw = max(0.5 - bbox.minX, bbox.maxX - 0.5)
-            let hh = max(0.5 - bbox.minY, bbox.maxY - 0.5)
-            return CGSize(width: hw * renderedW, height: hh * renderedH)
+    private static func signedDistance(of point: CGSize, to axis: SnapAxis) -> CGFloat {
+        switch axis {
+        case .vertical: return point.width
+        case .horizontal: return point.height
+        case .diagonal: return (point.height - point.width) / sqrt(2)
+        case .antiDiagonal: return (point.height + point.width) / sqrt(2)
         }
     }
 
-    private static let opaqueBoundsCache = NSCache<UIImage, NSValue>()
-
-    private static func opaqueUnitBounds(of image: UIImage) -> CGRect {
-        if let cached = opaqueBoundsCache.object(forKey: image) {
-            return cached.cgRectValue
+    private static func project(_ point: CGSize, onto axis: SnapAxis) -> CGSize {
+        switch axis {
+        case .vertical:
+            return CGSize(width: 0, height: point.height)
+        case .horizontal:
+            return CGSize(width: point.width, height: 0)
+        case .diagonal:
+            let t = (point.width + point.height) / 2
+            return CGSize(width: t, height: t)
+        case .antiDiagonal:
+            let t = (point.width - point.height) / 2
+            return CGSize(width: t, height: -t)
         }
-        let fallback = CGRect(x: 0, y: 0, width: 1, height: 1)
-        guard let cg = image.cgImage else { return fallback }
-        let maxDim: CGFloat = 96
-        let w = CGFloat(cg.width)
-        let h = CGFloat(cg.height)
-        guard w > 0, h > 0 else { return fallback }
-        let scale = min(1, maxDim / max(w, h))
-        let sw = max(1, Int(w * scale))
-        let sh = max(1, Int(h * scale))
-        var bytes = [UInt8](repeating: 0, count: sw * sh * 4)
-        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        guard let ctx = CGContext(
-            data: &bytes,
-            width: sw,
-            height: sh,
-            bitsPerComponent: 8,
-            bytesPerRow: sw * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: bitmapInfo
-        ) else { return fallback }
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: sw, height: sh))
-        var minX = sw, minY = sh, maxX = -1, maxY = -1
-        let threshold: UInt8 = 12
-        for y in 0..<sh {
-            let rowBase = y * sw * 4
-            for x in 0..<sw {
-                if bytes[rowBase + x * 4 + 3] > threshold {
-                    if x < minX { minX = x }
-                    if x > maxX { maxX = x }
-                    if y < minY { minY = y }
-                    if y > maxY { maxY = y }
-                }
-            }
-        }
-        let rect: CGRect
-        if maxX >= 0 {
-            rect = CGRect(
-                x: CGFloat(minX) / CGFloat(sw),
-                y: CGFloat(minY) / CGFloat(sh),
-                width: CGFloat(maxX - minX + 1) / CGFloat(sw),
-                height: CGFloat(maxY - minY + 1) / CGFloat(sh)
-            )
-        } else {
-            rect = fallback
-        }
-        opaqueBoundsCache.setObject(NSValue(cgRect: rect), forKey: image)
-        return rect
     }
 
-    private static func snappedToGrid(
+    private static func snappedToAxes(
         translation: CGSize,
         layerOffset: CGSize,
-        layerHalfSize: CGSize,
-        side: CGFloat,
-        centerOnly: Bool = false
-    ) -> (effective: CGSize, snappedLinesX: Set<Int>, snappedLinesY: Set<Int>) {
-        guard side > 0 else { return (translation, [], []) }
+        side: CGFloat
+    ) -> (effective: CGSize, activeAxes: Set<SnapAxis>) {
+        guard side > 0 else { return (translation, []) }
         let thresholdFraction = gridSnapThreshold / side
-        let matchTolerance: CGFloat = 0.001
-        let centerX = layerOffset.width + translation.width / side
-        let centerY = layerOffset.height + translation.height / side
-        let activeOffsets: [CGFloat] = centerOnly ? [0] : gridOffsets
-
-        func bestTarget(currentCenter: CGFloat, half: CGFloat) -> CGFloat? {
-            var best: (target: CGFloat, dist: CGFloat)?
-            for line in activeOffsets {
-                let candidates: [CGFloat] = centerOnly
-                    ? [line]
-                    : [line, line - half, line + half]
-                for candidate in candidates {
-                    let dist = abs(candidate - currentCenter)
-                    if best == nil || dist < best!.dist {
-                        best = (candidate, dist)
-                    }
-                }
+        let centerThresholdFraction = thresholdFraction * 1.5
+        let candidate = CGSize(
+            width: layerOffset.width + translation.width / side,
+            height: layerOffset.height + translation.height / side
+        )
+        let distanceToCenter = hypot(candidate.width, candidate.height)
+        if distanceToCenter < centerThresholdFraction {
+            let effective = CGSize(
+                width: -layerOffset.width * side,
+                height: -layerOffset.height * side
+            )
+            return (effective, Set(SnapAxis.allCases))
+        }
+        var best: (axis: SnapAxis, dist: CGFloat)?
+        for axis in SnapAxis.allCases {
+            let dist = abs(signedDistance(of: candidate, to: axis))
+            if best == nil || dist < best!.dist {
+                best = (axis, dist)
             }
-            guard let b = best, b.dist < thresholdFraction else { return nil }
-            return b.target
         }
-
-        func touchedLines(center: CGFloat, half: CGFloat) -> Set<Int> {
-            var lines: Set<Int> = []
-            for (idx, line) in gridOffsets.enumerated() {
-                let centerHit = abs(line - center) < matchTolerance
-                let edgeHit = !centerOnly && (
-                    abs(line - (center - half)) < matchTolerance
-                    || abs(line - (center + half)) < matchTolerance
-                )
-                if centerHit || edgeHit {
-                    lines.insert(idx)
-                }
-            }
-            return lines
+        guard let chosen = best, chosen.dist < thresholdFraction else {
+            return (translation, [])
         }
-
-        var effective = translation
-        var snappedLinesX: Set<Int> = []
-        var snappedLinesY: Set<Int> = []
-        if let targetX = bestTarget(currentCenter: centerX, half: layerHalfSize.width) {
-            effective.width = (targetX - layerOffset.width) * side
-            snappedLinesX = touchedLines(center: targetX, half: layerHalfSize.width)
-        }
-        if let targetY = bestTarget(currentCenter: centerY, half: layerHalfSize.height) {
-            effective.height = (targetY - layerOffset.height) * side
-            snappedLinesY = touchedLines(center: targetY, half: layerHalfSize.height)
-        }
-        return (effective, snappedLinesX, snappedLinesY)
+        let snapped = project(candidate, onto: chosen.axis)
+        let effective = CGSize(
+            width: (snapped.width - layerOffset.width) * side,
+            height: (snapped.height - layerOffset.height) * side
+        )
+        return (effective, [chosen.axis])
     }
 
     static func normalized(_ angle: Angle) -> Angle {
@@ -314,7 +138,7 @@ struct IconCanvasView: View {
     private func multiGroupCentroid() -> CGSize? {
         guard session.isMultiSelecting else { return nil }
         let selected = project.layers.filter {
-            !$0.isHidden && session.lassoSelectedLayerUUIDs.contains($0.uuid)
+            !$0.isLocked && session.lassoSelectedLayerUUIDs.contains($0.uuid)
         }
         guard !selected.isEmpty else { return nil }
         let count = CGFloat(selected.count)
@@ -336,6 +160,9 @@ struct IconCanvasView: View {
         pivot: CGSize?,
         side: CGFloat
     ) -> LayerTransient {
+        if layer.isLocked {
+            return LayerTransient(offset: .zero, scale: 1, angle: .zero)
+        }
         if isSelected {
             return LayerTransient(
                 offset: dragSnap.translation,
@@ -368,35 +195,29 @@ struct IconCanvasView: View {
 
     private func squircleIcon(side: CGFloat) -> some View {
         ZStack {
-            if project.safeBackground.isHidden {
-                TransparencyCheckerboard(tile: 14)
-            } else {
-                BackgroundView(background: project.safeBackground, side: side)
-            }
+            BackgroundView(background: project.safeBackground, side: side)
             let groupPivot = multiGroupCentroid()
             ForEach(project.layers) { layer in
-                if !layer.isHidden {
-                    let isSelected = layer.uuid == session.selectedLayerUUID
-                    let isInMultiDrag = session.isMultiSelecting
-                        && session.lassoSelectedLayerUUIDs.contains(layer.uuid)
-                    let transient = transientForRender(
-                        layer: layer,
-                        isSelected: isSelected,
-                        isInMultiDrag: isInMultiDrag,
-                        pivot: groupPivot,
-                        side: side
-                    )
-                    OverlayLayerView(
-                        layer: layer,
-                        side: side,
-                        isSelected: isSelected,
-                        transientOffset: transient.offset,
-                        transientScale: transient.scale,
-                        transientAngle: transient.angle,
-                        onTap: { session.selectLayer(layer.uuid) }
-                    )
-                    .transition(.scale(scale: 1.12).combined(with: .opacity))
-                }
+                let isSelected = layer.uuid == session.selectedLayerUUID
+                let isInMultiDrag = session.isMultiSelecting
+                    && session.lassoSelectedLayerUUIDs.contains(layer.uuid)
+                let transient = transientForRender(
+                    layer: layer,
+                    isSelected: isSelected,
+                    isInMultiDrag: isInMultiDrag,
+                    pivot: groupPivot,
+                    side: side
+                )
+                OverlayLayerView(
+                    layer: layer,
+                    side: side,
+                    isSelected: isSelected,
+                    transientOffset: transient.offset,
+                    transientScale: transient.scale,
+                    transientAngle: transient.angle,
+                    onTap: { session.selectLayer(layer.uuid) }
+                )
+                .transition(.scale(scale: 1.12).combined(with: .opacity))
             }
             gridOverlay(side: side)
         }
@@ -406,65 +227,39 @@ struct IconCanvasView: View {
 
     @ViewBuilder
     private func gridOverlay(side: CGFloat) -> some View {
-        let activeX = dragSnap.snappedLinesX.union(magnifySnap.snappedLinesX)
-        let activeY = dragSnap.snappedLinesY.union(magnifySnap.snappedLinesY)
-        let activeCircle = magnifySnap.snappedCircle
         let showGrid = session.showGrid
+        let activeAxes = dragSnap.activeAxes
         let neutralColor: Color = project.safeBackground.averageLuminance > 0.55
             ? Color.black.opacity(0.25)
             : Color.white.opacity(0.5)
         Canvas { context, size in
             let neutral = GraphicsContext.Shading.color(neutralColor)
             let active = GraphicsContext.Shading.color(Color.iaSelectionYellow)
-            let step = size.width / CGFloat(Self.gridDivisions)
-            let centerLineIndex = 3
-            func strokeNeutral(_ path: Path) {
-                context.stroke(path, with: neutral, lineWidth: 0.5)
-            }
-            for (slot, lineIndex) in Self.gridLineIndices.enumerated() {
-                let isCenter = lineIndex == centerLineIndex
-                let pos = step * CGFloat(lineIndex)
-                let isXActive = activeX.contains(slot)
-                let isYActive = activeY.contains(slot)
-                let drawX = showGrid || (isCenter && isXActive)
-                let drawY = showGrid || (isCenter && isYActive)
-                if drawX {
-                    var vertical = Path()
-                    vertical.move(to: CGPoint(x: pos, y: 0))
-                    vertical.addLine(to: CGPoint(x: pos, y: size.height))
-                    if isXActive {
-                        context.stroke(vertical, with: active, lineWidth: 1.0)
-                    } else {
-                        strokeNeutral(vertical)
-                    }
-                }
-                if drawY {
-                    var horizontal = Path()
-                    horizontal.move(to: CGPoint(x: 0, y: pos))
-                    horizontal.addLine(to: CGPoint(x: size.width, y: pos))
-                    if isYActive {
-                        context.stroke(horizontal, with: active, lineWidth: 1.0)
-                    } else {
-                        strokeNeutral(horizontal)
-                    }
+            let cx = size.width / 2
+            let cy = size.height / 2
+            func endpoints(for axis: SnapAxis) -> (CGPoint, CGPoint) {
+                switch axis {
+                case .vertical:
+                    return (CGPoint(x: cx, y: 0), CGPoint(x: cx, y: size.height))
+                case .horizontal:
+                    return (CGPoint(x: 0, y: cy), CGPoint(x: size.width, y: cy))
+                case .diagonal:
+                    return (CGPoint(x: 0, y: 0), CGPoint(x: size.width, y: size.height))
+                case .antiDiagonal:
+                    return (CGPoint(x: 0, y: size.height), CGPoint(x: size.width, y: 0))
                 }
             }
-            if showGrid {
-                let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                for (idx, radius) in Self.keylineCircleRadii.enumerated() {
-                    let r = radius * size.width
-                    let rect = CGRect(
-                        x: center.x - r,
-                        y: center.y - r,
-                        width: r * 2,
-                        height: r * 2
-                    )
-                    let path = Path(ellipseIn: rect)
-                    if activeCircle == idx {
-                        context.stroke(path, with: active, lineWidth: 1.0)
-                    } else {
-                        strokeNeutral(path)
-                    }
+            for axis in SnapAxis.allCases {
+                let isActive = activeAxes.contains(axis)
+                guard showGrid || isActive else { continue }
+                let (a, b) = endpoints(for: axis)
+                var path = Path()
+                path.move(to: a)
+                path.addLine(to: b)
+                if isActive {
+                    context.stroke(path, with: active, lineWidth: 1.0)
+                } else {
+                    context.stroke(path, with: neutral, lineWidth: 0.5)
                 }
             }
         }
@@ -477,7 +272,7 @@ struct IconCanvasView: View {
         let centerX = canvasSize.width / 2
         let centerY = canvasSize.height / 2
         for layer in project.layers.reversed() {
-            guard !layer.isHidden else { continue }
+            guard !layer.isLocked else { continue }
             let baseFactor: CGFloat
             switch layer.kind {
             case .image: baseFactor = 0.7
@@ -587,54 +382,30 @@ struct IconCanvasView: View {
     private func canvasGesture(side: CGFloat, canvasSize: CGSize) -> some Gesture {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
+                let pivotOffset: CGSize?
                 if session.isMultiSelecting {
-                    guard let pivot = multiGroupCentroid() else {
-                        state.translation = value.translation
-                        state.isActive = true
-                        return
-                    }
-                    let result = Self.snappedToGrid(
-                        translation: value.translation,
-                        layerOffset: pivot,
-                        layerHalfSize: .zero,
-                        side: side,
-                        centerOnly: true
-                    )
-                    let wasSnapped = !state.snappedLinesX.isEmpty || !state.snappedLinesY.isEmpty
-                    let isSnapped = !result.snappedLinesX.isEmpty || !result.snappedLinesY.isEmpty
-                    let changedX = state.snappedLinesX != result.snappedLinesX && !result.snappedLinesX.isEmpty
-                    let changedY = state.snappedLinesY != result.snappedLinesY && !result.snappedLinesY.isEmpty
-                    if (isSnapped && !wasSnapped) || changedX || changedY {
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
-                    state.translation = result.effective
-                    state.snappedLinesX = result.snappedLinesX
-                    state.snappedLinesY = result.snappedLinesY
-                    state.isActive = true
-                    return
+                    pivotOffset = multiGroupCentroid()
+                } else {
+                    pivotOffset = selectedOverlay?.offset
                 }
-                guard let layer = selectedOverlay else {
+                guard session.showGrid, let pivot = pivotOffset else {
                     state.translation = value.translation
+                    state.activeAxes = []
                     state.isActive = true
                     return
                 }
-                let result = Self.snappedToGrid(
+                let result = Self.snappedToAxes(
                     translation: value.translation,
-                    layerOffset: layer.offset,
-                    layerHalfSize: Self.visualHalfSize(layer),
-                    side: side,
-                    centerOnly: !session.showGrid
+                    layerOffset: pivot,
+                    side: side
                 )
-                let wasSnapped = !state.snappedLinesX.isEmpty || !state.snappedLinesY.isEmpty
-                let isSnapped = !result.snappedLinesX.isEmpty || !result.snappedLinesY.isEmpty
-                let changedX = state.snappedLinesX != result.snappedLinesX && !result.snappedLinesX.isEmpty
-                let changedY = state.snappedLinesY != result.snappedLinesY && !result.snappedLinesY.isEmpty
-                if (isSnapped && !wasSnapped) || changedX || changedY {
+                let wasSnapped = !state.activeAxes.isEmpty
+                let isSnapped = !result.activeAxes.isEmpty
+                if (isSnapped && !wasSnapped) || (isSnapped && state.activeAxes != result.activeAxes) {
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 state.translation = result.effective
-                state.snappedLinesX = result.snappedLinesX
-                state.snappedLinesY = result.snappedLinesY
+                state.activeAxes = result.activeAxes
                 state.isActive = true
             }
             .onChanged { value in
@@ -656,13 +427,11 @@ struct IconCanvasView: View {
                 else { return }
                 if session.isMultiSelecting {
                     let effective: CGSize
-                    if let pivot = multiGroupCentroid() {
-                        effective = Self.snappedToGrid(
+                    if session.showGrid, let pivot = multiGroupCentroid() {
+                        effective = Self.snappedToAxes(
                             translation: value.translation,
                             layerOffset: pivot,
-                            layerHalfSize: .zero,
-                            side: side,
-                            centerOnly: true
+                            side: side
                         ).effective
                     } else {
                         effective = value.translation
@@ -684,15 +453,18 @@ struct IconCanvasView: View {
                     }
                     return
                 }
-                guard let layer = selectedOverlay else { return }
+                guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
-                let effective = Self.snappedToGrid(
-                    translation: value.translation,
-                    layerOffset: layer.offset,
-                    layerHalfSize: Self.visualHalfSize(layer),
-                    side: side,
-                    centerOnly: !session.showGrid
-                ).effective
+                let effective: CGSize
+                if session.showGrid {
+                    effective = Self.snappedToAxes(
+                        translation: value.translation,
+                        layerOffset: layer.offset,
+                        side: side
+                    ).effective
+                } else {
+                    effective = value.translation
+                }
                 let nextWidth = layer.offset.width + effective.width / side
                 let nextHeight = layer.offset.height + effective.height / side
                 guard nextWidth.isFinite, nextHeight.isFinite else { return }
@@ -705,47 +477,7 @@ struct IconCanvasView: View {
         let magnify = MagnifyGesture(minimumScaleDelta: 0.01)
             .updating($gestureScale) { value, state, _ in
                 guard value.magnification.isFinite, value.magnification > 0 else { return }
-                if session.isMultiSelecting || !session.showGrid {
-                    state = value.magnification
-                    return
-                }
-                guard let layer = selectedOverlay else {
-                    state = value.magnification
-                    return
-                }
-                let result = Self.snappedMagnification(
-                    rawMagnification: value.magnification,
-                    layer: layer,
-                    side: side
-                )
-                state = result.magnification
-            }
-            .updating($magnifySnap) { value, state, _ in
-                guard value.magnification.isFinite, value.magnification > 0,
-                      session.showGrid, !session.isMultiSelecting,
-                      let layer = selectedOverlay else {
-                    state = MagnifySnapState()
-                    return
-                }
-                let result = Self.snappedMagnification(
-                    rawMagnification: value.magnification,
-                    layer: layer,
-                    side: side
-                )
-                let wasSnapped = !state.snappedLinesX.isEmpty
-                    || !state.snappedLinesY.isEmpty
-                    || state.snappedCircle != nil
-                let isSnapped = !result.snappedLinesX.isEmpty
-                    || !result.snappedLinesY.isEmpty
-                    || result.snappedCircle != nil
-                let circleChanged = state.snappedCircle != result.snappedCircle
-                    && result.snappedCircle != nil
-                if (isSnapped && !wasSnapped) || circleChanged {
-                    UISelectionFeedbackGenerator().selectionChanged()
-                }
-                state.snappedLinesX = result.snappedLinesX
-                state.snappedLinesY = result.snappedLinesY
-                state.snappedCircle = result.snappedCircle
+                state = value.magnification
             }
             .onChanged { _ in promoteOverlaySelection() }
             .onEnded { value in
@@ -769,19 +501,9 @@ struct IconCanvasView: View {
                     }
                     return
                 }
-                guard let layer = selectedOverlay else { return }
+                guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
-                let effectiveMagnification: CGFloat
-                if session.showGrid {
-                    effectiveMagnification = Self.snappedMagnification(
-                        rawMagnification: value.magnification,
-                        layer: layer,
-                        side: side
-                    ).magnification
-                } else {
-                    effectiveMagnification = value.magnification
-                }
-                layer.scale = max(0.1, layer.scale * effectiveMagnification)
+                layer.scale = max(0.1, layer.scale * value.magnification)
             }
 
         let rotate = RotateGesture(minimumAngleDelta: .degrees(1))
@@ -833,7 +555,7 @@ struct IconCanvasView: View {
                     }
                     return
                 }
-                guard let layer = selectedOverlay else { return }
+                guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
                 let (delta, _) = Self.snappedRotation(
                     layerRotation: layer.rotation,

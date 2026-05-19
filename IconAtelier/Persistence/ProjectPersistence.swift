@@ -11,26 +11,24 @@ enum IconRenderer {
         includeBackground: Bool = true
     ) -> UIImage? {
         let view = ZStack {
-            if includeBackground, let bg = project.background, !bg.isHidden {
+            if includeBackground, let bg = project.background {
                 BackgroundView(background: bg, side: side)
             }
             ForEach(project.layers) { layer in
-                if !layer.isHidden {
-                    let s = CGFloat(layer.scale)
-                    LayerContentView(layer: layer, side: side, scale: s)
-                        .shadow(
-                            color: layer.shadowColor.opacity(layer.shadowOpacity),
-                            radius: side * CGFloat(layer.shadowRadius) * s,
-                            x: side * CGFloat(layer.shadowOffsetX) * s,
-                            y: side * CGFloat(layer.shadowOffsetY) * s
-                        )
-                        .rotationEffect(layer.rotation)
-                        .opacity(layer.opacity)
-                        .offset(
-                            x: layer.offset.width * side,
-                            y: layer.offset.height * side
-                        )
-                }
+                let s = CGFloat(layer.scale)
+                LayerContentView(layer: layer, side: side, scale: s)
+                    .shadow(
+                        color: layer.shadowColor.opacity(layer.shadowOpacity),
+                        radius: side * CGFloat(layer.shadowRadius) * s,
+                        x: side * CGFloat(layer.shadowOffsetX) * s,
+                        y: side * CGFloat(layer.shadowOffsetY) * s
+                    )
+                    .rotationEffect(layer.rotation)
+                    .opacity(layer.opacity)
+                    .offset(
+                        x: layer.offset.width * side,
+                        y: layer.offset.height * side
+                    )
             }
         }
         .frame(width: side, height: side)

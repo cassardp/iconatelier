@@ -172,18 +172,9 @@ struct BackgroundThumbnailRow: View {
                 GeometryReader { geo in
                     let inset: CGFloat = 4
                     ZStack {
-                        ZStack {
-                            TransparencyCheckerboard(tile: 6)
-                            if background.isHidden {
-                                Image(systemName: "eye.slash")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                BackgroundView(background: background, side: geo.size.width - inset * 2)
-                            }
-                        }
-                        .clipShape(SquircleShape())
-                        .padding(inset)
+                        BackgroundView(background: background, side: geo.size.width - inset * 2)
+                            .clipShape(SquircleShape())
+                            .padding(inset)
 
                         if isSelected {
                             SquircleShape()
@@ -253,12 +244,15 @@ struct LayerThumbnailRow: View {
                     ZStack {
                         ZStack {
                             TransparencyCheckerboard(tile: 6)
-                            if layer.isHidden {
-                                Image(systemName: "eye.slash")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                OverlayLayerRender(layer: layer, side: contentSide)
+                            OverlayLayerRender(layer: layer, side: contentSide)
+                            if layer.isLocked {
+                                Image(systemName: "lock.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.white)
+                                    .padding(4)
+                                    .background(.black.opacity(0.55), in: Circle())
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                                    .padding(4)
                             }
                         }
                         .frame(width: contentSide, height: contentSide)

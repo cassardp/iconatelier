@@ -14,11 +14,11 @@ struct LayerQuickActionsRow: View {
 
         HStack(spacing: 8) {
             CompactActionButton(
-                title: (single?.isHidden ?? false) ? "Show" : "Hide",
-                systemImage: (single?.isHidden ?? false) ? "eye" : "eye.slash",
+                title: (single?.isLocked ?? false) ? "Unlock" : "Lock",
+                systemImage: (single?.isLocked ?? false) ? "lock" : "lock.open",
                 enabled: single != nil
             ) {
-                if let single { actions.toggleVisibility(single) }
+                if let single { actions.toggleLock(single) }
             }
             CompactActionButton(
                 title: "Duplicate",
@@ -66,16 +66,8 @@ struct BackgroundQuickActionsRow: View {
 
     var body: some View {
         let actions = LayerActions(project: project, session: session)
-        let background = project.safeBackground
 
         HStack(spacing: 8) {
-            CompactActionButton(
-                title: background.isHidden ? "Show Background" : "Hide Background",
-                systemImage: background.isHidden ? "eye" : "eye.slash"
-            ) {
-                project.recordUndo()
-                background.isHidden.toggle()
-            }
             CompactActionButton(
                 title: "App Silhouette",
                 systemImage: "app.fill"

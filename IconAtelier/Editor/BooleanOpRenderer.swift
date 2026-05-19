@@ -45,13 +45,12 @@ enum BooleanOpRenderer {
         layers: [Layer],
         op: BooleanOpKind
     ) -> BooleanVectorResult? {
-        let visible = layers.filter { !$0.isHidden }
-        guard visible.count >= 2 else { return nil }
+        guard layers.count >= 2 else { return nil }
 
         let canvasSide = workingPixelSide
         var sourcePaths: [CGPath] = []
-        sourcePaths.reserveCapacity(visible.count)
-        for layer in visible {
+        sourcePaths.reserveCapacity(layers.count)
+        for layer in layers {
             guard let p = vectorPath(for: layer, canvasSide: canvasSide) else {
                 return nil
             }
@@ -131,13 +130,12 @@ enum BooleanOpRenderer {
         layers: [Layer],
         op: BooleanOpKind
     ) -> BooleanOpResult? {
-        let visible = layers.filter { !$0.isHidden }
-        guard visible.count >= 2 else { return nil }
+        guard layers.count >= 2 else { return nil }
 
         let side = workingPixelSide
         var images: [UIImage] = []
-        images.reserveCapacity(visible.count)
-        for layer in visible {
+        images.reserveCapacity(layers.count)
+        for layer in layers {
             guard let img = rasterize(layer, side: side) else { continue }
             images.append(img)
         }

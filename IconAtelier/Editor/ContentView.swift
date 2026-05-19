@@ -362,7 +362,7 @@ struct ContentView: View {
     private func lassoHitTest(rect: CGRect, side: CGFloat) -> Set<UUID> {
         guard side > 0 else { return [] }
         var matched: Set<UUID> = []
-        for layer in project.layers where !layer.isHidden {
+        for layer in project.layers where !layer.isLocked {
             let bboxSide = layerBaseFraction(layer.kind) * layer.scale * side
             let centerX = side / 2 + layer.offset.width * side
             let centerY = side / 2 + layer.offset.height * side
@@ -570,7 +570,6 @@ struct ContentView: View {
         var hasher = Hasher()
         if let bg = project.background {
             hasher.combine(bg.kind)
-            hasher.combine(bg.isHidden)
         }
         for layer in project.layers {
             hasher.combine(layer.uuid)
@@ -589,7 +588,6 @@ struct ContentView: View {
             hasher.combine(layer.offsetW)
             hasher.combine(layer.offsetH)
             hasher.combine(layer.opacity)
-            hasher.combine(layer.isHidden)
             hasher.combine(layer.isFlippedHorizontally)
             hasher.combine(layer.isFlippedVertically)
         }

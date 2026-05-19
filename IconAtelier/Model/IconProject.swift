@@ -360,7 +360,7 @@ final class IconProject: Codable, Identifiable {
         _ op: BooleanOpKind,
         on layerUUIDs: Set<UUID>
     ) -> Layer? {
-        let targets = layers.filter { layerUUIDs.contains($0.uuid) && !$0.isHidden }
+        let targets = layers.filter { layerUUIDs.contains($0.uuid) }
         guard targets.count >= 2 else { return nil }
 
         let newLayer: Layer
@@ -410,9 +410,9 @@ final class IconProject: Codable, Identifiable {
         return newLayer
     }
 
-    func toggleVisibility(_ layer: Layer) {
+    func toggleLock(_ layer: Layer) {
         recordUndo()
-        layer.isHidden.toggle()
+        layer.isLocked.toggle()
     }
 
     @MainActor

@@ -18,8 +18,6 @@ final class Background: Codable {
     var storedMeshCornerPoints: [StoredPoint] = []
     var meshRotationDegrees: Double = 0
 
-    var isHidden: Bool = false
-
     init(
         kind: BackgroundKind = .solid,
         solidColor: Color = .iaDefaultBackground,
@@ -36,7 +34,6 @@ final class Background: Codable {
         self.storedLinearEnd = StoredPoint(linearEnd)
         self.storedGradientCenter = StoredPoint(gradientCenter)
         self.storedMeshColors = (meshColors ?? Background.defaultMeshColors).map { StoredColor($0) }
-        self.isHidden = false
     }
 
     // MARK: - Codable
@@ -47,7 +44,6 @@ final class Background: Codable {
         case storedLinearStart, storedLinearEnd, storedGradientCenter
         case radialSpread
         case storedMeshColors, storedMeshCornerPoints, meshRotationDegrees
-        case isHidden
     }
 
     required init(from decoder: Decoder) throws {
@@ -64,7 +60,6 @@ final class Background: Codable {
         storedMeshColors = try c.decodeIfPresent([StoredColor].self, forKey: .storedMeshColors) ?? []
         storedMeshCornerPoints = try c.decodeIfPresent([StoredPoint].self, forKey: .storedMeshCornerPoints) ?? []
         meshRotationDegrees = try c.decodeIfPresent(Double.self, forKey: .meshRotationDegrees) ?? 0
-        isHidden = try c.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -79,7 +74,6 @@ final class Background: Codable {
         try c.encode(storedMeshColors, forKey: .storedMeshColors)
         try c.encode(storedMeshCornerPoints, forKey: .storedMeshCornerPoints)
         try c.encode(meshRotationDegrees, forKey: .meshRotationDegrees)
-        try c.encode(isHidden, forKey: .isHidden)
     }
 
     // MARK: - Bridged properties (Color, UnitPoint)
@@ -115,7 +109,6 @@ final class Background: Codable {
     }
 
     var averageLuminance: Double {
-        if isHidden { return 0.85 }
         switch kind {
         case .solid:
             return storedSolidColor.luminance
@@ -186,7 +179,6 @@ struct BackgroundSnapshot {
     let meshColors: [StoredColor]
     let meshCornerPoints: [StoredPoint]
     let meshRotationDegrees: Double
-    let isHidden: Bool
 }
 
 extension Background {
@@ -201,8 +193,7 @@ extension Background {
             radialSpread: radialSpread,
             meshColors: storedMeshColors,
             meshCornerPoints: storedMeshCornerPoints,
-            meshRotationDegrees: meshRotationDegrees,
-            isHidden: isHidden
+            meshRotationDegrees: meshRotationDegrees
         )
     }
 
@@ -217,7 +208,6 @@ extension Background {
         storedMeshColors = s.meshColors
         storedMeshCornerPoints = s.meshCornerPoints
         meshRotationDegrees = s.meshRotationDegrees
-        isHidden = s.isHidden
     }
 }
 

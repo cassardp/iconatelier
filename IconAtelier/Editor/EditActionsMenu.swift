@@ -50,16 +50,6 @@ struct EditActionsMenu: View {
         }
 
         if session.isBackgroundSelected {
-            let background = project.safeBackground
-            Button {
-                project.recordUndo()
-                background.isHidden.toggle()
-            } label: {
-                Label(
-                    background.isHidden ? "Show Background" : "Hide Background",
-                    systemImage: background.isHidden ? "eye" : "eye.slash"
-                )
-            }
             Button {
                 withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
                     let layer = project.addShapeLayer(spec: .iosSquircle)
@@ -72,11 +62,11 @@ struct EditActionsMenu: View {
         } else if hasActiveLayers {
             if let single = actions.singleActiveLayer {
                 Button {
-                    actions.toggleVisibility(single)
+                    actions.toggleLock(single)
                 } label: {
                     Label(
-                        single.isHidden ? "Show" : "Hide",
-                        systemImage: single.isHidden ? "eye" : "eye.slash"
+                        single.isLocked ? "Unlock" : "Lock",
+                        systemImage: single.isLocked ? "lock" : "lock.open"
                     )
                 }
             }

@@ -106,8 +106,8 @@ struct LayerActions {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
-    func toggleVisibility(_ layer: Layer) {
-        project.toggleVisibility(layer)
+    func toggleLock(_ layer: Layer) {
+        project.toggleLock(layer)
     }
 
     func flip(horizontal: Bool) {

@@ -128,7 +128,6 @@ final class Layer: Codable, Identifiable {
     var shadowOffsetY: Double = 0.02
     var storedShadowColor: StoredColor = StoredColor.black
 
-    var isHidden: Bool = false
     var isLocked: Bool = false
     var isFlippedHorizontally: Bool = false
     var isFlippedVertically: Bool = false
@@ -172,7 +171,7 @@ final class Layer: Codable, Identifiable {
         case lineCap = "lineCapRaw"
         case offsetW, offsetH, scaleValue, rotationRadians, opacity
         case shadowOpacity, shadowRadius, shadowOffsetX, shadowOffsetY, storedShadowColor
-        case isHidden, isLocked, isFlippedHorizontally, isFlippedVertically
+        case isLocked, isFlippedHorizontally, isFlippedVertically
     }
 
     required init(from decoder: Decoder) throws {
@@ -203,7 +202,6 @@ final class Layer: Codable, Identifiable {
         shadowOffsetX = try c.decodeIfPresent(Double.self, forKey: .shadowOffsetX) ?? 0
         shadowOffsetY = try c.decodeIfPresent(Double.self, forKey: .shadowOffsetY) ?? 0.02
         storedShadowColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedShadowColor) ?? StoredColor.black
-        isHidden = try c.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
         isFlippedHorizontally = try c.decodeIfPresent(Bool.self, forKey: .isFlippedHorizontally) ?? false
         isFlippedVertically = try c.decodeIfPresent(Bool.self, forKey: .isFlippedVertically) ?? false
@@ -236,7 +234,6 @@ final class Layer: Codable, Identifiable {
         try c.encode(shadowOffsetX, forKey: .shadowOffsetX)
         try c.encode(shadowOffsetY, forKey: .shadowOffsetY)
         try c.encode(storedShadowColor, forKey: .storedShadowColor)
-        try c.encode(isHidden, forKey: .isHidden)
         try c.encode(isLocked, forKey: .isLocked)
         try c.encode(isFlippedHorizontally, forKey: .isFlippedHorizontally)
         try c.encode(isFlippedVertically, forKey: .isFlippedVertically)
@@ -319,7 +316,6 @@ struct LayerSnapshot {
     let shadowOffsetX: Double
     let shadowOffsetY: Double
     let shadowColor: StoredColor
-    let isHidden: Bool
     let isLocked: Bool
     let isFlippedHorizontally: Bool
     let isFlippedVertically: Bool
@@ -354,7 +350,6 @@ extension Layer {
             shadowOffsetX: shadowOffsetX,
             shadowOffsetY: shadowOffsetY,
             shadowColor: storedShadowColor,
-            isHidden: isHidden,
             isLocked: isLocked,
             isFlippedHorizontally: isFlippedHorizontally,
             isFlippedVertically: isFlippedVertically
@@ -387,7 +382,6 @@ extension Layer {
         shadowOffsetX = s.shadowOffsetX
         shadowOffsetY = s.shadowOffsetY
         storedShadowColor = s.shadowColor
-        isHidden = s.isHidden
         isLocked = s.isLocked
         isFlippedHorizontally = s.isFlippedHorizontally
         isFlippedVertically = s.isFlippedVertically
