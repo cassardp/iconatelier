@@ -110,6 +110,27 @@ struct LayerActions {
         project.toggleLock(layer)
     }
 
+    var allSelectedLocked: Bool {
+        let uuids = activeLayerUUIDs
+        guard !uuids.isEmpty else { return false }
+        let targets = project.layers.filter { uuids.contains($0.uuid) }
+        guard !targets.isEmpty else { return false }
+        return targets.allSatisfy(\.isLocked)
+    }
+
+    func toggleLockSelection() {
+        let uuids = Set(activeLayerUUIDs)
+        guard !uuids.isEmpty else { return }
+        let targets = project.layers.filter { uuids.contains($0.uuid) }
+        guard !targets.isEmpty else { return }
+        let shouldLock = !targets.allSatisfy(\.isLocked)
+        project.recordUndo()
+        for layer in targets {
+            layer.isLocked = shouldLock
+        }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     func flip(horizontal: Bool) {
         let uuids = Set(activeLayerUUIDs)
         guard !uuids.isEmpty else { return }

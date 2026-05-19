@@ -69,6 +69,16 @@ struct EditActionsMenu: View {
                         systemImage: single.isLocked ? "lock" : "lock.open"
                     )
                 }
+            } else {
+                let locked = actions.allSelectedLocked
+                Button {
+                    actions.toggleLockSelection()
+                } label: {
+                    Label(
+                        locked ? "Unlock Selection" : "Lock Selection",
+                        systemImage: locked ? "lock" : "lock.open"
+                    )
+                }
             }
             Button {
                 actions.duplicate()
