@@ -14,7 +14,7 @@ struct LayersBar: View {
     @State private var targetIndex: Int?
     @State private var dragStartX: CGFloat = 0
 
-    private static let thumbnailSize: CGFloat = 56
+    private static let thumbnailSize: CGFloat = 64
     private static let spacing: CGFloat = 8
     private static let verticalPadding: CGFloat = 8
     private static let itemStride: CGFloat = thumbnailSize + spacing
@@ -250,8 +250,13 @@ struct LayerThumbnailRow: View {
                     let contentSide = max(0, geo.size.width - inset * 2)
                     ZStack {
                         ZStack {
-                            TransparencyCheckerboard(tile: 6)
-                            OverlayLayerRender(layer: layer, side: contentSide)
+                            TransparencyCheckerboard(tile: 8)
+                            LayerContentView(
+                                layer: layer,
+                                side: contentSide,
+                                scale: normalizedThumbnailScale(for: layer.kind)
+                            )
+                            .opacity(layer.opacity)
                             if layer.isLocked {
                                 Image(systemName: "lock.fill")
                                     .font(.caption2)
@@ -283,5 +288,13 @@ struct LayerThumbnailRow: View {
                 }
             }
             .contentShape(Rectangle())
+    }
+}
+
+private func normalizedThumbnailScale(for kind: LayerKind) -> CGFloat {
+    switch kind {
+    case .image: return 1.0 / 0.7
+    case .text: return 0.85 / 0.6
+    case .parametricShape: return 0.85 / 0.5
     }
 }
