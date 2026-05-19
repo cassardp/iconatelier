@@ -131,6 +131,20 @@ struct LayerActions {
         UISelectionFeedbackGenerator().selectionChanged()
     }
 
+    func rotate90() {
+        let uuids = Set(activeLayerUUIDs)
+        guard !uuids.isEmpty else { return }
+        let targets = project.layers.filter { uuids.contains($0.uuid) }
+        guard !targets.isEmpty else { return }
+        project.recordUndo()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            for layer in targets {
+                layer.rotationRadians += .pi / 2
+            }
+        }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     func flip(horizontal: Bool) {
         let uuids = Set(activeLayerUUIDs)
         guard !uuids.isEmpty else { return }

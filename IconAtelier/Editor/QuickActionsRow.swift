@@ -58,6 +58,13 @@ struct LayerQuickActionsRow: View {
                         actions.sendToBack()
                     }
                     CompactActionButton(
+                        title: "Rotate 90°",
+                        systemImage: "rotate.right",
+                        enabled: hasActive
+                    ) {
+                        actions.rotate90()
+                    }
+                    CompactActionButton(
                         title: "Flip Horizontal",
                         systemImage: "arrow.left.and.right",
                         enabled: hasActive
