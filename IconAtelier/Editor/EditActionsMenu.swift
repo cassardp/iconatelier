@@ -5,6 +5,7 @@ struct EditActionsMenu: View {
     let session: ProjectSession
     @Binding var showImportPicker: Bool
     let presentExport: () -> Void
+    let deleteProject: () -> Void
 
     var body: some View {
         Menu {
@@ -39,6 +40,14 @@ struct EditActionsMenu: View {
             showImportPicker = true
         } label: {
             Label("Import Image", systemImage: "square.and.arrow.down")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            deleteProject()
+        } label: {
+            Label("Delete Icon", systemImage: "trash")
         }
     }
 }

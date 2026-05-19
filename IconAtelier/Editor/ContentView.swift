@@ -198,7 +198,8 @@ struct ContentView: View {
                     project: project,
                     session: session,
                     showImportPicker: $showImportPicker,
-                    presentExport: presentExportSheet
+                    presentExport: presentExportSheet,
+                    deleteProject: deleteCurrentProject
                 )
             }
         }
@@ -540,6 +541,19 @@ struct ContentView: View {
         showEditSheet = false
         dismiss()
         persistSnapshotInBackground()
+    }
+
+    private func deleteCurrentProject() {
+        let projectRef = project
+        let storeRef = store
+        showEditSheet = false
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(.smooth(duration: 0.35)) {
+                storeRef.delete(projectRef)
+            }
+        }
     }
 
     private func persistSnapshotInBackground() {
