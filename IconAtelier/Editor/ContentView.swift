@@ -181,6 +181,15 @@ struct ContentView: View {
                         .disabled(!project.canUndo)
 
                         Button {
+                            session.showGrid.toggle()
+                            UISelectionFeedbackGenerator().selectionChanged()
+                        } label: {
+                            Image(systemName: "grid")
+                                .foregroundStyle(session.showGrid ? Color.primary : Color.secondary)
+                        }
+                        .accessibilityLabel(session.showGrid ? "Hide grid" : "Show grid")
+
+                        Button {
                             project.redo()
                             reselectTopIfNeeded()
                         } label: {

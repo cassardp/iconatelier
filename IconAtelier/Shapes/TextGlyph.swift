@@ -16,10 +16,37 @@ struct TextGlyphShape: Shape {
         let referenceSize: CGFloat = 100
         let font = uiFont(size: referenceSize, weight: weight, design: design)
 
-        let attr = NSAttributedString(string: trimmed, attributes: [.font: font])
-        let line = CTLineCreateWithAttributedString(attr)
+        let combined = glyphPath(for: trimmed, font: font)
+        let glyphBox = combined.boundingBoxOfPath
+        guard glyphBox.width > 0, glyphBox.height > 0 else { return Path() }
 
+        let referencePath = glyphPath(for: Self.referenceText, font: font)
+        let referenceBox = referencePath.boundingBoxOfPath
+        let refWidth = max(referenceBox.width, 1)
+        let refHeight = max(referenceBox.height, 1)
+
+        let inset = min(rect.width, rect.height) * insetFraction
+        let target = rect.insetBy(dx: inset, dy: inset)
+        let scale = min(target.width / refWidth, target.height / refHeight)
+        let scaledW = glyphBox.width * scale
+        let scaledH = glyphBox.height * scale
+        let offsetX = target.midX - scaledW / 2
+        let offsetY = target.midY + scaledH / 2
+
+        var transform = CGAffineTransform(translationX: -glyphBox.minX, y: -glyphBox.minY)
+            .concatenating(CGAffineTransform(scaleX: scale, y: -scale))
+            .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))
+
+        guard let transformed = combined.copy(using: &transform) else { return Path() }
+        return Path(transformed)
+    }
+
+    private static let referenceText = "Aa"
+
+    private func glyphPath(for string: String, font: UIFont) -> CGMutablePath {
         let combined = CGMutablePath()
+        let attr = NSAttributedString(string: string, attributes: [.font: font])
+        let line = CTLineCreateWithAttributedString(attr)
         let runs = CTLineGetGlyphRuns(line) as? [CTRun] ?? []
         for run in runs {
             let runAttrs = CTRunGetAttributes(run) as NSDictionary
@@ -42,25 +69,7 @@ struct TextGlyphShape: Shape {
                 combined.addPath(glyphPath, transform: t)
             }
         }
-
-        let glyphBox = combined.boundingBoxOfPath
-        guard glyphBox.width > 0, glyphBox.height > 0 else { return Path() }
-
-        let inset = min(rect.width, rect.height) * insetFraction
-        let target = rect.insetBy(dx: inset, dy: inset)
-        let scale = min(target.width / glyphBox.width, target.height / glyphBox.height)
-        let scaledW = glyphBox.width * scale
-        let scaledH = glyphBox.height * scale
-        let offsetX = target.midX - scaledW / 2
-
-        let offsetY = target.midY + scaledH / 2
-
-        var transform = CGAffineTransform(translationX: -glyphBox.minX, y: -glyphBox.minY)
-            .concatenating(CGAffineTransform(scaleX: scale, y: -scale))
-            .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))
-
-        guard let transformed = combined.copy(using: &transform) else { return Path() }
-        return Path(transformed)
+        return combined
     }
 
     // MARK: - Font helpers

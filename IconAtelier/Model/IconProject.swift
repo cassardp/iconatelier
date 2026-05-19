@@ -240,18 +240,22 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addShapeLayer(spec: ShapeSpec) -> Layer {
         recordUndo()
-        return append(Layer(
+        let layer = Layer(
             kind: .parametricShape,
             name: nextName(for: .parametricShape, baseFallback: spec.displayName),
             tintColor: .white,
             shapeSpec: spec
-        ))
+        )
+        layer.scaleValue = 2.0 / 3.0
+        return append(layer)
     }
 
     @discardableResult
     func addTextOverlay(text: String = "Aa") -> Layer {
         recordUndo()
-        return append(Layer(kind: .text, name: text, text: text, tintColor: .black))
+        let layer = Layer(kind: .text, name: text, text: text, tintColor: .black)
+        layer.scaleValue = 1.0 / 1.8
+        return append(layer)
     }
 
     // MARK: - Layer mutations
