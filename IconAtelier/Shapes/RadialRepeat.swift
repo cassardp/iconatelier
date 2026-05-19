@@ -5,6 +5,7 @@ struct RadialRepeat<Base: Shape>: Shape {
     var base: Base
     var count: Int
     var centerHole: Double
+    var orientation: Double
 
     private static var basePhase: Double { -.pi / 2 }
 
@@ -28,6 +29,15 @@ struct RadialRepeat<Base: Shape>: Shape {
                 height: unitLen
             )
             var sub = base.path(in: local)
+
+            if abs(orientation) > 1e-9 {
+                let pivotY = -unitLen / 2
+                let spin = CGAffineTransform.identity
+                    .translatedBy(x: 0, y: pivotY)
+                    .rotated(by: orientation)
+                    .translatedBy(x: 0, y: -pivotY)
+                sub = sub.applying(spin)
+            }
 
             let transform = CGAffineTransform.identity
                 .translatedBy(x: center.x, y: center.y)

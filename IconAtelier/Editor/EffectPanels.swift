@@ -272,6 +272,15 @@ struct RadialRepeatPanelContent: View {
         }
     }
 
+    private var showsOrientation: Bool {
+        guard layer.kind == .parametricShape,
+              let base = layer.shapeSpec?.deepestBase else { return true }
+        if case let .ellipse(roundness, _, arcSweep) = base {
+            return roundness < 1.0 - 1e-6 || arcSweep < 1.0 - 1e-6
+        }
+        return true
+    }
+
     static func enabledBinding(
         layer: Layer,
         project: IconProject,
@@ -318,6 +327,23 @@ struct RadialRepeatPanelContent: View {
             defaultValue: ShapeSpec.defaultRadialRepeat.centerHole,
             onBeginEditing: { project.recordUndo() }
         )
+        if showsOrientation {
+            DialSliderRow(
+                label: "Orientation",
+                value: doubleBinding(
+                    get: { $0.orientation * 180 / .pi },
+                    set: { p, v in
+                        var p = p
+                        p.orientation = v * .pi / 180
+                        return p
+                    }
+                ),
+                range: -180 ... 180,
+                valueText: { String(format: "%.0f°", $0) },
+                defaultValue: ShapeSpec.defaultRadialRepeat.orientation,
+                onBeginEditing: { project.recordUndo() }
+            )
+        }
     }
 
     private func doubleBinding(
