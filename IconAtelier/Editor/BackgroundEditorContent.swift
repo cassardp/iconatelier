@@ -8,7 +8,7 @@ struct BackgroundEditorContent: View {
         @Bindable var background = project.safeBackground
         ScrollView {
             VStack(spacing: 18) {
-                PanelSection(title: PaintEditor.sectionTitle(for: background.paint.kind)) {
+                PanelSection(title: "Background") {
                     PaintEditor(
                         paint: Binding(
                             get: { background.paint },

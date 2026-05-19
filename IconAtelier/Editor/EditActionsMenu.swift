@@ -18,6 +18,15 @@ struct EditActionsMenu: View {
     @ViewBuilder
     private var menuContent: some View {
         Button {
+            presentExport()
+        } label: {
+            Label("Export Icon", systemImage: "square.and.arrow.up")
+        }
+        .disabled(!project.hasContent)
+
+        Divider()
+
+        Button {
             withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
                 let layer = project.addShapeLayer(spec: .iosSquircle)
                 session.selectLayer(layer.uuid)
@@ -31,14 +40,5 @@ struct EditActionsMenu: View {
         } label: {
             Label("Import Image", systemImage: "square.and.arrow.down")
         }
-
-        Divider()
-
-        Button {
-            presentExport()
-        } label: {
-            Label("Export Icon", systemImage: "square.and.arrow.up")
-        }
-        .disabled(!project.hasContent)
     }
 }

@@ -177,6 +177,7 @@ struct ContentView: View {
                             UISelectionFeedbackGenerator().selectionChanged()
                         } label: {
                             Image(systemName: "grid")
+                                .imageScale(.large)
                                 .foregroundStyle(session.showGrid ? Color.primary : Color.secondary)
                         }
                         .accessibilityLabel(session.showGrid ? "Hide grid" : "Show grid")

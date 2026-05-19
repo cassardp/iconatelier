@@ -365,7 +365,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
         case .circle:        return .init(sides: 24, bulge: 1,    roundness: 1,    rotationDegrees: 0)
         case .squircle:      return .init(sides: 4, bulge: 0,     roundness: 0.6,  rotationDegrees: 45)
         case .roundedSquare: return .init(sides: 4, bulge: 0,     roundness: 0.3,  rotationDegrees: 45)
-        case .square:        return .init(sides: 4, bulge: 0,     roundness: 0,    rotationDegrees: 45)
+        case .square:        return .init(sides: 4, bulge: 0,     roundness: 0.5,  rotationDegrees: 45)
         case .triangle:      return .init(sides: 3, bulge: 0,     roundness: 0)
         case .pentagon:      return .init(sides: 5, bulge: 0,     roundness: 0)
         case .hexagon:       return .init(sides: 6, bulge: 0,     roundness: 0)
