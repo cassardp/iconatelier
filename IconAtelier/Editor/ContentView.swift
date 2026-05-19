@@ -22,7 +22,6 @@ struct ContentView: View {
     @State private var generationTask: Task<Void, Never>?
     @State private var generationError: String?
     @State private var showNoAPIKeyAlert: Bool = false
-    @State private var showDeleteConfirmation: Bool = false
     @State private var wasEditSheetOpenBeforeExport = false
 
     private static let generationTimeoutSeconds: Int = 90
@@ -200,7 +199,7 @@ struct ContentView: View {
                     session: session,
                     showImportPicker: $showImportPicker,
                     presentExport: presentExportSheet,
-                    deleteProject: { showDeleteConfirmation = true }
+                    deleteProject: deleteCurrentProject
                 )
             }
         }
@@ -242,18 +241,6 @@ struct ContentView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Open the gallery settings to add your OpenAI API key, then try again.")
-        }
-        .confirmationDialog(
-            "Delete this icon?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Icon", role: .destructive) {
-                deleteCurrentProject()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This icon will be permanently deleted.")
         }
         .alert(
             "Generation failed",
