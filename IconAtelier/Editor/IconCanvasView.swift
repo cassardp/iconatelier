@@ -380,7 +380,28 @@ struct IconCanvasView: View {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
                 if session.isMultiSelecting {
-                    state.translation = value.translation
+                    guard let pivot = multiGroupCentroid() else {
+                        state.translation = value.translation
+                        state.isActive = true
+                        return
+                    }
+                    let result = Self.snappedToGrid(
+                        translation: value.translation,
+                        layerOffset: pivot,
+                        layerHalfSize: 0,
+                        side: side,
+                        centerOnly: true
+                    )
+                    let wasSnapped = !state.snappedLinesX.isEmpty || !state.snappedLinesY.isEmpty
+                    let isSnapped = !result.snappedLinesX.isEmpty || !result.snappedLinesY.isEmpty
+                    let changedX = state.snappedLinesX != result.snappedLinesX && !result.snappedLinesX.isEmpty
+                    let changedY = state.snappedLinesY != result.snappedLinesY && !result.snappedLinesY.isEmpty
+                    if (isSnapped && !wasSnapped) || changedX || changedY {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    }
+                    state.translation = result.effective
+                    state.snappedLinesX = result.snappedLinesX
+                    state.snappedLinesY = result.snappedLinesY
                     state.isActive = true
                     return
                 }
@@ -415,8 +436,20 @@ struct IconCanvasView: View {
                       value.translation.height.isFinite
                 else { return }
                 if session.isMultiSelecting {
-                    let dx = value.translation.width / side
-                    let dy = value.translation.height / side
+                    let effective: CGSize
+                    if let pivot = multiGroupCentroid() {
+                        effective = Self.snappedToGrid(
+                            translation: value.translation,
+                            layerOffset: pivot,
+                            layerHalfSize: 0,
+                            side: side,
+                            centerOnly: true
+                        ).effective
+                    } else {
+                        effective = value.translation
+                    }
+                    let dx = effective.width / side
+                    let dy = effective.height / side
                     let ids = session.lassoSelectedLayerUUIDs
                     let targets = project.layers.filter { ids.contains($0.uuid) }
                     guard !targets.isEmpty else { return }
