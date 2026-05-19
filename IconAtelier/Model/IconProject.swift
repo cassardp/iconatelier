@@ -365,10 +365,11 @@ final class IconProject: Codable, Identifiable {
 
         let newLayer: Layer
         if let vector = BooleanOpRenderer.vectorCompose(layers: targets, op: op),
+           let bottom = targets.first,
            let layer = buildVectorBooleanLayer(
                vector: vector,
                op: op,
-               bottomColor: targets.first?.tintColor ?? .white
+               source: bottom
            ) {
             newLayer = layer
         } else {
@@ -419,7 +420,7 @@ final class IconProject: Codable, Identifiable {
     private func buildVectorBooleanLayer(
         vector: BooleanVectorResult,
         op: BooleanOpKind,
-        bottomColor: Color
+        source: Layer
     ) -> Layer? {
         let bbox = vector.path.boundingRect
         guard bbox.width > 0, bbox.height > 0 else { return nil }
@@ -435,9 +436,21 @@ final class IconProject: Codable, Identifiable {
         let layer = Layer(
             kind: .parametricShape,
             name: op.label,
-            tintColor: bottomColor,
+            tintColor: source.tintColor,
             shapeSpec: .customPath(primitive)
         )
+        layer.storedFillPaint = source.storedFillPaint
+        layer.fillEnabled = source.fillEnabled
+        layer.borderWidth = source.borderWidth
+        layer.storedBorderColor = source.storedBorderColor
+        layer.borderPosition = source.borderPosition
+        layer.lineCap = source.lineCap
+        layer.opacity = source.opacity
+        layer.shadowOpacity = source.shadowOpacity
+        layer.shadowRadius = source.shadowRadius
+        layer.shadowOffsetX = source.shadowOffsetX
+        layer.shadowOffsetY = source.shadowOffsetY
+        layer.storedShadowColor = source.storedShadowColor
         layer.offset = offset
         layer.scaleValue = Double(scale)
         return layer
