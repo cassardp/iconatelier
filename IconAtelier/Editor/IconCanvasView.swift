@@ -41,21 +41,60 @@ struct IconCanvasView: View {
         case .parametricShape: baseFactor = 0.5
         }
         let frame = baseFactor * layer.scale
-        var width = frame
-        var height = frame
+        var unitCenterX: CGFloat = 0
+        var unitCenterY: CGFloat = 0
+        var unitHalfW: CGFloat = 0.5
+        var unitHalfH: CGFloat = 0.5
         if layer.kind == .image,
            let img = layer.image,
            img.size.width > 0, img.size.height > 0 {
             let aspect = img.size.width / img.size.height
             if aspect >= 1 {
-                height = frame / aspect
+                unitHalfH = 0.5 / aspect
             } else {
-                width = frame * aspect
+                unitHalfW = 0.5 * aspect
+            }
+        } else if layer.kind == .parametricShape, let spec = layer.shapeSpec {
+            let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+            let path = spec.anyShape().path(in: unit)
+            let pathRect = path.boundingRect
+            if pathRect.width > 0, pathRect.height > 0 {
+                unitCenterX = pathRect.midX - 0.5
+                unitCenterY = pathRect.midY - 0.5
+                unitHalfW = pathRect.width / 2
+                unitHalfH = pathRect.height / 2
             }
         }
+        if layer.isFlippedHorizontally { unitCenterX = -unitCenterX }
+        if layer.isFlippedVertically { unitCenterY = -unitCenterY }
+        let theta = CGFloat(layer.rotation.radians)
+        let cosT = cos(theta)
+        let sinT = sin(theta)
+        let corners: [(CGFloat, CGFloat)] = [
+            (unitCenterX - unitHalfW, unitCenterY - unitHalfH),
+            (unitCenterX + unitHalfW, unitCenterY - unitHalfH),
+            (unitCenterX - unitHalfW, unitCenterY + unitHalfH),
+            (unitCenterX + unitHalfW, unitCenterY + unitHalfH)
+        ]
+        var minX = CGFloat.infinity
+        var maxX = -CGFloat.infinity
+        var minY = CGFloat.infinity
+        var maxY = -CGFloat.infinity
+        for (x, y) in corners {
+            let rx = x * cosT - y * sinT
+            let ry = x * sinT + y * cosT
+            minX = min(minX, rx)
+            maxX = max(maxX, rx)
+            minY = min(minY, ry)
+            maxY = max(maxY, ry)
+        }
+        let width = (maxX - minX) * frame
+        let height = (maxY - minY) * frame
+        let centerOffsetX = (minX + maxX) / 2 * frame
+        let centerOffsetY = (minY + maxY) / 2 * frame
         return CGRect(
-            x: layer.offset.width - width / 2,
-            y: layer.offset.height - height / 2,
+            x: layer.offset.width + centerOffsetX - width / 2,
+            y: layer.offset.height + centerOffsetY - height / 2,
             width: width,
             height: height
         )
