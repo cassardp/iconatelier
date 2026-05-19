@@ -259,9 +259,9 @@ struct LayerThumbnailRow: View {
                             .opacity(layer.opacity)
                             if layer.isLocked {
                                 Image(systemName: "lock.fill")
-                                    .font(.caption2)
+                                    .font(.footnote.weight(.semibold))
                                     .foregroundStyle(.white)
-                                    .padding(4)
+                                    .padding(5)
                                     .background(.black.opacity(0.55), in: Circle())
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                                     .padding(4)
