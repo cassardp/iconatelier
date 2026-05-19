@@ -10,6 +10,7 @@ struct IconCanvasView: View {
     @GestureState private var gestureScale: CGFloat = 1.0
     @GestureState private var magnifySnap: MagnifySnapState = MagnifySnapState()
     @GestureState private var rotationSnap: RotationSnapState = RotationSnapState()
+    @State private var didDragHitTest: Bool = false
 
     private struct DragSnapState: Equatable {
         var translation: CGSize = .zero
@@ -200,7 +201,7 @@ struct IconCanvasView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .geometryGroup()
             .contentShape(Rectangle())
-            .highPriorityGesture(canvasGesture(side: canvasSide))
+            .highPriorityGesture(canvasGesture(side: canvasSide, canvasSize: geo.size))
             .onTapGesture {
                 UIApplication.shared.sendAction(
                     #selector(UIResponder.resignFirstResponder),
@@ -376,7 +377,95 @@ struct IconCanvasView: View {
         .transition(.opacity)
     }
 
-    private func canvasGesture(side: CGFloat) -> some Gesture {
+    private func hitTestLayer(at point: CGPoint, side: CGFloat, canvasSize: CGSize) -> Layer? {
+        let centerX = canvasSize.width / 2
+        let centerY = canvasSize.height / 2
+        for layer in project.layers.reversed() {
+            guard !layer.isHidden else { continue }
+            let baseFactor: CGFloat
+            switch layer.kind {
+            case .image: baseFactor = 0.7
+            case .text: baseFactor = 0.6
+            case .parametricShape: baseFactor = 0.5
+            }
+            let halfSide = side * baseFactor * layer.scale / 2
+            guard halfSide > 0 else { continue }
+            let layerCenterX = centerX + layer.offset.width * side
+            let layerCenterY = centerY + layer.offset.height * side
+            let dx = point.x - layerCenterX
+            let dy = point.y - layerCenterY
+            let angle = -CGFloat(layer.rotation.radians)
+            let cosA = cos(angle)
+            let sinA = sin(angle)
+            let rx = dx * cosA - dy * sinA
+            let ry = dx * sinA + dy * cosA
+            guard abs(rx) <= halfSide && abs(ry) <= halfSide else { continue }
+            if layer.kind == .image {
+                let frameSide = halfSide * 2
+                if Self.imageHasOpaquePixel(in: layer, atLocal: CGPoint(x: rx, y: ry), frameSide: frameSide) {
+                    return layer
+                }
+                continue
+            }
+            return layer
+        }
+        return nil
+    }
+
+    private static func imageHasOpaquePixel(in layer: Layer, atLocal point: CGPoint, frameSide: CGFloat) -> Bool {
+        guard let uiImage = layer.image, let cgImage = uiImage.cgImage else { return true }
+        let lx = layer.isFlippedHorizontally ? -point.x : point.x
+        let ly = layer.isFlippedVertically ? -point.y : point.y
+        let w = CGFloat(cgImage.width)
+        let h = CGFloat(cgImage.height)
+        guard w > 0, h > 0, frameSide > 0 else { return true }
+        let aspect = w / h
+        let renderedW: CGFloat
+        let renderedH: CGFloat
+        if aspect >= 1 {
+            renderedW = frameSide
+            renderedH = frameSide / aspect
+        } else {
+            renderedW = frameSide * aspect
+            renderedH = frameSide
+        }
+        let imgX = lx + renderedW / 2
+        let imgY = ly + renderedH / 2
+        guard imgX >= 0, imgX < renderedW, imgY >= 0, imgY < renderedH else { return false }
+        let px = Int((imgX / renderedW * w).rounded(.down))
+        let py = Int((imgY / renderedH * h).rounded(.down))
+        let clampedX = max(0, min(cgImage.width - 1, px))
+        let clampedY = max(0, min(cgImage.height - 1, py))
+        return sampleAlpha(cgImage: cgImage, x: clampedX, y: clampedY) > 0.05
+    }
+
+    private static func sampleAlpha(cgImage: CGImage, x: Int, y: Int) -> CGFloat {
+        var pixel: [UInt8] = [0, 0, 0, 0]
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let context = CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else { return 1 }
+        context.interpolationQuality = .none
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        let drawRect = CGRect(
+            x: -CGFloat(x),
+            y: CGFloat(y) - height + 1,
+            width: width,
+            height: height
+        )
+        context.draw(cgImage, in: drawRect)
+        return CGFloat(pixel[3]) / 255.0
+    }
+
+    private func canvasGesture(side: CGFloat, canvasSize: CGSize) -> some Gesture {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
                 if session.isMultiSelecting {
@@ -429,8 +518,19 @@ struct IconCanvasView: View {
                 state.snappedLinesY = result.snappedLinesY
                 state.isActive = true
             }
-            .onChanged { _ in promoteOverlaySelection() }
+            .onChanged { value in
+                if !didDragHitTest {
+                    didDragHitTest = true
+                    if !session.isMultiSelecting,
+                       let hit = hitTestLayer(at: value.startLocation, side: side, canvasSize: canvasSize),
+                       session.selectedLayerUUID != hit.uuid {
+                        session.selectLayer(hit.uuid)
+                    }
+                }
+                promoteOverlaySelection()
+            }
             .onEnded { value in
+                didDragHitTest = false
                 guard side > 0,
                       value.translation.width.isFinite,
                       value.translation.height.isFinite
@@ -651,7 +751,6 @@ private struct OverlayLayerView: View {
             transientScale: transientScale,
             transientAngle: transientAngle
         )
-
         .onTapGesture {
             if !isSelected {
                 UISelectionFeedbackGenerator().selectionChanged()
