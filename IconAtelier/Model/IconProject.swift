@@ -251,6 +251,21 @@ final class IconProject: Codable, Identifiable {
     }
 
     @discardableResult
+    func addSilhouetteLayer(spec: ShapeSpec = .iosSquircle) -> Layer {
+        recordUndo()
+        let layer = Layer(
+            kind: .parametricShape,
+            name: nextName(for: .parametricShape, baseFallback: spec.displayName),
+            tintColor: .white,
+            shapeSpec: spec
+        )
+        layer.scaleValue = 0.85
+        layer.opacity = 0.2
+        layers.insert(layer, at: 0)
+        return layer
+    }
+
+    @discardableResult
     func addTextOverlay(text: String = "Aa") -> Layer {
         recordUndo()
         let layer = Layer(kind: .text, name: text, text: text, tintColor: .black)

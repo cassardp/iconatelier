@@ -29,7 +29,7 @@ struct EditActionsMenu: View {
 
         Button {
             withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
-                let layer = project.addShapeLayer(spec: .iosSquircle)
+                let layer = project.addSilhouetteLayer()
                 session.selectLayer(layer.uuid)
             }
         } label: {
