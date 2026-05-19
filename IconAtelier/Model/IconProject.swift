@@ -261,6 +261,12 @@ final class IconProject: Codable, Identifiable {
         layers.removeAll { $0.uuid == layer.uuid }
     }
 
+    func removeLayers(uuids: Set<UUID>) {
+        guard !uuids.isEmpty else { return }
+        recordUndo()
+        layers.removeAll { uuids.contains($0.uuid) }
+    }
+
     func duplicated() -> IconProject {
         let copy = IconProject(title: title + " copy")
         copy.uuid = UUID()
@@ -300,6 +306,19 @@ final class IconProject: Codable, Identifiable {
             layers.append(copy)
         }
         return copy
+    }
+
+    @discardableResult
+    func addPastedLayers(_ pasted: [Layer]) -> [Layer] {
+        guard !pasted.isEmpty else { return [] }
+        recordUndo()
+        var inserted: [Layer] = []
+        for layer in pasted {
+            layer.uuid = UUID()
+            layers.append(layer)
+            inserted.append(layer)
+        }
+        return inserted
     }
 
     func move(from source: IndexSet, to destination: Int) {

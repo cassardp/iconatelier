@@ -108,6 +108,35 @@ struct CompactActionButton: View {
     }
 }
 
+// MARK: - Compact menu button (same chrome as CompactActionButton)
+
+struct CompactMenuButton<MenuContent: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder let menuContent: () -> MenuContent
+
+    var body: some View {
+        Menu {
+            menuContent()
+        } label: {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(width: PanelStyle.rowHeight, height: PanelStyle.rowHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .fill(PanelStyle.rowFill)
+                )
+                .contentShape(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                )
+        }
+        .tint(.primary)
+        .menuOrder(.fixed)
+        .accessibilityLabel(title)
+    }
+}
+
 // MARK: - Action row
 
 struct ActionRow: View {
