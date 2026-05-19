@@ -259,7 +259,7 @@ final class IconProject: Codable, Identifiable {
             tintColor: .white,
             shapeSpec: spec
         )
-        layer.scaleValue = 0.85
+        layer.scaleValue = 1.7
         layer.opacity = 0.2
         layers.insert(layer, at: 0)
         return layer
