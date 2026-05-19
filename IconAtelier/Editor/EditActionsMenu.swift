@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct EditActionsMenu: View {
     @Bindable var project: IconProject
@@ -85,15 +84,17 @@ struct EditActionsMenu: View {
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
-            Button {
-                actions.bringToFront()
-            } label: {
-                Label("Bring to Front", systemImage: "square.3.layers.3d.top.filled")
-            }
-            Button {
-                actions.sendToBack()
-            } label: {
-                Label("Send to Back", systemImage: "square.3.layers.3d.bottom.filled")
+            if project.layers.count >= 2 {
+                Button {
+                    actions.bringToFront()
+                } label: {
+                    Label("Bring to Front", systemImage: "square.3.layers.3d.top.filled")
+                }
+                Button {
+                    actions.sendToBack()
+                } label: {
+                    Label("Send to Back", systemImage: "square.3.layers.3d.bottom.filled")
+                }
             }
             Button {
                 actions.flip(horizontal: true)
@@ -108,7 +109,7 @@ struct EditActionsMenu: View {
             Divider()
         }
 
-        if !project.layers.isEmpty {
+        if project.layers.count >= 2 {
             Button {
                 actions.selectAll()
             } label: {
