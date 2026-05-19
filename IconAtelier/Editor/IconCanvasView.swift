@@ -53,7 +53,8 @@ struct IconCanvasView: View {
         guard side > 0, rawMagnification.isFinite, rawMagnification > 0 else {
             return (rawMagnification, [], [], nil)
         }
-        let baseHalf = layerHalfSize(layer)
+        let visual = visualHalfSize(layer)
+        let baseHalf = max(visual.width, visual.height)
         guard baseHalf > 0 else { return (rawMagnification, [], [], nil) }
         let currentHalf = baseHalf * rawMagnification
         let thresholdFraction = gridSnapThreshold / side
@@ -101,20 +102,115 @@ struct IconCanvasView: View {
         return (half / baseHalf, snappedLinesX, snappedLinesY, nil)
     }
 
-    private static func layerHalfSize(_ layer: Layer) -> CGFloat {
-        let base: CGFloat
+    private static func visualHalfSize(_ layer: Layer) -> CGSize {
+        let frameFactor: CGFloat
         switch layer.kind {
-        case .image: base = 0.7
-        case .text: base = 0.6
-        case .parametricShape: base = 0.5
+        case .image: frameFactor = 0.7
+        case .text: frameFactor = 0.6
+        case .parametricShape: frameFactor = 0.5
         }
-        return base * layer.scale / 2
+        let frameHalf = frameFactor * layer.scale / 2
+
+        switch layer.kind {
+        case .text:
+            return CGSize(width: frameHalf, height: frameHalf)
+        case .parametricShape:
+            guard let spec = layer.shapeSpec, !spec.isOpenPath else {
+                return CGSize(width: frameHalf, height: frameHalf)
+            }
+            let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+            let bbox = spec.anyShape().path(in: unit).boundingRect
+            guard bbox.width > 0, bbox.height > 0 else {
+                return CGSize(width: frameHalf, height: frameHalf)
+            }
+            let hw = max(0.5 - bbox.minX, bbox.maxX - 0.5)
+            let hh = max(0.5 - bbox.minY, bbox.maxY - 0.5)
+            let span = frameHalf * 2
+            return CGSize(width: hw * span, height: hh * span)
+        case .image:
+            guard let img = layer.image, let cg = img.cgImage else {
+                return CGSize(width: frameHalf, height: frameHalf)
+            }
+            let w = CGFloat(cg.width)
+            let h = CGFloat(cg.height)
+            guard w > 0, h > 0 else { return CGSize(width: frameHalf, height: frameHalf) }
+            let frameSide = frameHalf * 2
+            let aspect = w / h
+            let renderedW: CGFloat
+            let renderedH: CGFloat
+            if aspect >= 1 {
+                renderedW = frameSide
+                renderedH = frameSide / aspect
+            } else {
+                renderedW = frameSide * aspect
+                renderedH = frameSide
+            }
+            let bbox = opaqueUnitBounds(of: img)
+            let hw = max(0.5 - bbox.minX, bbox.maxX - 0.5)
+            let hh = max(0.5 - bbox.minY, bbox.maxY - 0.5)
+            return CGSize(width: hw * renderedW, height: hh * renderedH)
+        }
+    }
+
+    private static let opaqueBoundsCache = NSCache<UIImage, NSValue>()
+
+    private static func opaqueUnitBounds(of image: UIImage) -> CGRect {
+        if let cached = opaqueBoundsCache.object(forKey: image) {
+            return cached.cgRectValue
+        }
+        let fallback = CGRect(x: 0, y: 0, width: 1, height: 1)
+        guard let cg = image.cgImage else { return fallback }
+        let maxDim: CGFloat = 96
+        let w = CGFloat(cg.width)
+        let h = CGFloat(cg.height)
+        guard w > 0, h > 0 else { return fallback }
+        let scale = min(1, maxDim / max(w, h))
+        let sw = max(1, Int(w * scale))
+        let sh = max(1, Int(h * scale))
+        var bytes = [UInt8](repeating: 0, count: sw * sh * 4)
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let ctx = CGContext(
+            data: &bytes,
+            width: sw,
+            height: sh,
+            bitsPerComponent: 8,
+            bytesPerRow: sw * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo
+        ) else { return fallback }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: sw, height: sh))
+        var minX = sw, minY = sh, maxX = -1, maxY = -1
+        let threshold: UInt8 = 12
+        for y in 0..<sh {
+            let rowBase = y * sw * 4
+            for x in 0..<sw {
+                if bytes[rowBase + x * 4 + 3] > threshold {
+                    if x < minX { minX = x }
+                    if x > maxX { maxX = x }
+                    if y < minY { minY = y }
+                    if y > maxY { maxY = y }
+                }
+            }
+        }
+        let rect: CGRect
+        if maxX >= 0 {
+            rect = CGRect(
+                x: CGFloat(minX) / CGFloat(sw),
+                y: CGFloat(minY) / CGFloat(sh),
+                width: CGFloat(maxX - minX + 1) / CGFloat(sw),
+                height: CGFloat(maxY - minY + 1) / CGFloat(sh)
+            )
+        } else {
+            rect = fallback
+        }
+        opaqueBoundsCache.setObject(NSValue(cgRect: rect), forKey: image)
+        return rect
     }
 
     private static func snappedToGrid(
         translation: CGSize,
         layerOffset: CGSize,
-        layerHalfSize: CGFloat,
+        layerHalfSize: CGSize,
         side: CGFloat,
         centerOnly: Bool = false
     ) -> (effective: CGSize, snappedLinesX: Set<Int>, snappedLinesY: Set<Int>) {
@@ -125,12 +221,12 @@ struct IconCanvasView: View {
         let centerY = layerOffset.height + translation.height / side
         let activeOffsets: [CGFloat] = centerOnly ? [0] : gridOffsets
 
-        func bestTarget(currentCenter: CGFloat) -> CGFloat? {
+        func bestTarget(currentCenter: CGFloat, half: CGFloat) -> CGFloat? {
             var best: (target: CGFloat, dist: CGFloat)?
             for line in activeOffsets {
                 let candidates: [CGFloat] = centerOnly
                     ? [line]
-                    : [line, line - layerHalfSize, line + layerHalfSize]
+                    : [line, line - half, line + half]
                 for candidate in candidates {
                     let dist = abs(candidate - currentCenter)
                     if best == nil || dist < best!.dist {
@@ -142,13 +238,13 @@ struct IconCanvasView: View {
             return b.target
         }
 
-        func touchedLines(center: CGFloat) -> Set<Int> {
+        func touchedLines(center: CGFloat, half: CGFloat) -> Set<Int> {
             var lines: Set<Int> = []
             for (idx, line) in gridOffsets.enumerated() {
                 let centerHit = abs(line - center) < matchTolerance
                 let edgeHit = !centerOnly && (
-                    abs(line - (center - layerHalfSize)) < matchTolerance
-                    || abs(line - (center + layerHalfSize)) < matchTolerance
+                    abs(line - (center - half)) < matchTolerance
+                    || abs(line - (center + half)) < matchTolerance
                 )
                 if centerHit || edgeHit {
                     lines.insert(idx)
@@ -160,13 +256,13 @@ struct IconCanvasView: View {
         var effective = translation
         var snappedLinesX: Set<Int> = []
         var snappedLinesY: Set<Int> = []
-        if let targetX = bestTarget(currentCenter: centerX) {
+        if let targetX = bestTarget(currentCenter: centerX, half: layerHalfSize.width) {
             effective.width = (targetX - layerOffset.width) * side
-            snappedLinesX = touchedLines(center: targetX)
+            snappedLinesX = touchedLines(center: targetX, half: layerHalfSize.width)
         }
-        if let targetY = bestTarget(currentCenter: centerY) {
+        if let targetY = bestTarget(currentCenter: centerY, half: layerHalfSize.height) {
             effective.height = (targetY - layerOffset.height) * side
-            snappedLinesY = touchedLines(center: targetY)
+            snappedLinesY = touchedLines(center: targetY, half: layerHalfSize.height)
         }
         return (effective, snappedLinesX, snappedLinesY)
     }
@@ -407,9 +503,32 @@ struct IconCanvasView: View {
                 }
                 continue
             }
+            if layer.kind == .parametricShape {
+                if Self.parametricShapeContains(layer: layer, localX: rx, localY: ry, halfSide: halfSide) {
+                    return layer
+                }
+                continue
+            }
             return layer
         }
         return nil
+    }
+
+    private static func parametricShapeContains(layer: Layer, localX: CGFloat, localY: CGFloat, halfSide: CGFloat) -> Bool {
+        guard let spec = layer.shapeSpec, halfSide > 0 else { return true }
+        if spec.isOpenPath { return true }
+        let lx = layer.isFlippedHorizontally ? -localX : localX
+        let ly = layer.isFlippedVertically ? -localY : localY
+        let shapeSide = halfSide * 2
+        let path = spec.anyShape().path(in: CGRect(x: 0, y: 0, width: shapeSide, height: shapeSide))
+        let pathPoint = CGPoint(x: lx + halfSide, y: ly + halfSide)
+        if path.contains(pathPoint) { return true }
+        let borderWidth = shapeSide * CGFloat(layer.borderWidth)
+        if borderWidth > 0 {
+            let stroked = path.strokedPath(StrokeStyle(lineWidth: borderWidth * 2))
+            return stroked.contains(pathPoint)
+        }
+        return false
     }
 
     private static func imageHasOpaquePixel(in layer: Layer, atLocal point: CGPoint, frameSide: CGFloat) -> Bool {
@@ -477,7 +596,7 @@ struct IconCanvasView: View {
                     let result = Self.snappedToGrid(
                         translation: value.translation,
                         layerOffset: pivot,
-                        layerHalfSize: 0,
+                        layerHalfSize: .zero,
                         side: side,
                         centerOnly: true
                     )
@@ -502,7 +621,7 @@ struct IconCanvasView: View {
                 let result = Self.snappedToGrid(
                     translation: value.translation,
                     layerOffset: layer.offset,
-                    layerHalfSize: Self.layerHalfSize(layer),
+                    layerHalfSize: Self.visualHalfSize(layer),
                     side: side,
                     centerOnly: !session.showGrid
                 )
@@ -541,7 +660,7 @@ struct IconCanvasView: View {
                         effective = Self.snappedToGrid(
                             translation: value.translation,
                             layerOffset: pivot,
-                            layerHalfSize: 0,
+                            layerHalfSize: .zero,
                             side: side,
                             centerOnly: true
                         ).effective
@@ -570,7 +689,7 @@ struct IconCanvasView: View {
                 let effective = Self.snappedToGrid(
                     translation: value.translation,
                     layerOffset: layer.offset,
-                    layerHalfSize: Self.layerHalfSize(layer),
+                    layerHalfSize: Self.visualHalfSize(layer),
                     side: side,
                     centerOnly: !session.showGrid
                 ).effective
