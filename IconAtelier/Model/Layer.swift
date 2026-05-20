@@ -59,6 +59,14 @@ enum LayerLineCap: String, CaseIterable, Codable {
         case .square: return .square
         }
     }
+
+    var cgLineJoin: CGLineJoin {
+        switch self {
+        case .butt:   return .miter
+        case .round:  return .round
+        case .square: return .miter
+        }
+    }
 }
 
 enum LayerFontDesign: String, CaseIterable, Codable {
