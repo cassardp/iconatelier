@@ -4,16 +4,12 @@ enum LayerClipboard {
     static let pasteboardType = "com.iconatelier.layers.v1"
 
     private struct Payload: Codable {
-        struct Item: Codable {
-            let layer: Layer
-            let imagePNG: Data?
-        }
-        let items: [Item]
+        let items: [Layer]
     }
 
     static func copy(_ layers: [Layer]) {
         guard !layers.isEmpty else { return }
-        let payload = Payload(items: layers.map { Payload.Item(layer: $0, imagePNG: $0.imagePNG) })
+        let payload = Payload(items: layers)
         guard let data = try? JSONEncoder().encode(payload) else { return }
         UIPasteboard.general.setData(data, forPasteboardType: pasteboardType)
     }
@@ -24,11 +20,7 @@ enum LayerClipboard {
         else {
             return nil
         }
-        return payload.items.map { item in
-            var layer = item.layer
-            layer.imagePNG = item.imagePNG
-            return layer
-        }
+        return payload.items
     }
 
     static var hasContent: Bool {

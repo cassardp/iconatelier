@@ -25,7 +25,7 @@ enum LayerFontWeight: String, CaseIterable, Codable {
     }
 }
 
-enum BorderPosition: String, CaseIterable, Codable {
+enum BorderPosition: String, CaseIterable, Codable, Sendable {
     case inner
     case center
     case outer
@@ -39,7 +39,7 @@ enum BorderPosition: String, CaseIterable, Codable {
     }
 }
 
-enum LayerLineCap: String, CaseIterable, Codable {
+enum LayerLineCap: String, CaseIterable, Codable, Sendable {
     case butt
     case round
     case square
@@ -97,167 +97,437 @@ enum LayerFontDesign: String, CaseIterable, Codable {
 struct Layer: Codable, Identifiable {
     var uuid: UUID = UUID()
     var name: String = ""
-    var kind: LayerKind = .image
-
-    var imagePNG: Data? {
-        didSet { imagePNGDirty = true }
-    }
+    var transform: LayerTransform = LayerTransform()
+    var appearance: LayerAppearance = LayerAppearance()
+    var shadow: LayerShadow = LayerShadow()
+    var content: LayerContent
 
     var imagePNGDirty: Bool = true
 
-    var text: String = "Aa"
-    var fontWeight: LayerFontWeight = .bold
-    var fontDesign: LayerFontDesign = .rounded
-
-    var storedTintColor: StoredColor = StoredColor.white
-
-    var storedFillPaint: Paint?
-
-    var shapeSpec: ShapeSpec?
-
-    var cornerRadius: Double = 0
-    var borderWidth: Double = 0
-    var storedBorderColor: StoredColor = StoredColor.black
-    var borderPosition: BorderPosition = .center
-    var fillEnabled: Bool = true
-    var lineCap: LayerLineCap = .round
-
-    var offsetW: Double = 0
-    var offsetH: Double = 0
-    var scaleValue: Double = 1.0
-    var rotationRadians: Double = 0
-    var opacity: Double = 1.0
-
-    var shadowOpacity: Double = 0
-    var shadowRadius: Double = 0.04
-    var shadowOffsetX: Double = 0
-    var shadowOffsetY: Double = 0.02
-    var storedShadowColor: StoredColor = StoredColor.black
-
-    var isLocked: Bool = false
-    var isFlippedHorizontally: Bool = false
-    var isFlippedVertically: Bool = false
-
     var id: UUID { uuid }
+
+    private enum CodingKeys: String, CodingKey {
+        case uuid, name, transform, appearance, shadow, content
+    }
 
     init(
         uuid: UUID = UUID(),
-        kind: LayerKind,
         name: String,
-        image: UIImage? = nil,
-        text: String = "Aa",
-        fontWeight: LayerFontWeight = .bold,
-        fontDesign: LayerFontDesign = .rounded,
-        tintColor: Color = .white,
-        shapeSpec: ShapeSpec? = nil
+        transform: LayerTransform = LayerTransform(),
+        appearance: LayerAppearance = LayerAppearance(),
+        shadow: LayerShadow = LayerShadow(),
+        content: LayerContent
     ) {
         self.uuid = uuid
         self.name = name
-        self.kind = kind
-        self.imagePNG = image?.pngData()
-        self.text = text
-        self.fontWeight = fontWeight
-        self.fontDesign = fontDesign
-        self.storedTintColor = StoredColor(tintColor)
-        self.shapeSpec = shapeSpec
+        self.transform = transform
+        self.appearance = appearance
+        self.shadow = shadow
+        self.content = content
     }
 
-    // MARK: - Codable
-
-    private enum CodingKeys: String, CodingKey {
-        case uuid, name
-        case kind = "kindRaw"
-        case imagePNG
-        case text
-        case fontWeight = "fontWeightRaw"
-        case fontDesign = "fontDesignRaw"
-        case storedTintColor, storedFillPaint, shapeSpec
-        case cornerRadius, borderWidth, storedBorderColor
-        case borderPosition = "borderPositionRaw"
-        case fillEnabled
-        case lineCap = "lineCapRaw"
-        case offsetW, offsetH, scaleValue, rotationRadians, opacity
-        case shadowOpacity, shadowRadius, shadowOffsetX, shadowOffsetY, storedShadowColor
-        case isLocked, isFlippedHorizontally, isFlippedVertically
+    static func image(
+        uuid: UUID = UUID(),
+        name: String,
+        image: UIImage? = nil,
+        tintColor: Color = .white
+    ) -> Layer {
+        Layer(
+            uuid: uuid,
+            name: name,
+            content: .image(ImageContent(
+                imagePNG: image?.pngData(),
+                tint: StoredColor(tintColor)
+            ))
+        )
     }
 
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        kind = (try? c.decodeIfPresent(LayerKind.self, forKey: .kind)) ?? .image
-        imagePNG = try c.decodeIfPresent(Data.self, forKey: .imagePNG)
-        text = try c.decodeIfPresent(String.self, forKey: .text) ?? "Aa"
-        fontWeight = (try? c.decodeIfPresent(LayerFontWeight.self, forKey: .fontWeight)) ?? .bold
-        fontDesign = (try? c.decodeIfPresent(LayerFontDesign.self, forKey: .fontDesign)) ?? .rounded
-        storedTintColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedTintColor) ?? StoredColor.white
-        storedFillPaint = try c.decodeIfPresent(Paint.self, forKey: .storedFillPaint)
-        shapeSpec = try c.decodeIfPresent(ShapeSpec.self, forKey: .shapeSpec)
-        cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 0
-        borderWidth = try c.decodeIfPresent(Double.self, forKey: .borderWidth) ?? 0
-        storedBorderColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedBorderColor) ?? StoredColor.black
-        borderPosition = (try? c.decodeIfPresent(BorderPosition.self, forKey: .borderPosition)) ?? .center
-        fillEnabled = try c.decodeIfPresent(Bool.self, forKey: .fillEnabled) ?? true
-        lineCap = (try? c.decodeIfPresent(LayerLineCap.self, forKey: .lineCap)) ?? .round
-        offsetW = try c.decodeIfPresent(Double.self, forKey: .offsetW) ?? 0
-        offsetH = try c.decodeIfPresent(Double.self, forKey: .offsetH) ?? 0
-        scaleValue = try c.decodeIfPresent(Double.self, forKey: .scaleValue) ?? 1.0
-        rotationRadians = try c.decodeIfPresent(Double.self, forKey: .rotationRadians) ?? 0
-        opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? 1.0
-        shadowOpacity = try c.decodeIfPresent(Double.self, forKey: .shadowOpacity) ?? 0
-        shadowRadius = try c.decodeIfPresent(Double.self, forKey: .shadowRadius) ?? 0.04
-        shadowOffsetX = try c.decodeIfPresent(Double.self, forKey: .shadowOffsetX) ?? 0
-        shadowOffsetY = try c.decodeIfPresent(Double.self, forKey: .shadowOffsetY) ?? 0.02
-        storedShadowColor = try c.decodeIfPresent(StoredColor.self, forKey: .storedShadowColor) ?? StoredColor.black
-        isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
-        isFlippedHorizontally = try c.decodeIfPresent(Bool.self, forKey: .isFlippedHorizontally) ?? false
-        isFlippedVertically = try c.decodeIfPresent(Bool.self, forKey: .isFlippedVertically) ?? false
+    static func text(
+        uuid: UUID = UUID(),
+        name: String,
+        text: String = "Aa",
+        fontWeight: LayerFontWeight = .bold,
+        fontDesign: LayerFontDesign = .rounded,
+        tintColor: Color = .black
+    ) -> Layer {
+        Layer(
+            uuid: uuid,
+            name: name,
+            content: .text(TextContent(
+                text: text,
+                fontWeight: fontWeight,
+                fontDesign: fontDesign,
+                fill: LayerFill(paint: .solid(tintColor))
+            ))
+        )
     }
 
-    // MARK: - Bridged properties
-
-    var image: UIImage? {
-        get { imagePNG.flatMap { UIImage(data: $0) } }
-        set { imagePNG = newValue?.pngData() }
+    static func shape(
+        uuid: UUID = UUID(),
+        name: String,
+        spec: ShapeSpec,
+        tintColor: Color = .white
+    ) -> Layer {
+        Layer(
+            uuid: uuid,
+            name: name,
+            content: .shape(ShapeContent(
+                spec: spec,
+                fill: LayerFill(paint: .solid(tintColor))
+            ))
+        )
     }
 
-    var tintColor: Color {
-        get { storedTintColor.color }
-        set { storedTintColor = StoredColor(newValue) }
+    // MARK: - Derived
+
+    var kind: LayerKind {
+        switch content {
+        case .image: return .image
+        case .text:  return .text
+        case .shape: return .parametricShape
+        }
     }
+
+    // MARK: - Transform bridges
 
     var offset: CGSize {
-        get { CGSize(width: offsetW, height: offsetH) }
-        set { offsetW = Double(newValue.width); offsetH = Double(newValue.height) }
+        get { CGSize(width: transform.offsetW, height: transform.offsetH) }
+        set {
+            transform.offsetW = Double(newValue.width)
+            transform.offsetH = Double(newValue.height)
+        }
     }
 
     var scale: CGFloat {
-        get { CGFloat(scaleValue) }
-        set { scaleValue = Double(newValue) }
+        get { CGFloat(transform.scaleValue) }
+        set { transform.scaleValue = Double(newValue) }
+    }
+
+    var scaleValue: Double {
+        get { transform.scaleValue }
+        set { transform.scaleValue = newValue }
     }
 
     var rotation: Angle {
-        get { .radians(rotationRadians) }
-        set { rotationRadians = newValue.radians }
+        get { .radians(transform.rotationRadians) }
+        set { transform.rotationRadians = newValue.radians }
+    }
+
+    var rotationRadians: Double {
+        get { transform.rotationRadians }
+        set { transform.rotationRadians = newValue }
+    }
+
+    var isFlippedHorizontally: Bool {
+        get { transform.isFlippedHorizontally }
+        set { transform.isFlippedHorizontally = newValue }
+    }
+
+    var isFlippedVertically: Bool {
+        get { transform.isFlippedVertically }
+        set { transform.isFlippedVertically = newValue }
+    }
+
+    // MARK: - Appearance bridges
+
+    var opacity: Double {
+        get { appearance.opacity }
+        set { appearance.opacity = newValue }
+    }
+
+    var isLocked: Bool {
+        get { appearance.isLocked }
+        set { appearance.isLocked = newValue }
+    }
+
+    // MARK: - Shadow bridges
+
+    var shadowOpacity: Double {
+        get { shadow.opacity }
+        set { shadow.opacity = newValue }
+    }
+
+    var shadowRadius: Double {
+        get { shadow.radius }
+        set { shadow.radius = newValue }
+    }
+
+    var shadowOffsetX: Double {
+        get { shadow.offsetX }
+        set { shadow.offsetX = newValue }
+    }
+
+    var shadowOffsetY: Double {
+        get { shadow.offsetY }
+        set { shadow.offsetY = newValue }
     }
 
     var shadowColor: Color {
-        get { storedShadowColor.color }
-        set { storedShadowColor = StoredColor(newValue) }
+        get { shadow.color.color }
+        set { shadow.color = StoredColor(newValue) }
     }
 
-    var borderColor: Color {
-        get { storedBorderColor.color }
-        set { storedBorderColor = StoredColor(newValue) }
+    // MARK: - Content accessors (read)
+
+    var imagePNG: Data? {
+        get {
+            if case let .image(c) = content { return c.imagePNG }
+            return nil
+        }
+        set { setImagePNG(newValue) }
+    }
+
+    var image: UIImage? {
+        imagePNG.flatMap { UIImage(data: $0) }
+    }
+
+    var tintColor: Color {
+        get {
+            switch content {
+            case let .image(c): return c.tint.color
+            case let .text(c):  return c.fill.paint.solidColor.color
+            case let .shape(c): return c.fill.paint.solidColor.color
+            }
+        }
+        set {
+            switch content {
+            case var .image(c):
+                c.tint = StoredColor(newValue)
+                content = .image(c)
+            case var .text(c):
+                c.fill.paint = .solid(newValue)
+                content = .text(c)
+            case var .shape(c):
+                c.fill.paint = .solid(newValue)
+                content = .shape(c)
+            }
+        }
+    }
+
+    var text: String {
+        get { if case let .text(c) = content { return c.text } else { return "" } }
+        set {
+            guard case var .text(c) = content else { return }
+            c.text = newValue
+            content = .text(c)
+        }
+    }
+
+    var fontWeight: LayerFontWeight {
+        get { if case let .text(c) = content { return c.fontWeight } else { return .bold } }
+        set {
+            guard case var .text(c) = content else { return }
+            c.fontWeight = newValue
+            content = .text(c)
+        }
+    }
+
+    var fontDesign: LayerFontDesign {
+        get { if case let .text(c) = content { return c.fontDesign } else { return .rounded } }
+        set {
+            guard case var .text(c) = content else { return }
+            c.fontDesign = newValue
+            content = .text(c)
+        }
+    }
+
+    var shapeSpec: ShapeSpec? {
+        get {
+            if case let .shape(c) = content { return c.spec }
+            return nil
+        }
+        set {
+            guard case var .shape(c) = content, let spec = newValue else { return }
+            c.spec = spec
+            content = .shape(c)
+        }
+    }
+
+    var radialRepeatParams: RadialRepeatParams? {
+        get {
+            switch content {
+            case let .text(c):  return c.radialRepeat
+            case let .shape(c): return c.spec.radialRepeatParams
+            case .image:        return nil
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.radialRepeat = newValue
+                content = .text(c)
+            case var .shape(c):
+                if let params = newValue {
+                    c.spec = c.spec.wrappingInRadialRepeat(params)
+                } else {
+                    c.spec = c.spec.unwrapped ?? c.spec
+                }
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
+    // Fill/border accessors — apply only to text + shape; no-op for image.
+    var fillEnabled: Bool {
+        get {
+            switch content {
+            case let .text(c):  return c.fill.enabled
+            case let .shape(c): return c.fill.enabled
+            case .image:        return false
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.fill.enabled = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.fill.enabled = newValue
+                content = .shape(c)
+            case .image: break
+            }
+        }
     }
 
     var fillPaint: Paint {
-        get { storedFillPaint ?? .solid(tintColor) }
-        set {
-            storedFillPaint = newValue
-            if newValue.kind == .solid {
-                storedTintColor = newValue.solidColor
+        get {
+            switch content {
+            case let .text(c):  return c.fill.paint
+            case let .shape(c): return c.fill.paint
+            case let .image(c): return .solid(c.tint.color)
             }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.fill.paint = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.fill.paint = newValue
+                content = .shape(c)
+            case var .image(c):
+                if newValue.kind == .solid {
+                    c.tint = newValue.solidColor
+                    content = .image(c)
+                }
+            }
+        }
+    }
+
+    var storedFillPaint: Paint? {
+        get {
+            switch content {
+            case let .text(c):  return c.fill.paint
+            case let .shape(c): return c.fill.paint
+            case .image:        return nil
+            }
+        }
+        set {
+            guard let paint = newValue else { return }
+            fillPaint = paint
+        }
+    }
+
+    var borderWidth: Double {
+        get {
+            switch content {
+            case let .text(c):  return c.border.width
+            case let .shape(c): return c.border.width
+            case .image:        return 0
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.border.width = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.border.width = newValue
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
+    var borderColor: Color {
+        get {
+            switch content {
+            case let .text(c):  return c.border.color.color
+            case let .shape(c): return c.border.color.color
+            case .image:        return .black
+            }
+        }
+        set {
+            let stored = StoredColor(newValue)
+            switch content {
+            case var .text(c):
+                c.border.color = stored
+                content = .text(c)
+            case var .shape(c):
+                c.border.color = stored
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
+    var borderPosition: BorderPosition {
+        get {
+            switch content {
+            case let .text(c):  return c.border.position
+            case let .shape(c): return c.border.position
+            case .image:        return .center
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.border.position = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.border.position = newValue
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
+    var lineCap: LayerLineCap {
+        get {
+            switch content {
+            case let .text(c):  return c.border.lineCap
+            case let .shape(c): return c.border.lineCap
+            case .image:        return .round
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.border.lineCap = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.border.lineCap = newValue
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
+    // MARK: - Content mutations
+
+    mutating func setImagePNG(_ data: Data?) {
+        guard case var .image(c) = content else { return }
+        c.imagePNG = data
+        content = .image(c)
+        imagePNGDirty = true
+    }
+
+    mutating func setShapeSpec(_ spec: ShapeSpec?) {
+        guard case var .shape(c) = content else { return }
+        if let spec {
+            c.spec = spec
+            content = .shape(c)
         }
     }
 }

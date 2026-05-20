@@ -127,16 +127,11 @@ struct LayerEditorContent: View {
 
     @ViewBuilder
     private func radialRepeatSection(layerBinding: Binding<Layer>, kind: LayerKind) -> some View {
-
-        let isText = kind == .text
-
         PanelSection(
             title: "Radial repeat",
             isOn: RadialRepeatPanelContent.enabledBinding(
                 layer: layerBinding,
-                project: project,
-                wrapBase: { isText ? .iosSquircle : (layerBinding.wrappedValue.shapeSpec ?? .defaultShape) },
-                disabledShapeSpec: { isText ? nil : layerBinding.wrappedValue.shapeSpec?.unwrapped }
+                project: project
             )
         ) {
             RadialRepeatPanelContent(layer: layerBinding, project: project)

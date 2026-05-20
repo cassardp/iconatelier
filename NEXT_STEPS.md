@@ -1,9 +1,9 @@
 # NEXT_STEPS — Refactor architecture IconAtelier
 
-Document de reprise après les étapes 1, 2 et 4a. Permet de clear la
+Document de reprise après les étapes 1, 2, 4a et 4b. Permet de clear la
 session Claude et repartir sans perdre le contexte.
 
-Daté du 2026-05-20 (mis à jour après étape 4a).
+Daté du 2026-05-20 (mis à jour après étape 4b).
 
 ---
 
@@ -26,11 +26,61 @@ features. Le plan retenu (re-priorisé pour "ajouter features rapidement") :
 3. ~~Ajouter les handles (feature directe)~~ — **skip pour l'instant**
 4. **`Layer` class → struct + `LayerContent` enum**
    - 4a — Layer class → struct (compat JSON préservée) ✅
-   - 4b — `LayerContent` enum (image/text/shape) — à faire
+   - 4b — `LayerContent` enum (image/text/shape) ✅
 5. **`[LayerEffect]` stackable** (refactor des shadow existants en `.dropShadow(...)`)
 6. Ajouter les nouveaux effets un par un
 
-**Étapes complétées : 1, 2, 4a.**
+**Étapes complétées : 1, 2, 4a, 4b.**
+
+---
+
+## Étape 4b — résumé
+
+`LayerContent` enum introduit. `Layer` est recomposé autour de sous-types.
+
+**Nouveaux fichiers** :
+- `IconAtelier/Model/LayerContent.swift` — sous-types `LayerTransform`,
+  `LayerAppearance`, `LayerShadow`, `LayerFill`, `LayerBorder`,
+  `ImageContent`, `TextContent`, `ShapeContent`, et l'enum `LayerContent`
+  à 3 cas (`.image`, `.text`, `.shape`).
+
+**Layer recomposé** :
+```swift
+struct Layer: Codable, Identifiable {
+    var uuid: UUID
+    var name: String
+    var transform: LayerTransform
+    var appearance: LayerAppearance
+    var shadow: LayerShadow
+    var content: LayerContent
+    var imagePNGDirty: Bool  // non persisté (CodingKeys explicit)
+}
+```
+
+**Décisions actées en passant** :
+- **Compat JSON cassée** : projets sauvegardés ne se chargent plus
+  (utilisateur a explicitement renoncé à la rétro-compat).
+- **`RadialRepeatParams` rendu `Codable`** (ajout simple : 3 fields).
+  Sur `TextContent`, désormais un champ direct (`radialRepeat:
+  RadialRepeatParams?`) au lieu de squatter un `ShapeSpec`.
+- **Factories typées** : `Layer.image(...)`, `Layer.text(...)`,
+  `Layer.shape(...)` remplacent `Layer(kind:...)`. L'init principal ne
+  prend plus `kind` mais `content`.
+- **Bridges conservés sur `Layer`** : pour minimiser le scope de
+  migration des ~80 call sites, beaucoup de propriétés calculées
+  forwardent vers le bon case (`text`, `imagePNG`, `shapeSpec`,
+  `tintColor`, `borderWidth`, `shadowOpacity`, etc.). Le modèle interne
+  reste typé ; le code utilisateur n'a pas eu à changer partout.
+
+**Simplifications glanées** :
+- `LayerClipboard` ne dédouble plus `imagePNG` (déjà dans le content).
+- `ContentView.exportSignature` passe par un encode JSON au lieu
+  d'énumérer manuellement chaque field.
+- `RadialRepeatPanelContent` n'a plus besoin des closures
+  `wrapBase`/`disabledShapeSpec` — il opère via le bridge
+  `radialRepeatParams` (text + shape unifiés).
+
+**Build** : `xcodebuild ... build` ⇒ **BUILD SUCCEEDED** pour iPhone.
 
 ---
 
@@ -145,11 +195,13 @@ IconAtelier/
 
 Dettes structurelles restantes :
 
-- `Layer` est un `struct` flat — tous les champs de tous les kinds
-  coexistent (un text layer porte encore `imagePNG`, `shapeSpec`, etc.).
-  L'étape 4b (LayerContent enum) reste à faire pour discriminer.
-- `Codable` manuel pour `Layer.init(from:)` (~30 lignes de
-  `decodeIfPresent`) et pour `IconProject`, `Paint`.
+- `Layer` expose de nombreux **bridges computed** (~30 props) qui
+  forwardent vers le bon case de `content`. Pratique pour limiter le
+  scope de la migration ; à nettoyer progressivement (notamment les
+  bridges `shadow*` qui disparaîtront avec l'étape 5
+  `[LayerEffect]`).
+- `Codable` manuel pour `IconProject` (decodeIfPresent), `Paint`,
+  `ShapeSpec` (custom). Pas urgent.
 - `ContentView` (627 l.) gère encore layout + sheets + lasso + AI flow +
   import + export + persist + thumbnail.
 - Rendu dupliqué : `LayerContentView` (écran) vs `LayerForBooleanRender`
@@ -159,59 +211,6 @@ Dettes structurelles restantes :
 ---
 
 ## La suite (chronologique)
-
-### Étape 4b — `LayerContent` enum (image/text/shape)
-
-C'est la suite logique de 4a. Maintenant que `Layer` est une struct,
-introduire le discriminant typé devient relativement direct.
-
-Modèle cible :
-
-```swift
-struct Layer: Codable, Identifiable {
-    var id: UUID
-    var name: String
-    var transform: LayerTransform    // offset, scale, rotation, flips
-    var appearance: LayerAppearance  // opacity, isLocked
-    var border: BorderStyle?         // sortable hors de Layer plus tard
-    var shadow: ShadowStyle?
-    var content: LayerContent
-}
-
-enum LayerContent: Codable, Equatable {
-    case image(ImageContent)         // assetID/imagePNG, tint
-    case text(TextContent)           // string, weight, design, fill, border
-    case shape(ShapeContent)         // spec, fill, border
-}
-```
-
-Gains supplémentaires :
-- Un text layer n'a plus de `imagePNG`. Modèle propre.
-- L'API d'édition devient `switch layer.content { ... }` au lieu de
-  switch sur `layer.kind`.
-- L'étape 5 (`[LayerEffect]` stackable) devient triviale ensuite.
-
-⚠️ **Migration JSON** : c'est ici qu'on casse la compat des projets
-sauvegardés (le shape du JSON change : plus de champs flat
-`text`/`fontWeight`/`imagePNG`, mais un nested `content`). Deux options :
-- **A — Custom `init(from:)` qui lit l'ancien shape ET le nouveau**.
-  Garde la rétro-compat. ~40 lignes de plumbing. Recommandé.
-- **B — Cassure franche**. Plus court à écrire mais demande d'effacer
-  les projets locaux. Pas acceptable pour les projets de l'utilisateur.
-
-Plan d'implémentation :
-1. Définir `LayerTransform`, `LayerAppearance`, `LayerContent` + leurs
-   sous-types `ImageContent`/`TextContent`/`ShapeContent`.
-2. Faire compiler le nouveau modèle en parallèle (option : `LayerV2`).
-3. Migrer les call sites un par un :
-   - `LayerKind` → `layer.content` switch
-   - `layer.text` → `layer.content.text?.string` etc.
-   - Mutations : remplacer les `layer.foo = X` par
-     `if case .text(var t) = layer.content { t.foo = X; layer.content = .text(t) }`
-     (verbeux, mais on peut écrire des helpers).
-4. Backwards-decodable `init(from:)` qui produit `content` à partir des
-   anciens champs flat si nouveau format absent.
-5. Supprimer l'ancien `Layer` flat.
 
 ### Étape 3 — Resize handles au doigt (feature directe)
 
@@ -252,7 +251,7 @@ qui s'ajoute en overlay dans `IconCanvasView.squircleIcon(side:)` quand
 
 ### Étape 5 — `[LayerEffect]` stackable
 
-Dès que l'étape 4b est en place :
+Maintenant que l'étape 4b est en place :
 
 ```swift
 struct LayerAppearance: Codable, Equatable {
@@ -310,15 +309,15 @@ via `decodeIfPresent` sur les anciens champs.
 - [x] **Migration persistence préservée** : custom `init(from:)`
       conservé, `decodeIfPresent ?? default` partout, JSON inchangé.
 
-## Décisions à acter avant l'étape 4b
+## Décisions actées (étape 4b)
 
-- [ ] **Casser la compat JSON ou la préserver via decoder hybride ?**
-      Recommandation : preserver (option A), ~40 lignes de plumbing
-      raisonnable.
-- [ ] **Asset store séparé maintenant ou plus tard ?** Décorréler
-      `imagePNG: Data` du Layer en faveur d'un `AssetID` + AssetStore.
-      Plus propre mais étend le scope de 4b. Recommandation : reporter
-      au step "Asset store séparé" plus bas.
+- [x] **Compat JSON cassée** (choix utilisateur). Les projets
+      sauvegardés en local doivent être supprimés ; pas de plumbing
+      hybride.
+- [x] **Bridges conservés sur `Layer`** plutôt que migration franche
+      des ~80 call sites. Modèle interne propre, surface API
+      progressive.
+- [x] **Asset store séparé reporté** au step dédié plus bas.
 
 ---
 
@@ -326,16 +325,17 @@ via `decodeIfPresent` sur les anciens champs.
 
 1. Lire ce fichier (`NEXT_STEPS.md`).
 2. Lire `CLAUDE.md` (consignes projet : skills d'abord, UI anglaise, etc.).
-3. Pour l'étape 4b (LayerContent enum) : commencer par définir les
-   sous-types (`LayerTransform`, `LayerAppearance`, `LayerContent`,
-   `ImageContent`/`TextContent`/`ShapeContent`) à côté de l'existant.
-   Faire compiler en parallèle (LayerV2 ou direct in-place). Écrire le
-   custom decoder hybride (lit ancien + nouveau format). Migrer les
-   call sites par groupe : panels d'édition → renderers → mutations.
-4. Pour l'étape 3 (handles) : commencer par `IconAtelier/Editor/SelectionHandles.swift`,
-   greffé en overlay sur `IconCanvasView.squircleIcon`. Utiliser
-   `CanvasSnapping.layerNormalizedBounds` et `LayerGeometry` qui sont déjà
-   en place.
+3. Pour l'étape 5 (`[LayerEffect]` stackable) : ajouter
+   `var effects: [LayerEffect]` à `LayerAppearance`, définir l'enum
+   `LayerEffect` (commencer par `.dropShadow`), migrer les bridges
+   `shadow*` actuels de `Layer` vers un premier effet `.dropShadow`,
+   adapter le rendu (`OverlayLayerRender.shadow(...)`) pour itérer sur
+   `effects`. Les bridges peuvent ensuite disparaître.
+4. Pour l'étape 3 (handles) : commencer par
+   `IconAtelier/Editor/SelectionHandles.swift`, greffé en overlay sur
+   `IconCanvasView.squircleIcon`. Utiliser
+   `CanvasSnapping.layerNormalizedBounds` et `LayerGeometry` qui sont
+   déjà en place.
 
 ---
 

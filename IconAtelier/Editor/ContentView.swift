@@ -572,25 +572,13 @@ struct ContentView: View {
         if let bg = project.background {
             hasher.combine(bg.kind)
         }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
         for layer in project.layers {
             hasher.combine(layer.uuid)
-            hasher.combine(layer.kind)
-            hasher.combine(layer.imagePNG?.hashValue ?? 0)
-            hasher.combine(layer.text)
-            hasher.combine(layer.shapeSpec)
-            hasher.combine(layer.cornerRadius)
-            hasher.combine(layer.borderWidth)
-            hasher.combine(layer.storedBorderColor)
-            hasher.combine(layer.borderPosition)
-            hasher.combine(layer.storedTintColor)
-            hasher.combine(layer.storedFillPaint)
-            hasher.combine(layer.scaleValue)
-            hasher.combine(layer.rotationRadians)
-            hasher.combine(layer.offsetW)
-            hasher.combine(layer.offsetH)
-            hasher.combine(layer.opacity)
-            hasher.combine(layer.isFlippedHorizontally)
-            hasher.combine(layer.isFlippedVertically)
+            if let data = try? encoder.encode(layer) {
+                hasher.combine(data)
+            }
         }
         return hasher.finalize()
     }

@@ -295,7 +295,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     }
 }
 
-nonisolated struct RadialRepeatParams: Hashable, Sendable {
+nonisolated struct RadialRepeatParams: Hashable, Sendable, Codable {
     var count: Int
     var centerHole: Double
     var orientation: Double

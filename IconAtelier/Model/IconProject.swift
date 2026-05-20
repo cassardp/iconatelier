@@ -152,7 +152,7 @@ final class IconProject: Codable, Identifiable {
         guard layers.contains(where: { $0.uuid == id }) else { return nil }
         return Binding(
             get: { [weak self] in
-                self?.layers.first(where: { $0.uuid == id }) ?? Layer(kind: .image, name: "")
+                self?.layers.first(where: { $0.uuid == id }) ?? Layer.image(name: "")
             },
             set: { [weak self] newValue in
                 guard let self else { return }
@@ -233,8 +233,7 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addImportedOverlay(image: UIImage) -> Layer {
         recordUndo()
-        return append(Layer(
-            kind: .image,
+        return append(Layer.image(
             name: nextName(for: .image, baseFallback: "Import"),
             image: image
         ))
@@ -243,8 +242,7 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addGeneratedImage(image: UIImage) -> Layer {
         recordUndo()
-        return append(Layer(
-            kind: .image,
+        return append(Layer.image(
             name: nextName(for: .image, baseFallback: "Generated"),
             image: image
         ))
@@ -253,11 +251,10 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addShapeLayer(spec: ShapeSpec) -> Layer {
         recordUndo()
-        var layer = Layer(
-            kind: .parametricShape,
+        var layer = Layer.shape(
             name: nextName(for: .parametricShape, baseFallback: spec.displayName),
-            tintColor: .white,
-            shapeSpec: spec
+            spec: spec,
+            tintColor: .white
         )
         layer.scaleValue = 2.0 / 3.0
         return append(layer)
@@ -266,11 +263,10 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addSilhouetteLayer(spec: ShapeSpec = .iosSquircle) -> Layer {
         recordUndo()
-        var layer = Layer(
-            kind: .parametricShape,
+        var layer = Layer.shape(
             name: nextName(for: .parametricShape, baseFallback: spec.displayName),
-            tintColor: .white,
-            shapeSpec: spec
+            spec: spec,
+            tintColor: .white
         )
         layer.scaleValue = 1.7
         layer.opacity = 0.2
@@ -281,7 +277,7 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addTextOverlay(text: String = "Aa") -> Layer {
         recordUndo()
-        var layer = Layer(kind: .text, name: text, text: text, tintColor: .black)
+        var layer = Layer.text(name: text, text: text, tintColor: .black)
         layer.scaleValue = 1.0 / 1.8
         return append(layer)
     }
@@ -401,11 +397,7 @@ final class IconProject: Codable, Identifiable {
             guard let result = BooleanOpRenderer.compose(layers: targets, op: op) else {
                 return nil
             }
-            var layer = Layer(
-                kind: .image,
-                name: op.label,
-                image: result.image
-            )
+            var layer = Layer.image(name: op.label, image: result.image)
             layer.offset = CGSize(
                 width: result.centerInUnit.x,
                 height: result.centerInUnit.y
@@ -458,24 +450,19 @@ final class IconProject: Codable, Identifiable {
             height: bbox.midY / vector.canvasSide
         )
 
-        var layer = Layer(
-            kind: .parametricShape,
+        var layer = Layer.shape(
             name: op.label,
-            tintColor: source.tintColor,
-            shapeSpec: .customPath(primitive)
+            spec: .customPath(primitive),
+            tintColor: source.tintColor
         )
-        layer.storedFillPaint = source.storedFillPaint
+        if let paint = source.storedFillPaint { layer.fillPaint = paint }
         layer.fillEnabled = source.fillEnabled
         layer.borderWidth = source.borderWidth
-        layer.storedBorderColor = source.storedBorderColor
+        layer.borderColor = source.borderColor
         layer.borderPosition = source.borderPosition
         layer.lineCap = source.lineCap
         layer.opacity = source.opacity
-        layer.shadowOpacity = source.shadowOpacity
-        layer.shadowRadius = source.shadowRadius
-        layer.shadowOffsetX = source.shadowOffsetX
-        layer.shadowOffsetY = source.shadowOffsetY
-        layer.storedShadowColor = source.storedShadowColor
+        layer.shadow = source.shadow
         layer.offset = offset
         layer.scaleValue = Double(scale)
         return layer

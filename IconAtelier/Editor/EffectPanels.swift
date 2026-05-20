@@ -267,7 +267,7 @@ struct RadialRepeatPanelContent: View {
     let project: IconProject
 
     var body: some View {
-        if layer.shapeSpec?.radialRepeatParams != nil {
+        if layer.radialRepeatParams != nil {
             sliders
         }
     }
@@ -283,21 +283,16 @@ struct RadialRepeatPanelContent: View {
 
     static func enabledBinding(
         layer: Binding<Layer>,
-        project: IconProject,
-        wrapBase: @escaping () -> ShapeSpec,
-        disabledShapeSpec: @escaping () -> ShapeSpec?
+        project: IconProject
     ) -> Binding<Bool> {
         Binding(
-            get: { layer.wrappedValue.shapeSpec?.radialRepeatParams != nil },
+            get: { layer.wrappedValue.radialRepeatParams != nil },
             set: { newVal in
                 project.recordUndo()
                 if newVal {
-                    let base = layer.wrappedValue.shapeSpec ?? wrapBase()
-                    layer.wrappedValue.shapeSpec = base.wrappingInRadialRepeat(
-                        ShapeSpec.defaultRadialRepeat
-                    )
+                    layer.wrappedValue.radialRepeatParams = ShapeSpec.defaultRadialRepeat
                 } else {
-                    layer.wrappedValue.shapeSpec = disabledShapeSpec()
+                    layer.wrappedValue.radialRepeatParams = nil
                 }
             }
         )
@@ -352,13 +347,11 @@ struct RadialRepeatPanelContent: View {
     ) -> Binding<Double> {
         Binding(
             get: {
-                layer.shapeSpec?.radialRepeatParams.map(get) ?? 0
+                layer.radialRepeatParams.map(get) ?? 0
             },
             set: { newVal in
-                guard let spec = layer.shapeSpec,
-                      let params = spec.radialRepeatParams else { return }
-                let updated = set(params, newVal)
-                layer.shapeSpec = spec.wrappingInRadialRepeat(updated)
+                guard let params = layer.radialRepeatParams else { return }
+                layer.radialRepeatParams = set(params, newVal)
             }
         )
     }
