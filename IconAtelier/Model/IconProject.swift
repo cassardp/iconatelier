@@ -462,7 +462,7 @@ final class IconProject: Codable, Identifiable {
         layer.borderPosition = source.borderPosition
         layer.lineCap = source.lineCap
         layer.opacity = source.opacity
-        layer.shadow = source.shadow
+        layer.appearance.effects = source.appearance.effects
         layer.offset = offset
         layer.scaleValue = Double(scale)
         return layer

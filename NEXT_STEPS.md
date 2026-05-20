@@ -1,9 +1,9 @@
 # NEXT_STEPS — Refactor architecture IconAtelier
 
-Document de reprise après les étapes 1, 2, 4a et 4b. Permet de clear la
+Document de reprise après les étapes 1, 2, 4a, 4b et 5. Permet de clear la
 session Claude et repartir sans perdre le contexte.
 
-Daté du 2026-05-20 (mis à jour après étape 4b).
+Daté du 2026-05-20 (mis à jour après étape 5).
 
 ---
 
@@ -27,10 +27,51 @@ features. Le plan retenu (re-priorisé pour "ajouter features rapidement") :
 4. **`Layer` class → struct + `LayerContent` enum**
    - 4a — Layer class → struct (compat JSON préservée) ✅
    - 4b — `LayerContent` enum (image/text/shape) ✅
-5. **`[LayerEffect]` stackable** (refactor des shadow existants en `.dropShadow(...)`)
+5. **`[LayerEffect]` stackable** (refactor des shadow existants en `.dropShadow(...)`) ✅
 6. Ajouter les nouveaux effets un par un
 
-**Étapes complétées : 1, 2, 4a, 4b.**
+**Étapes complétées : 1, 2, 4a, 4b, 5.**
+
+---
+
+## Étape 5 — résumé
+
+`[LayerEffect]` stackable en place. Les drop shadows sont désormais un
+effet parmi d'autres dans `appearance.effects`, et le rendu itère sur le
+tableau.
+
+**Nouveau fichier** :
+- `IconAtelier/Model/LayerEffect.swift` — `struct DropShadow` (opacity,
+  radius, offsetX/Y, color), `enum LayerEffect { case dropShadow(DropShadow) }`,
+  et helper `View.applying(effects:side:scale:)` qui chaîne les modifiers
+  via `reduce`+`AnyView` (data-driven composition).
+
+**Changements modèle** :
+- `LayerAppearance` gagne `var effects: [LayerEffect] = []`.
+- `LayerShadow` struct supprimée, ainsi que `var shadow: LayerShadow`
+  sur `Layer` (et son entrée dans `CodingKeys` / l'init).
+- Les bridges `shadowOpacity/Radius/OffsetX/OffsetY/Color` sur `Layer`
+  ciblent désormais le premier `.dropShadow` de `effects` (création
+  paresseuse à la première écriture via `updateFirstDropShadow`).
+
+**Rendu adapté** :
+- `OverlayLayerRender` (LayerContentView.swift) et `IconRenderer.render`
+  (ProjectPersistence.swift) remplacent leur `.shadow(...)` unique par
+  `.applying(effects: layer.appearance.effects, side: side, scale: s)`.
+- `EffectPanels.ShadowPanelContent` est inchangé — les bridges
+  `shadow*` font tout le travail.
+
+**Décisions actées** :
+- **Compat JSON cassée** à nouveau (suite logique du choix de 4b). Le
+  champ `shadow` disparaît du JSON ; à la place, `appearance.effects`.
+- **Bridges conservés** sur `Layer` pour ne pas toucher aux call sites
+  (`EffectPanels`, `IconProject.applyMaskPath`, etc.). À nettoyer au fil
+  de l'eau, mais pas urgent.
+- **`AnyView` accepté dans `applying(effects:...)`** : c'est le pattern
+  data-driven legitime (la longueur de la chaîne dépend de la donnée),
+  pas dans une boucle de rendu de liste — coût négligeable.
+
+**Build** : `xcodebuild ... build` ⇒ **BUILD SUCCEEDED** pour iPhone.
 
 ---
 

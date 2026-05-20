@@ -12,14 +12,7 @@ struct LayerTransform: Codable, Equatable, Sendable {
 struct LayerAppearance: Codable, Equatable, Sendable {
     var opacity: Double = 1.0
     var isLocked: Bool = false
-}
-
-struct LayerShadow: Codable, Equatable, Sendable {
-    var opacity: Double = 0
-    var radius: Double = 0.04
-    var offsetX: Double = 0
-    var offsetY: Double = 0.02
-    var color: StoredColor = .black
+    var effects: [LayerEffect] = []
 }
 
 struct LayerFill: Codable, Equatable {

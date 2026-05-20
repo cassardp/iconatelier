@@ -17,12 +17,7 @@ enum IconRenderer {
             ForEach(project.layers) { layer in
                 let s = CGFloat(layer.scale)
                 LayerContentView(layer: layer, side: side, scale: s)
-                    .shadow(
-                        color: layer.shadowColor.opacity(layer.shadowOpacity),
-                        radius: side * CGFloat(layer.shadowRadius) * s,
-                        x: side * CGFloat(layer.shadowOffsetX) * s,
-                        y: side * CGFloat(layer.shadowOffsetY) * s
-                    )
+                    .applying(effects: layer.appearance.effects, side: side, scale: s)
                     .rotationEffect(layer.rotation)
                     .opacity(layer.opacity)
                     .offset(

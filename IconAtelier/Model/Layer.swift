@@ -99,7 +99,6 @@ struct Layer: Codable, Identifiable {
     var name: String = ""
     var transform: LayerTransform = LayerTransform()
     var appearance: LayerAppearance = LayerAppearance()
-    var shadow: LayerShadow = LayerShadow()
     var content: LayerContent
 
     var imagePNGDirty: Bool = true
@@ -107,7 +106,7 @@ struct Layer: Codable, Identifiable {
     var id: UUID { uuid }
 
     private enum CodingKeys: String, CodingKey {
-        case uuid, name, transform, appearance, shadow, content
+        case uuid, name, transform, appearance, content
     }
 
     init(
@@ -115,14 +114,12 @@ struct Layer: Codable, Identifiable {
         name: String,
         transform: LayerTransform = LayerTransform(),
         appearance: LayerAppearance = LayerAppearance(),
-        shadow: LayerShadow = LayerShadow(),
         content: LayerContent
     ) {
         self.uuid = uuid
         self.name = name
         self.transform = transform
         self.appearance = appearance
-        self.shadow = shadow
         self.content = content
     }
 
@@ -240,31 +237,51 @@ struct Layer: Codable, Identifiable {
         set { appearance.isLocked = newValue }
     }
 
-    // MARK: - Shadow bridges
+    // MARK: - Drop shadow bridges (first .dropShadow effect)
+
+    private var firstDropShadow: DropShadow {
+        for effect in appearance.effects {
+            if case let .dropShadow(s) = effect { return s }
+        }
+        return DropShadow()
+    }
+
+    private mutating func updateFirstDropShadow(_ block: (inout DropShadow) -> Void) {
+        for index in appearance.effects.indices {
+            if case var .dropShadow(s) = appearance.effects[index] {
+                block(&s)
+                appearance.effects[index] = .dropShadow(s)
+                return
+            }
+        }
+        var s = DropShadow()
+        block(&s)
+        appearance.effects.append(.dropShadow(s))
+    }
 
     var shadowOpacity: Double {
-        get { shadow.opacity }
-        set { shadow.opacity = newValue }
+        get { firstDropShadow.opacity }
+        set { updateFirstDropShadow { $0.opacity = newValue } }
     }
 
     var shadowRadius: Double {
-        get { shadow.radius }
-        set { shadow.radius = newValue }
+        get { firstDropShadow.radius }
+        set { updateFirstDropShadow { $0.radius = newValue } }
     }
 
     var shadowOffsetX: Double {
-        get { shadow.offsetX }
-        set { shadow.offsetX = newValue }
+        get { firstDropShadow.offsetX }
+        set { updateFirstDropShadow { $0.offsetX = newValue } }
     }
 
     var shadowOffsetY: Double {
-        get { shadow.offsetY }
-        set { shadow.offsetY = newValue }
+        get { firstDropShadow.offsetY }
+        set { updateFirstDropShadow { $0.offsetY = newValue } }
     }
 
     var shadowColor: Color {
-        get { shadow.color.color }
-        set { shadow.color = StoredColor(newValue) }
+        get { firstDropShadow.color.color }
+        set { updateFirstDropShadow { $0.color = StoredColor(newValue) } }
     }
 
     // MARK: - Content accessors (read)
