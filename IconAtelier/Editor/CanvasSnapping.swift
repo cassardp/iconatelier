@@ -150,30 +150,72 @@ enum CanvasSnapping {
         let bestX = bestSnap(candidates: candXs, targets: xTargets)
         let bestY = bestSnap(candidates: candYs, targets: yTargets)
         var effective = translation
-        var guides: [SnapGuide] = []
-        if let bx = bestX {
-            effective.width += bx.delta * side
-            let yMin = min(candidate.minY, bx.source.minY)
-            let yMax = max(candidate.maxY, bx.source.maxY)
-            guides.append(SnapGuide(
+        if let bx = bestX { effective.width += bx.delta * side }
+        if let by = bestY { effective.height += by.delta * side }
+
+        let snapped = candidate.offsetBy(
+            dx: (bestX?.delta ?? 0),
+            dy: (bestY?.delta ?? 0)
+        )
+        let matchEpsilon: CGFloat = 0.5 / side
+        let snappedXs: [CGFloat] = [snapped.minX, snapped.midX, snapped.maxX]
+        let snappedYs: [CGFloat] = [snapped.minY, snapped.midY, snapped.maxY]
+
+        func guides(
+            orientation: SnapGuide.Orientation,
+            candidates: [CGFloat],
+            targets: [(pos: CGFloat, source: CGRect, isLayerCenter: Bool)],
+            extentStart: (CGRect) -> CGFloat,
+            extentEnd: (CGRect) -> CGFloat,
+            candidateExtentStart: CGFloat,
+            candidateExtentEnd: CGFloat
+        ) -> [SnapGuide] {
+            var bySources: [CGFloat: [CGRect]] = [:]
+            for c in candidates {
+                for t in targets where abs(t.pos - c) < matchEpsilon {
+                    bySources[t.pos, default: []].append(t.source)
+                }
+            }
+            return bySources.map { (pos, sources) in
+                var start = candidateExtentStart
+                var end = candidateExtentEnd
+                for s in sources {
+                    start = min(start, extentStart(s))
+                    end = max(end, extentEnd(s))
+                }
+                return SnapGuide(
+                    orientation: orientation,
+                    position: pos,
+                    extentStart: start,
+                    extentEnd: end
+                )
+            }
+        }
+
+        var allGuides: [SnapGuide] = []
+        if bestX != nil {
+            allGuides.append(contentsOf: guides(
                 orientation: .vertical,
-                position: bx.guideAt,
-                extentStart: yMin,
-                extentEnd: yMax
+                candidates: snappedXs,
+                targets: xTargets,
+                extentStart: { $0.minY },
+                extentEnd: { $0.maxY },
+                candidateExtentStart: snapped.minY,
+                candidateExtentEnd: snapped.maxY
             ))
         }
-        if let by = bestY {
-            effective.height += by.delta * side
-            let xMin = min(candidate.minX, by.source.minX)
-            let xMax = max(candidate.maxX, by.source.maxX)
-            guides.append(SnapGuide(
+        if bestY != nil {
+            allGuides.append(contentsOf: guides(
                 orientation: .horizontal,
-                position: by.guideAt,
-                extentStart: xMin,
-                extentEnd: xMax
+                candidates: snappedYs,
+                targets: yTargets,
+                extentStart: { $0.minX },
+                extentEnd: { $0.maxX },
+                candidateExtentStart: snapped.minX,
+                candidateExtentEnd: snapped.maxX
             ))
         }
-        return (effective, guides)
+        return (effective, allGuides)
     }
 
     // MARK: - Rotation snapping
@@ -192,7 +234,7 @@ enum CanvasSnapping {
         rawDelta: Angle
     ) -> (delta: Angle, isSnapped: Bool) {
         let total = (layerRotation + rawDelta).degrees
-        let nearest = (total / 90).rounded() * 90
+        let nearest = (total / 45).rounded() * 45
         if abs(total - nearest) < rotationSnapThresholdDegrees {
             return (.degrees(nearest) - layerRotation, true)
         }
@@ -201,7 +243,7 @@ enum CanvasSnapping {
 
     static func snappedRotationDelta(rawDelta: Angle) -> (delta: Angle, isSnapped: Bool) {
         let degrees = rawDelta.degrees
-        let nearest = (degrees / 90).rounded() * 90
+        let nearest = (degrees / 45).rounded() * 45
         if abs(degrees - nearest) < rotationSnapThresholdDegrees {
             return (.degrees(nearest), true)
         }
