@@ -116,7 +116,8 @@ struct IconCanvasView: View {
                     transientOffset: transient.offset,
                     transientScale: transient.scale,
                     transientAngle: transient.angle,
-                    onTap: { session.selectLayer(layer.uuid) }
+                    onTap: { session.selectLayer(layer.uuid) },
+                    onLongPress: { duplicateOnLongPress(layer: layer) }
                 )
                 .transition(.scale(scale: 1.12).combined(with: .opacity))
             }
@@ -416,6 +417,16 @@ struct IconCanvasView: View {
             session.isBackgroundSelected = false
         }
     }
+
+    private func duplicateOnLongPress(layer: Layer) {
+        let inMultiSelection = session.isMultiSelecting
+            && session.lassoSelectedLayerUUIDs.contains(layer.uuid)
+        if !inMultiSelection {
+            session.selectLayer(layer.uuid)
+        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        LayerActions(project: project, session: session).duplicate()
+    }
 }
 
 private struct OverlayLayerView: View {
@@ -426,6 +437,7 @@ private struct OverlayLayerView: View {
     let transientScale: CGFloat
     let transientAngle: Angle
     let onTap: () -> Void
+    let onLongPress: () -> Void
 
     var body: some View {
         LayerView(
@@ -441,5 +453,15 @@ private struct OverlayLayerView: View {
             }
             onTap()
         }
+        .gesture(
+            LongPressDragRecognizer(
+                minimumDuration: 0.5,
+                allowableMovement: 12
+            ) { recognizer, _ in
+                if recognizer.state == .began {
+                    onLongPress()
+                }
+            }
+        )
     }
 }

@@ -83,9 +83,13 @@ struct LayerActions {
             for source in sources {
                 copies.append(project.duplicate(source))
             }
-            session.clearLassoSelection()
-            if let last = copies.last {
-                session.selectLayer(last.uuid)
+            if copies.count >= 2 {
+                session.setLassoSelection(Set(copies.map(\.uuid)))
+            } else {
+                session.clearLassoSelection()
+                if let last = copies.last {
+                    session.selectLayer(last.uuid)
+                }
             }
         }
         UISelectionFeedbackGenerator().selectionChanged()

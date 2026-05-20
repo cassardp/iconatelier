@@ -325,6 +325,13 @@ final class IconProject: Codable, Identifiable {
         copy.uuid = UUID()
         copy.name = layer.name + " copy"
 
+        let nudge: CGFloat = 0.05
+        let limit = LayerGeometry.maxOffsetMagnitude(for: copy)
+        copy.offset = CGSize(
+            width: min(max(copy.offset.width + nudge, -limit), limit),
+            height: min(max(copy.offset.height + nudge, -limit), limit)
+        )
+
         if let idx = layers.firstIndex(where: { $0.uuid == layer.uuid }) {
             layers.insert(copy, at: idx + 1)
         } else {
