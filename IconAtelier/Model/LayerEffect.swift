@@ -10,6 +10,33 @@ struct DropShadow: Codable, Equatable, Sendable {
 
 enum LayerEffect: Codable, Equatable, Sendable {
     case dropShadow(DropShadow)
+
+    private enum CodingKeys: String, CodingKey {
+        case type, params
+    }
+
+    private enum EffectType: String, Codable {
+        case dropShadow
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(EffectType.self, forKey: .type)
+        switch type {
+        case .dropShadow:
+            let params = try container.decode(DropShadow.self, forKey: .params)
+            self = .dropShadow(params)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .dropShadow(s):
+            try container.encode(EffectType.dropShadow, forKey: .type)
+            try container.encode(s, forKey: .params)
+        }
+    }
 }
 
 extension View {
