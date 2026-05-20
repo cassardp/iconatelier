@@ -82,7 +82,7 @@ enum BooleanOpRenderer {
         case .parametricShape:
             guard let spec = layer.shapeSpec else { return nil }
 
-            shape = spec.anyShape()
+            shape = ShapeRenderer.anyShape(for: spec)
             baseSide = canvasSide * LayerGeometry.baseUnitFraction(for: .parametricShape)
         case .text:
             let glyph = TextGlyphShape(

@@ -377,7 +377,7 @@ struct Layer: Codable, Identifiable {
                 if let params = newValue {
                     c.spec = c.spec.wrappingInRadialRepeat(params)
                 } else {
-                    c.spec = c.spec.unwrapped ?? c.spec
+                    c.spec = c.spec.unwrapped
                 }
                 content = .shape(c)
             case .image: break

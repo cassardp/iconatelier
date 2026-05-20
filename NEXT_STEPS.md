@@ -3,7 +3,7 @@
 Document de reprise après les étapes 1, 2, 4a, 4b et 5. Permet de clear la
 session Claude et repartir sans perdre le contexte.
 
-Daté du 2026-05-20 (mis à jour après l'étape 7.2 — rendu unifié).
+Daté du 2026-05-20 (mis à jour après l'étape 7.3 — ShapeSpec pure data).
 
 ---
 
@@ -31,15 +31,15 @@ Plan retenu, re-priorisé pour « ajouter features rapidement » :
 7. **Nettoyage structurel** (découper ContentView, unifier le rendu…)
    - 7.1 — Découper `ContentView` (AIFlowController + LassoController) ✅
    - 7.2 — Unifier le rendu (un seul `LayerView`) ✅
-   - 7.3 — Sortir SwiftUI de `ShapeSpec` — **à faire, prochain**
+   - 7.3 — Sortir SwiftUI de `ShapeSpec` ✅
    - 7.4 — Asset store séparé pour les PNG — *skippé tant que pas un goulet*
 
-**Étapes complétées : 1, 2, 4a, 4b, 5, 7.1, 7.2.**
-**À faire : 7.3 (prochain), 3 (handles), 6 (effets).**
+**Étapes complétées : 1, 2, 4a, 4b, 5, 7.1, 7.2, 7.3.**
+**À faire : 3 (handles, prochain), 6 (effets).**
 
 ---
 
-## État de la base de code (post-étape 7.2)
+## État de la base de code (post-étape 7.3)
 
 ```
 IconAtelier/
@@ -59,6 +59,7 @@ IconAtelier/
                                   + canvas/bar/row frames + boolean ops)
     LayerContentView.swift       (LayerView wrapper + LayerContentView inner draw)
     BooleanOpRenderer.swift      (283 l. — utilise LayerView includeEffects:false)
+    ShapeRenderer.swift          (78 l. — ShapeRenderer.anyShape(for:) + path(for:in:))
     LayerEditorContent.swift, EffectPanels.swift, EditSheet.swift, …
   Persistence/
     ProjectPersistence.swift     (54 l. — IconRenderer.render utilise LayerView)
@@ -72,8 +73,58 @@ IconAtelier/
   scope ; à nettoyer progressivement quand les call sites disparaissent.
 - `Codable` manuel pour `IconProject` (decodeIfPresent), `Paint`,
   `ShapeSpec`. Pas urgent.
-- `ShapeSpec` importe SwiftUI (`anyShape()`), pas testable hors UI.
-  → étape 7.3.
+
+---
+
+## Étape 7.3 — résumé
+
+`ShapeSpec.swift` ne dépend plus de SwiftUI : `import Foundation` uniquement,
+plus de méthode `anyShape() -> AnyShape`. La construction des `AnyShape`
+SwiftUI vit désormais dans un fichier dédié côté Editor.
+
+**Nouveau fichier** :
+- `IconAtelier/Editor/ShapeRenderer.swift` — `enum ShapeRenderer` exposant
+  `static func anyShape(for: ShapeSpec) -> AnyShape` (logique migrée
+  in-extenso depuis l'ancien `ShapeSpec.anyShape()`) et
+  `static func path(for: ShapeSpec, in: CGRect) -> Path` (helper).
+
+**Changements modèle (pure data)** :
+- `ShapeSpec.swift` : `import SwiftUI` → `import Foundation`.
+- `PolygonPreset.canonical` retourne désormais `StarPolygonCanonical`
+  (struct pure data sides/bulge/roundness/rotationDegrees, défini dans
+  `Polygon.swift`) au lieu de `StarPolygonShape` (Shape SwiftUI).
+- `DropShape.canonical` → déplacé vers `DropParams.canonical` (sur le
+  struct pure data déjà en place). L'extension sur `DropShape` est
+  supprimée.
+- Factory `ShapeSpec.preset(.drop)` consomme `DropParams.canonical`.
+
+**Call sites mis à jour** :
+- `CanvasHitTester.swift:57` : `spec.anyShape().path(in:)` → `ShapeRenderer.path(for:in:)`.
+- `CanvasSnapping.swift:46` : idem.
+- `LayerContentView.swift:96` : `spec.anyShape()` → `ShapeRenderer.anyShape(for:)`.
+- `BooleanOpRenderer.swift:85` : idem.
+- `ShapeContentSection.swift` : 7× `DropShape.canonical` → `DropParams.canonical`.
+
+**Décisions actées** :
+- **`PolygonPreset.canonical` retourne un type pure data** (rupture
+  d'API mais usage 100% interne, on accède aux mêmes 4 fields).
+- **Logique de rendu non factorisée** — `ShapeRenderer.anyShape(for:)`
+  est un transcript fidèle de l'ancien `ShapeSpec.anyShape()` ; pas de
+  refactor opportuniste.
+- Le fichier `ShapeRenderer.swift` est placé dans `Editor/` (utilisateur
+  exclusif de SwiftUI), pas dans `Shapes/` (qui reste un mélange data +
+  Shape implementations).
+
+**Gain immédiat** : `ShapeSpec` testable hors module SwiftUI. Les tests
+unitaires sur les transformations d'enum (`applyingTransform`,
+`replacingBase`, `wrappingInRadialRepeat`, `unwrapped`, `deepestBase`,
+`Codable` roundtrip) peuvent être écrits dans une cible test sans
+embarquer toute la stack SwiftUI.
+
+**Validé** : `xcodebuild ... Debug build` passe. SourceKit affiche
+plusieurs faux positifs (« No such module 'UIKit' », « Cannot find type
+'Layer' », « Cannot find type 'ShapeSpec' ») mais le compilateur réel
+les ignore.
 
 ---
 
@@ -360,16 +411,12 @@ transient params optionnels. `LayerForBooleanRender` supprimé,
 `IconRenderer.render` et `IconCanvasView` overlay consomment
 `LayerView`. Voir résumé de l'étape 7.2 plus haut.
 
-#### 7.3 — Sortir SwiftUI de `ShapeSpec`
+#### 7.3 — Sortir SwiftUI de `ShapeSpec` ✅ — fait
 
-`ShapeSpec` importe SwiftUI pour `anyShape()`. Extraire
-`ShapeRenderer.path(for: ShapeSpec, in: CGRect) -> Path` côté Editor
-rend `ShapeSpec` pure data : testable dans un Playground, sérialisable
-proprement.
-
-**Effort** : ~½ j. **Risque** : faible. **Gain** : modeste tant qu'il
-n'y a pas de tests unitaires, mais débloque l'écriture de tests sur les
-formes (utile si tu prototypes de nouvelles formes paramétriques).
+Réalisé : `ShapeSpec.swift` n'importe plus SwiftUI ; `anyShape()` est
+extrait dans `Editor/ShapeRenderer.swift`. `PolygonPreset.canonical`
+retourne un `StarPolygonCanonical` pure data, `DropShape.canonical`
+devient `DropParams.canonical`. Voir résumé de l'étape 7.3 plus haut.
 
 #### 7.4 — Asset store séparé pour les PNG — *à faire seulement si la perf devient un problème*
 
@@ -402,15 +449,11 @@ tant que ce n'est pas un goulet.
 
 1. Lire ce fichier (`NEXT_STEPS.md`).
 2. Lire `CLAUDE.md` (consignes projet : skills d'abord, UI anglaise, etc.).
-3. **Étape 7.3 (sortir SwiftUI de `ShapeSpec`) — prochain chantier** :
-   extraire `ShapeRenderer.path(for: ShapeSpec, in: CGRect) -> Path`
-   côté Editor, rendre `ShapeSpec` pure data. Débloque les tests
-   unitaires sur les formes.
-4. **Étape 3 (handles)** : créer
+3. **Étape 3 (handles) — prochain chantier** : créer
    `IconAtelier/Editor/SelectionHandles.swift`, greffé en overlay sur
    `IconCanvasView.squircleIcon`. Utiliser
    `CanvasSnapping.layerNormalizedBounds` et `LayerGeometry` déjà en place.
-5. **Étape 6 (effets)** : ajouter un case à `LayerEffect`, un
+4. **Étape 6 (effets)** : ajouter un case à `LayerEffect`, un
    `XxxPanelContent` dans `EffectPanels.swift`, son wiring dans
    `LayerEditorContent`, et une branch dans
    `View.applying(effects:side:scale:)`. Modèle de référence pour

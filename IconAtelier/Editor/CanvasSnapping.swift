@@ -43,7 +43,7 @@ enum CanvasSnapping {
             }
         } else if layer.kind == .parametricShape, let spec = layer.shapeSpec {
             let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
-            let path = spec.anyShape().path(in: unit)
+            let path = ShapeRenderer.path(for: spec, in: unit)
             let pathRect = path.boundingRect
             if pathRect.width > 0, pathRect.height > 0 {
                 unitCenterX = pathRect.midX - 0.5

@@ -54,7 +54,10 @@ enum CanvasHitTester {
         let lx = layer.isFlippedHorizontally ? -localX : localX
         let ly = layer.isFlippedVertically ? -localY : localY
         let shapeSide = halfSide * 2
-        let path = spec.anyShape().path(in: CGRect(x: 0, y: 0, width: shapeSide, height: shapeSide))
+        let path = ShapeRenderer.path(
+            for: spec,
+            in: CGRect(x: 0, y: 0, width: shapeSide, height: shapeSide)
+        )
         let pathPoint = CGPoint(x: lx + halfSide, y: ly + halfSide)
         if path.contains(pathPoint) { return true }
         let borderWidth = shapeSide * CGFloat(layer.borderWidth)

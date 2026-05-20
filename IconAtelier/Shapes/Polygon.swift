@@ -1,6 +1,13 @@
 import SwiftUI
 import Foundation
 
+nonisolated struct StarPolygonCanonical: Hashable, Sendable {
+    var sides: Int
+    var bulge: Double
+    var roundness: Double
+    var rotationDegrees: Double = 0
+}
+
 struct StarPolygonShape: InsettableShape, Equatable {
     var sides: Int
     var bulge: Double

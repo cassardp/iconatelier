@@ -93,7 +93,7 @@ struct LayerContentView: View {
         case .parametricShape:
             let shapeSide = side * LayerGeometry.baseUnitFraction(for: .parametricShape) * scale
             if let spec = layer.shapeSpec {
-                let shape = spec.anyShape()
+                let shape = ShapeRenderer.anyShape(for: spec)
                 let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
                 ZStack {
                     if layer.fillEnabled {

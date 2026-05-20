@@ -159,18 +159,15 @@ struct DropShape: InsettableShape, Equatable {
     }
 }
 
-extension DropShape {
-
-    nonisolated static let canonical = DropParams(
-        pointiness: 0.55, bulbSize: 0.60, tailOffset: 0.55,
-        bend: 0, tipRoundness: 0
-    )
-}
-
-struct DropParams: Hashable, Sendable {
+nonisolated struct DropParams: Hashable, Sendable {
     var pointiness: Double
     var bulbSize: Double
     var tailOffset: Double
     var bend: Double
     var tipRoundness: Double
+
+    static let canonical = DropParams(
+        pointiness: 0.55, bulbSize: 0.60, tailOffset: 0.55,
+        bend: 0, tipRoundness: 0
+    )
 }

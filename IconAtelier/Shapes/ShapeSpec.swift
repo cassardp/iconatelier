@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 
 nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     case polygon(
@@ -58,7 +58,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         case .special:
             if p == .squircle { return .iosSquircle }
             if p == .drop {
-                let d = DropShape.canonical
+                let d = DropParams.canonical
                 return .drop(
                     pointiness: d.pointiness,
                     bulbSize: d.bulbSize,
@@ -199,78 +199,6 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         }
     }
 
-    func anyShape() -> AnyShape {
-        switch self {
-        case let .polygon(preset, sides, roundness):
-            return AnyShape(StarPolygonShape(
-                sides: sides,
-                bulge: 0,
-                roundness: roundness,
-                rotationDegrees: preset.defaultPolygonRotation(forSides: sides)
-            ))
-        case let .star(preset, points, innerDepth, roundness):
-            return AnyShape(StarPolygonShape(
-                sides: points,
-                bulge: -max(0, min(1, innerDepth)),
-                roundness: roundness,
-                rotationDegrees: preset.canonical.rotationDegrees
-            ))
-        case let .drop(pointiness, bulbSize, tailOffset, bend, tipRoundness):
-            return AnyShape(DropShape(
-                pointiness: pointiness,
-                bulbSize: bulbSize,
-                tailOffset: tailOffset,
-                bend: bend,
-                tipRoundness: tipRoundness
-            ))
-        case let .ellipse(roundness, arcStart, arcSweep):
-            return AnyShape(SuperellipseShape(
-                roundness: roundness,
-                arcStart: arcStart,
-                arcSweep: arcSweep
-            ))
-        case .iosSquircle:
-            return AnyShape(SquircleShape())
-        case .customPath(let primitive):
-            return AnyShape(CustomPathShape(primitive: primitive))
-        case let .transform(base, sx, sy, rot):
-
-            if case let .polygon(preset, sides, roundness) = base {
-                return AnyShape(StarPolygonShape(
-                    sides: sides,
-                    bulge: 0,
-                    roundness: roundness,
-                    rotationDegrees: preset.defaultPolygonRotation(forSides: sides) + rot,
-                    stretchX: sx,
-                    stretchY: sy
-                ))
-            }
-            if case let .star(preset, points, innerDepth, roundness) = base {
-                return AnyShape(StarPolygonShape(
-                    sides: points,
-                    bulge: -max(0, min(1, innerDepth)),
-                    roundness: roundness,
-                    rotationDegrees: preset.canonical.rotationDegrees + rot,
-                    stretchX: sx,
-                    stretchY: sy
-                ))
-            }
-            return AnyShape(TransformedShape(
-                base: base.anyShape(),
-                stretchX: sx,
-                stretchY: sy,
-                rotationDegrees: rot
-            ))
-        case let .radialRepeat(base, count, centerHole, orientation):
-            return AnyShape(RadialRepeat(
-                base: base.anyShape(),
-                count: count,
-                centerHole: centerHole,
-                orientation: orientation
-            ))
-        }
-    }
-
     var hasIntrinsicCornerRadius: Bool { true }
 
     var supportsTransform: Bool {
@@ -360,7 +288,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
         }
     }
 
-    var canonical: StarPolygonShape {
+    var canonical: StarPolygonCanonical {
         switch self {
         case .circle:        return .init(sides: 24, bulge: 1,    roundness: 1,    rotationDegrees: 0)
         case .squircle:      return .init(sides: 4, bulge: 0,     roundness: 0.6,  rotationDegrees: 45)

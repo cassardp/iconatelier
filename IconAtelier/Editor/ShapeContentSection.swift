@@ -181,7 +181,7 @@ struct ShapeContentSection: View {
             value: dropBinding(\.pointiness, scale: 100),
             range: 0 ... 100,
             valueText: { "\(Int($0.rounded()))" },
-            defaultValue: DropShape.canonical.pointiness * 100,
+            defaultValue: DropParams.canonical.pointiness * 100,
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
@@ -189,7 +189,7 @@ struct ShapeContentSection: View {
             value: dropBinding(\.bulbSize, scale: 100),
             range: 0 ... 100,
             valueText: { "\(Int($0.rounded()))" },
-            defaultValue: DropShape.canonical.bulbSize * 100,
+            defaultValue: DropParams.canonical.bulbSize * 100,
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
@@ -197,7 +197,7 @@ struct ShapeContentSection: View {
             value: dropBinding(\.tailOffset, scale: 100),
             range: 0 ... 100,
             valueText: { "\(Int($0.rounded()))" },
-            defaultValue: DropShape.canonical.tailOffset * 100,
+            defaultValue: DropParams.canonical.tailOffset * 100,
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
@@ -205,7 +205,7 @@ struct ShapeContentSection: View {
             value: dropBinding(\.tipRoundness, scale: 100),
             range: 0 ... 100,
             valueText: { "\(Int($0.rounded()))" },
-            defaultValue: DropShape.canonical.tipRoundness * 100,
+            defaultValue: DropParams.canonical.tipRoundness * 100,
             onBeginEditing: { project.recordUndo() }
         )
         DialSliderRow(
@@ -213,7 +213,7 @@ struct ShapeContentSection: View {
             value: dropBinding(\.bend, scale: 100),
             range: -100 ... 100,
             valueText: { "\(Int($0.rounded()))" },
-            defaultValue: DropShape.canonical.bend * 100,
+            defaultValue: DropParams.canonical.bend * 100,
             onBeginEditing: { project.recordUndo() }
         )
     }
@@ -408,7 +408,7 @@ struct ShapeContentSection: View {
                 tipRoundness: tipRoundness
             )
         }
-        return DropShape.canonical
+        return DropParams.canonical
     }
 
     private func applyDropParams(_ p: DropParams) {
