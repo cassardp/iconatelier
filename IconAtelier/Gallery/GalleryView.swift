@@ -290,6 +290,8 @@ struct GalleryView: View {
     private func createNewProject() {
         let project = IconProject(title: "Untitled")
         project.background = Background(kind: .solid)
+        let textLayer = project.addTextOverlay(text: "Aa")
+        textLayer.fontWeight = .heavy
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         store.add(project)
