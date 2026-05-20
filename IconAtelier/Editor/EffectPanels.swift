@@ -185,43 +185,6 @@ struct ShadowPanelContent: View {
     }
 }
 
-// MARK: - Blur (apply toggle + radius slider)
-
-enum BlurDefaults {
-    static let radius: Double = 0.03
-}
-
-struct BlurPanelContent: View {
-    @Binding var layer: Layer
-    let project: IconProject
-
-    var body: some View {
-        if layer.blurRadius > 0 {
-            DialSliderRow(
-                label: "Radius",
-                value: Binding(
-                    get: { layer.blurRadius },
-                    set: { layer.blurRadius = $0 }
-                ),
-                range: 0 ... 0.15,
-                valueText: { String(format: "%.0f%%", $0 * 100) },
-                defaultValue: BlurDefaults.radius,
-                onBeginEditing: { project.recordUndo() }
-            )
-        }
-    }
-
-    static func enabledBinding(layer: Binding<Layer>, project: IconProject) -> Binding<Bool> {
-        Binding(
-            get: { layer.wrappedValue.blurRadius > 0 },
-            set: { newVal in
-                project.recordUndo()
-                layer.wrappedValue.blurRadius = newVal ? BlurDefaults.radius : 0
-            }
-        )
-    }
-}
-
 // MARK: - Transform (apply toggle + Stretch X/Y sliders)
 
 enum TransformDefaults {

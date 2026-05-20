@@ -284,30 +284,6 @@ struct Layer: Codable, Identifiable {
         set { updateFirstDropShadow { $0.color = StoredColor(newValue) } }
     }
 
-    // MARK: - Blur bridges (first .blur effect)
-
-    var blurRadius: Double {
-        get {
-            for effect in appearance.effects {
-                if case let .blur(r) = effect { return r }
-            }
-            return 0
-        }
-        set {
-            if newValue <= 0 {
-                appearance.effects.removeAll { if case .blur = $0 { return true }; return false }
-                return
-            }
-            for index in appearance.effects.indices {
-                if case .blur = appearance.effects[index] {
-                    appearance.effects[index] = .blur(radius: newValue)
-                    return
-                }
-            }
-            appearance.effects.append(.blur(radius: newValue))
-        }
-    }
-
     // MARK: - Content accessors (read)
 
     var imagePNG: Data? {
