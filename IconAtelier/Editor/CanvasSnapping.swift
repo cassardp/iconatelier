@@ -14,6 +14,11 @@ struct DragSnapState: Equatable {
     var isActive: Bool = false
 }
 
+struct MagnifySnapState: Equatable {
+    var scale: CGFloat = 1.0
+    var objectGuides: [SnapGuide] = []
+}
+
 struct RotationSnapState: Equatable {
     var delta: Angle = .zero
     var isSnapped: Bool = false
@@ -215,6 +220,146 @@ enum CanvasSnapping {
                 candidateExtentEnd: snapped.maxX
             ))
         }
+        return (effective, allGuides)
+    }
+
+    // MARK: - Snap during uniform scale (pinch)
+
+    static func snappedMagnification(
+        magnification: CGFloat,
+        layer: Layer,
+        others: [Layer],
+        side: CGFloat
+    ) -> (effective: CGFloat, guides: [SnapGuide]) {
+        guard side > 0,
+              magnification.isFinite,
+              magnification > 0
+        else { return (magnification, []) }
+        let threshold = objectSnapThresholdPoints / side
+        let minAnchorDist: CGFloat = 0.001
+
+        var candidateLayer = layer
+        candidateLayer.scale = layer.scale * magnification
+        let candidate = layerNormalizedBounds(candidateLayer)
+        let ox = layer.offset.width
+        let oy = layer.offset.height
+
+        var xTargets: [(pos: CGFloat, source: CGRect)] = [
+            (-0.5, CGRect(x: -0.5, y: -0.5, width: 0, height: 1)),
+            (0,    CGRect(x: 0,    y: -0.5, width: 0, height: 1)),
+            (0.5,  CGRect(x: 0.5,  y: -0.5, width: 0, height: 1))
+        ]
+        var yTargets: [(pos: CGFloat, source: CGRect)] = [
+            (-0.5, CGRect(x: -0.5, y: -0.5, width: 1, height: 0)),
+            (0,    CGRect(x: -0.5, y: 0,    width: 1, height: 0)),
+            (0.5,  CGRect(x: -0.5, y: 0.5,  width: 1, height: 0))
+        ]
+        for other in others {
+            let b = layerNormalizedBounds(other)
+            xTargets.append((b.minX, b))
+            xTargets.append((b.midX, b))
+            xTargets.append((b.maxX, b))
+            yTargets.append((b.minY, b))
+            yTargets.append((b.midY, b))
+            yTargets.append((b.maxY, b))
+        }
+
+        let candXs: [CGFloat] = [candidate.minX, candidate.midX, candidate.maxX]
+        let candYs: [CGFloat] = [candidate.minY, candidate.midY, candidate.maxY]
+
+        var bestRatio: CGFloat = 1
+        var bestScore: CGFloat = .infinity
+
+        for cand in candXs {
+            let anchorDist = cand - ox
+            guard abs(anchorDist) > minAnchorDist else { continue }
+            for t in xTargets {
+                let d = t.pos - cand
+                guard abs(d) < threshold else { continue }
+                let ratio = (t.pos - ox) / anchorDist
+                guard ratio > 0.05, ratio.isFinite else { continue }
+                let score = abs(ratio - 1)
+                if score < bestScore {
+                    bestScore = score
+                    bestRatio = ratio
+                }
+            }
+        }
+        for cand in candYs {
+            let anchorDist = cand - oy
+            guard abs(anchorDist) > minAnchorDist else { continue }
+            for t in yTargets {
+                let d = t.pos - cand
+                guard abs(d) < threshold else { continue }
+                let ratio = (t.pos - oy) / anchorDist
+                guard ratio > 0.05, ratio.isFinite else { continue }
+                let score = abs(ratio - 1)
+                if score < bestScore {
+                    bestScore = score
+                    bestRatio = ratio
+                }
+            }
+        }
+
+        let effective = magnification * bestRatio
+        var snappedLayer = layer
+        snappedLayer.scale = layer.scale * effective
+        let snapped = layerNormalizedBounds(snappedLayer)
+
+        let matchEpsilon: CGFloat = 0.5 / side
+        let snappedXs = [snapped.minX, snapped.midX, snapped.maxX]
+        let snappedYs = [snapped.minY, snapped.midY, snapped.maxY]
+
+        func collect(
+            orientation: SnapGuide.Orientation,
+            candidates: [CGFloat],
+            targets: [(pos: CGFloat, source: CGRect)],
+            extentStart: (CGRect) -> CGFloat,
+            extentEnd: (CGRect) -> CGFloat,
+            candidateExtentStart: CGFloat,
+            candidateExtentEnd: CGFloat
+        ) -> [SnapGuide] {
+            var bySources: [CGFloat: [CGRect]] = [:]
+            for c in candidates {
+                for t in targets where abs(t.pos - c) < matchEpsilon {
+                    bySources[t.pos, default: []].append(t.source)
+                }
+            }
+            return bySources.map { (pos, sources) in
+                var start = candidateExtentStart
+                var end = candidateExtentEnd
+                for s in sources {
+                    start = min(start, extentStart(s))
+                    end = max(end, extentEnd(s))
+                }
+                return SnapGuide(
+                    orientation: orientation,
+                    position: pos,
+                    extentStart: start,
+                    extentEnd: end
+                )
+            }
+        }
+
+        var allGuides: [SnapGuide] = []
+        allGuides.append(contentsOf: collect(
+            orientation: .vertical,
+            candidates: snappedXs,
+            targets: xTargets,
+            extentStart: { $0.minY },
+            extentEnd: { $0.maxY },
+            candidateExtentStart: snapped.minY,
+            candidateExtentEnd: snapped.maxY
+        ))
+        allGuides.append(contentsOf: collect(
+            orientation: .horizontal,
+            candidates: snappedYs,
+            targets: yTargets,
+            extentStart: { $0.minX },
+            extentEnd: { $0.maxX },
+            candidateExtentStart: snapped.minX,
+            candidateExtentEnd: snapped.maxX
+        ))
         return (effective, allGuides)
     }
 

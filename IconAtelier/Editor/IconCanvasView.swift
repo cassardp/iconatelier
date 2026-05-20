@@ -7,9 +7,11 @@ struct IconCanvasView: View {
     let session: ProjectSession
 
     @GestureState private var dragSnap: DragSnapState = DragSnapState()
-    @GestureState private var gestureScale: CGFloat = 1.0
+    @GestureState private var magnifySnap: MagnifySnapState = MagnifySnapState()
     @GestureState private var rotationSnap: RotationSnapState = RotationSnapState()
     @State private var didDragHitTest: Bool = false
+    @State private var pendingDragEffective: CGSize = .zero
+    @State private var pendingMagnifyEffective: CGFloat = 1.0
 
     var body: some View {
         GeometryReader { geo in
@@ -65,14 +67,14 @@ struct IconCanvasView: View {
         if isSelected {
             return LayerTransient(
                 offset: dragSnap.translation,
-                scale: gestureScale,
+                scale: magnifySnap.scale,
                 angle: rotationSnap.delta
             )
         }
         guard isInMultiDrag, let pivot else {
             return LayerTransient(offset: .zero, scale: 1, angle: .zero)
         }
-        let m = gestureScale
+        let m = magnifySnap.scale
         let theta = CGFloat(rotationSnap.delta.radians)
         let dx = layer.offset.width - pivot.width
         let dy = layer.offset.height - pivot.height
@@ -128,7 +130,7 @@ struct IconCanvasView: View {
     private func gridOverlay(side: CGFloat) -> some View {
         Canvas { context, size in
             let active = GraphicsContext.Shading.color(Color.iaSelectionYellow)
-            for guide in dragSnap.objectGuides {
+            for guide in dragSnap.objectGuides + magnifySnap.objectGuides {
                 var path = Path()
                 switch guide.orientation {
                 case .vertical:
@@ -207,25 +209,26 @@ struct IconCanvasView: View {
                     }
                 }
                 promoteOverlaySelection()
+                if session.showGrid, let targets = snapTargets() {
+                    pendingDragEffective = CanvasSnapping.snappedToLayerGuides(
+                        translation: value.translation,
+                        draggedBounds: targets.draggedBounds,
+                        others: targets.others,
+                        side: side
+                    ).effective
+                } else {
+                    pendingDragEffective = value.translation
+                }
             }
-            .onEnded { value in
+            .onEnded { _ in
                 didDragHitTest = false
+                let effective = pendingDragEffective
+                pendingDragEffective = .zero
                 guard side > 0,
-                      value.translation.width.isFinite,
-                      value.translation.height.isFinite
+                      effective.width.isFinite,
+                      effective.height.isFinite
                 else { return }
                 if session.isMultiSelecting {
-                    let effective: CGSize
-                    if session.showGrid, let targets = snapTargets() {
-                        effective = CanvasSnapping.snappedToLayerGuides(
-                            translation: value.translation,
-                            draggedBounds: targets.draggedBounds,
-                            others: targets.others,
-                            side: side
-                        ).effective
-                    } else {
-                        effective = value.translation
-                    }
                     let dx = effective.width / side
                     let dy = effective.height / side
                     let ids = session.lassoSelectedLayerUUIDs
@@ -245,17 +248,6 @@ struct IconCanvasView: View {
                 }
                 guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
-                let effective: CGSize
-                if session.showGrid, let targets = snapTargets() {
-                    effective = CanvasSnapping.snappedToLayerGuides(
-                        translation: value.translation,
-                        draggedBounds: targets.draggedBounds,
-                        others: targets.others,
-                        side: side
-                    ).effective
-                } else {
-                    effective = value.translation
-                }
                 let nextWidth = layer.offset.width + effective.width / side
                 let nextHeight = layer.offset.height + effective.height / side
                 guard nextWidth.isFinite, nextHeight.isFinite else { return }
@@ -268,15 +260,55 @@ struct IconCanvasView: View {
             }
 
         let magnify = MagnifyGesture(minimumScaleDelta: 0.01)
-            .updating($gestureScale) { value, state, _ in
+            .updating($magnifySnap) { value, state, _ in
                 guard value.magnification.isFinite, value.magnification > 0 else { return }
-                state = value.magnification
+                if session.showGrid,
+                   !session.isMultiSelecting,
+                   let layer = selectedOverlay,
+                   !layer.isLocked {
+                    let others = project.layers.filter { $0.uuid != layer.uuid }
+                    let result = CanvasSnapping.snappedMagnification(
+                        magnification: value.magnification,
+                        layer: layer,
+                        others: others,
+                        side: side
+                    )
+                    let guidesEnter = !result.guides.isEmpty
+                        && state.objectGuides.count != result.guides.count
+                    if guidesEnter {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    }
+                    state.scale = result.effective
+                    state.objectGuides = result.guides
+                } else {
+                    state.scale = value.magnification
+                    state.objectGuides = []
+                }
             }
-            .onChanged { _ in promoteOverlaySelection() }
-            .onEnded { value in
+            .onChanged { value in
+                promoteOverlaySelection()
                 guard value.magnification.isFinite, value.magnification > 0 else { return }
+                if session.showGrid,
+                   !session.isMultiSelecting,
+                   let layer = selectedOverlay,
+                   !layer.isLocked {
+                    let others = project.layers.filter { $0.uuid != layer.uuid }
+                    pendingMagnifyEffective = CanvasSnapping.snappedMagnification(
+                        magnification: value.magnification,
+                        layer: layer,
+                        others: others,
+                        side: side
+                    ).effective
+                } else {
+                    pendingMagnifyEffective = value.magnification
+                }
+            }
+            .onEnded { _ in
+                let effective = pendingMagnifyEffective
+                pendingMagnifyEffective = 1.0
+                guard effective.isFinite, effective > 0 else { return }
                 if session.isMultiSelecting, let pivot = multiGroupCentroid() {
-                    let m = value.magnification
+                    let m = effective
                     let ids = session.lassoSelectedLayerUUIDs
                     let targets = project.layers.filter { ids.contains($0.uuid) }
                     guard !targets.isEmpty else { return }
@@ -297,7 +329,7 @@ struct IconCanvasView: View {
                 guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
                 project.mutate(id: layer.uuid) {
-                    $0.scale = max(0.1, $0.scale * value.magnification)
+                    $0.scale = max(0.1, $0.scale * effective)
                 }
             }
 
