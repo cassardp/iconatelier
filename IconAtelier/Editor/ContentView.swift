@@ -37,8 +37,8 @@ struct ContentView: View {
             ShapeFanItem(id: "drop", symbol: "drop", label: "Drop") {
                 addShapeLayer(spec: .preset(.drop), presentSheet: false)
             },
-            ShapeFanItem(id: "flower", symbol: "star", label: "Flower") {
-                addShapeLayer(spec: .preset(.flower6), presentSheet: false)
+            ShapeFanItem(id: "star", symbol: "star", label: "Star") {
+                addShapeLayer(spec: .preset(.star5), presentSheet: false)
             },
             ShapeFanItem(id: "generate", symbol: "wand.and.stars", label: "Generate") {
                 ai.showPromptSheet = true
