@@ -9,29 +9,31 @@ struct LayerEditorContent: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                if let layer = project.layer(withID: session.selectedLayerUUID) {
+                if let id = session.selectedLayerUUID,
+                   let layerBinding = project.layerBinding(id: id) {
+                    let layer = layerBinding.wrappedValue
                     LayerQuickActionsRow(project: project, session: session)
                     SectionDivider()
-                    layerSection(for: layer)
+                    layerSection(layerBinding: layerBinding)
                     SectionDivider()
-                    contentSection(for: layer)
+                    contentSection(layerBinding: layerBinding, kind: layer.kind)
 
                     if supportsBorder(layer) {
                         SectionDivider()
-                        borderSection(for: layer)
+                        borderSection(layerBinding: layerBinding, kind: layer.kind)
                     }
 
                     SectionDivider()
-                    shadowSection(for: layer)
+                    shadowSection(layerBinding: layerBinding)
 
                     if supportsTransform(layer) {
                         SectionDivider()
-                        transformSection(for: layer)
+                        transformSection(layerBinding: layerBinding)
                     }
 
                     if supportsRadialRepeat(layer) {
                         SectionDivider()
-                        radialRepeatSection(for: layer)
+                        radialRepeatSection(layerBinding: layerBinding, kind: layer.kind)
                     }
                 }
             }
@@ -49,32 +51,32 @@ struct LayerEditorContent: View {
     // MARK: - Layer (cross-kind: opacity, etc.)
 
     @ViewBuilder
-    private func layerSection(for layer: Layer) -> some View {
+    private func layerSection(layerBinding: Binding<Layer>) -> some View {
         PanelSection(title: "Layer") {
-            OpacitySlider(layer: layer, project: project)
+            OpacitySlider(layer: layerBinding, project: project)
         }
     }
 
     // MARK: - Content (per kind)
 
     @ViewBuilder
-    private func contentSection(for layer: Layer) -> some View {
-        switch layer.kind {
+    private func contentSection(layerBinding: Binding<Layer>, kind: LayerKind) -> some View {
+        switch kind {
         case .image:
-            ImageContentSection(layer: layer, project: project)
+            ImageContentSection(layer: layerBinding, project: project)
         case .text:
-            TextContentSection(layer: layer, project: project)
+            TextContentSection(layer: layerBinding, project: project)
         case .parametricShape:
-            ShapeContentSection(layer: layer, project: project)
+            ShapeContentSection(layer: layerBinding, project: project)
         }
     }
 
     // MARK: - Border (text + shape, with kind-specific defaults/range)
 
     @ViewBuilder
-    private func borderSection(for layer: Layer) -> some View {
+    private func borderSection(layerBinding: Binding<Layer>, kind: LayerKind) -> some View {
 
-        let isText = layer.kind == .text
+        let isText = kind == .text
         let widthDefault = isText ? BorderDefaults.textWidth : BorderDefaults.shapeWidth
         let widthRange: ClosedRange<Double> = isText ? 0 ... 0.2 : 0 ... 0.5
         let valueScale: Double = isText ? 500 : 200
@@ -82,13 +84,13 @@ struct LayerEditorContent: View {
         PanelSection(
             title: "Border",
             isOn: BorderPanelContent.enabledBinding(
-                layer: layer,
+                layer: layerBinding,
                 project: project,
                 widthDefault: widthDefault
             )
         ) {
             BorderPanelContent(
-                layer: layer,
+                layer: layerBinding,
                 project: project,
                 widthRange: widthRange,
                 widthDefault: widthDefault,
@@ -100,44 +102,44 @@ struct LayerEditorContent: View {
     // MARK: - Shadow
 
     @ViewBuilder
-    private func shadowSection(for layer: Layer) -> some View {
+    private func shadowSection(layerBinding: Binding<Layer>) -> some View {
         PanelSection(
             title: "Shadow",
-            isOn: ShadowPanelContent.enabledBinding(layer: layer, project: project)
+            isOn: ShadowPanelContent.enabledBinding(layer: layerBinding, project: project)
         ) {
-            ShadowPanelContent(layer: layer, project: project)
+            ShadowPanelContent(layer: layerBinding, project: project)
         }
     }
 
     // MARK: - Transform (shape only, when family supports stretch)
 
     @ViewBuilder
-    private func transformSection(for layer: Layer) -> some View {
+    private func transformSection(layerBinding: Binding<Layer>) -> some View {
         PanelSection(
             title: "Transform",
-            isOn: TransformPanelContent.enabledBinding(layer: layer, project: project)
+            isOn: TransformPanelContent.enabledBinding(layer: layerBinding, project: project)
         ) {
-            TransformPanelContent(layer: layer, project: project)
+            TransformPanelContent(layer: layerBinding, project: project)
         }
     }
 
     // MARK: - Radial repeat (text + shape, with kind-specific wrap base)
 
     @ViewBuilder
-    private func radialRepeatSection(for layer: Layer) -> some View {
+    private func radialRepeatSection(layerBinding: Binding<Layer>, kind: LayerKind) -> some View {
 
-        let isText = layer.kind == .text
+        let isText = kind == .text
 
         PanelSection(
             title: "Radial repeat",
             isOn: RadialRepeatPanelContent.enabledBinding(
-                layer: layer,
+                layer: layerBinding,
                 project: project,
-                wrapBase: { isText ? .iosSquircle : (layer.shapeSpec ?? .defaultShape) },
-                disabledShapeSpec: { isText ? nil : layer.shapeSpec?.unwrapped }
+                wrapBase: { isText ? .iosSquircle : (layerBinding.wrappedValue.shapeSpec ?? .defaultShape) },
+                disabledShapeSpec: { isText ? nil : layerBinding.wrappedValue.shapeSpec?.unwrapped }
             )
         ) {
-            RadialRepeatPanelContent(layer: layer, project: project)
+            RadialRepeatPanelContent(layer: layerBinding, project: project)
         }
     }
 
@@ -166,7 +168,7 @@ struct LayerEditorContent: View {
 // MARK: - Opacity row
 
 struct OpacitySlider: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {

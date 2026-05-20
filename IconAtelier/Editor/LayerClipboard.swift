@@ -25,8 +25,9 @@ enum LayerClipboard {
             return nil
         }
         return payload.items.map { item in
-            item.layer.imagePNG = item.imagePNG
-            return item.layer
+            var layer = item.layer
+            layer.imagePNG = item.imagePNG
+            return layer
         }
     }
 

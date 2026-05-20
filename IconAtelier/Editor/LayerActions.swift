@@ -107,7 +107,7 @@ struct LayerActions {
     }
 
     func toggleLock(_ layer: Layer) {
-        project.toggleLock(layer)
+        project.toggleLock(id: layer.uuid)
     }
 
     var allSelectedLocked: Bool {
@@ -125,9 +125,7 @@ struct LayerActions {
         guard !targets.isEmpty else { return }
         let shouldLock = !targets.allSatisfy(\.isLocked)
         project.recordUndo()
-        for layer in targets {
-            layer.isLocked = shouldLock
-        }
+        project.mutateLayers(ids: uuids) { $0.isLocked = shouldLock }
         UISelectionFeedbackGenerator().selectionChanged()
     }
 
@@ -138,9 +136,7 @@ struct LayerActions {
         guard !targets.isEmpty else { return }
         project.recordUndo()
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            for layer in targets {
-                layer.rotationRadians += .pi / 2
-            }
+            project.mutateLayers(ids: uuids) { $0.rotationRadians += .pi / 2 }
         }
         UISelectionFeedbackGenerator().selectionChanged()
     }
@@ -152,7 +148,7 @@ struct LayerActions {
         guard !targets.isEmpty else { return }
         project.recordUndo()
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-            for layer in targets {
+            project.mutateLayers(ids: uuids) { layer in
                 if horizontal {
                     layer.isFlippedHorizontally.toggle()
                 } else {

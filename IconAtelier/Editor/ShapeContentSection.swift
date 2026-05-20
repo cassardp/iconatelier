@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ShapeContentSection: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {

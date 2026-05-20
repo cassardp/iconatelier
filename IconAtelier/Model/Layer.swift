@@ -94,8 +94,7 @@ enum LayerFontDesign: String, CaseIterable, Codable {
     }
 }
 
-@Observable
-final class Layer: Codable, Identifiable {
+struct Layer: Codable, Identifiable {
     var uuid: UUID = UUID()
     var name: String = ""
     var kind: LayerKind = .image
@@ -104,7 +103,6 @@ final class Layer: Codable, Identifiable {
         didSet { imagePNGDirty = true }
     }
 
-    @ObservationIgnored
     var imagePNGDirty: Bool = true
 
     var text: String = "Aa"
@@ -169,6 +167,7 @@ final class Layer: Codable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         case uuid, name
         case kind = "kindRaw"
+        case imagePNG
         case text
         case fontWeight = "fontWeightRaw"
         case fontDesign = "fontDesignRaw"
@@ -182,12 +181,12 @@ final class Layer: Codable, Identifiable {
         case isLocked, isFlippedHorizontally, isFlippedVertically
     }
 
-    required init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-
         kind = (try? c.decodeIfPresent(LayerKind.self, forKey: .kind)) ?? .image
+        imagePNG = try c.decodeIfPresent(Data.self, forKey: .imagePNG)
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? "Aa"
         fontWeight = (try? c.decodeIfPresent(LayerFontWeight.self, forKey: .fontWeight)) ?? .bold
         fontDesign = (try? c.decodeIfPresent(LayerFontDesign.self, forKey: .fontDesign)) ?? .rounded
@@ -213,38 +212,6 @@ final class Layer: Codable, Identifiable {
         isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
         isFlippedHorizontally = try c.decodeIfPresent(Bool.self, forKey: .isFlippedHorizontally) ?? false
         isFlippedVertically = try c.decodeIfPresent(Bool.self, forKey: .isFlippedVertically) ?? false
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(uuid, forKey: .uuid)
-        try c.encode(name, forKey: .name)
-        try c.encode(kind, forKey: .kind)
-        try c.encode(text, forKey: .text)
-        try c.encode(fontWeight, forKey: .fontWeight)
-        try c.encode(fontDesign, forKey: .fontDesign)
-        try c.encode(storedTintColor, forKey: .storedTintColor)
-        try c.encodeIfPresent(storedFillPaint, forKey: .storedFillPaint)
-        try c.encodeIfPresent(shapeSpec, forKey: .shapeSpec)
-        try c.encode(cornerRadius, forKey: .cornerRadius)
-        try c.encode(borderWidth, forKey: .borderWidth)
-        try c.encode(storedBorderColor, forKey: .storedBorderColor)
-        try c.encode(borderPosition, forKey: .borderPosition)
-        try c.encode(fillEnabled, forKey: .fillEnabled)
-        try c.encode(lineCap, forKey: .lineCap)
-        try c.encode(offsetW, forKey: .offsetW)
-        try c.encode(offsetH, forKey: .offsetH)
-        try c.encode(scaleValue, forKey: .scaleValue)
-        try c.encode(rotationRadians, forKey: .rotationRadians)
-        try c.encode(opacity, forKey: .opacity)
-        try c.encode(shadowOpacity, forKey: .shadowOpacity)
-        try c.encode(shadowRadius, forKey: .shadowRadius)
-        try c.encode(shadowOffsetX, forKey: .shadowOffsetX)
-        try c.encode(shadowOffsetY, forKey: .shadowOffsetY)
-        try c.encode(storedShadowColor, forKey: .storedShadowColor)
-        try c.encode(isLocked, forKey: .isLocked)
-        try c.encode(isFlippedHorizontally, forKey: .isFlippedHorizontally)
-        try c.encode(isFlippedVertically, forKey: .isFlippedVertically)
     }
 
     // MARK: - Bridged properties
@@ -292,106 +259,5 @@ final class Layer: Codable, Identifiable {
                 storedTintColor = newValue.solidColor
             }
         }
-    }
-}
-
-// MARK: - Snapshot for undo
-
-struct LayerSnapshot {
-    let uuid: UUID
-    let kind: LayerKind
-    let name: String
-    let imagePNG: Data?
-    let text: String
-    let fontWeight: LayerFontWeight
-    let fontDesign: LayerFontDesign
-    let tintColor: StoredColor
-    let storedFillPaint: Paint?
-    let shapeSpec: ShapeSpec?
-    let cornerRadius: Double
-    let borderWidth: Double
-    let borderColor: StoredColor
-    let borderPosition: BorderPosition
-    let fillEnabled: Bool
-    let lineCap: LayerLineCap
-    let offsetW: Double
-    let offsetH: Double
-    let scaleValue: Double
-    let rotationRadians: Double
-    let opacity: Double
-    let shadowOpacity: Double
-    let shadowRadius: Double
-    let shadowOffsetX: Double
-    let shadowOffsetY: Double
-    let shadowColor: StoredColor
-    let isLocked: Bool
-    let isFlippedHorizontally: Bool
-    let isFlippedVertically: Bool
-}
-
-extension Layer {
-    func snapshot() -> LayerSnapshot {
-        LayerSnapshot(
-            uuid: uuid,
-            kind: kind,
-            name: name,
-            imagePNG: imagePNG,
-            text: text,
-            fontWeight: fontWeight,
-            fontDesign: fontDesign,
-            tintColor: storedTintColor,
-            storedFillPaint: storedFillPaint,
-            shapeSpec: shapeSpec,
-            cornerRadius: cornerRadius,
-            borderWidth: borderWidth,
-            borderColor: storedBorderColor,
-            borderPosition: borderPosition,
-            fillEnabled: fillEnabled,
-            lineCap: lineCap,
-            offsetW: offsetW,
-            offsetH: offsetH,
-            scaleValue: scaleValue,
-            rotationRadians: rotationRadians,
-            opacity: opacity,
-            shadowOpacity: shadowOpacity,
-            shadowRadius: shadowRadius,
-            shadowOffsetX: shadowOffsetX,
-            shadowOffsetY: shadowOffsetY,
-            shadowColor: storedShadowColor,
-            isLocked: isLocked,
-            isFlippedHorizontally: isFlippedHorizontally,
-            isFlippedVertically: isFlippedVertically
-        )
-    }
-
-    func apply(_ s: LayerSnapshot) {
-        kind = s.kind
-        name = s.name
-        imagePNG = s.imagePNG
-        text = s.text
-        fontWeight = s.fontWeight
-        fontDesign = s.fontDesign
-        storedTintColor = s.tintColor
-        storedFillPaint = s.storedFillPaint
-        shapeSpec = s.shapeSpec
-        cornerRadius = s.cornerRadius
-        borderWidth = s.borderWidth
-        storedBorderColor = s.borderColor
-        borderPosition = s.borderPosition
-        fillEnabled = s.fillEnabled
-        lineCap = s.lineCap
-        offsetW = s.offsetW
-        offsetH = s.offsetH
-        scaleValue = s.scaleValue
-        rotationRadians = s.rotationRadians
-        opacity = s.opacity
-        shadowOpacity = s.shadowOpacity
-        shadowRadius = s.shadowRadius
-        shadowOffsetX = s.shadowOffsetX
-        shadowOffsetY = s.shadowOffsetY
-        storedShadowColor = s.shadowColor
-        isLocked = s.isLocked
-        isFlippedHorizontally = s.isFlippedHorizontally
-        isFlippedVertically = s.isFlippedVertically
     }
 }

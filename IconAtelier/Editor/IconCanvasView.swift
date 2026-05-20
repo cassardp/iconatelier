@@ -232,10 +232,10 @@ struct IconCanvasView: View {
                     let movedLayers = project.layers.filter { ids.contains($0.uuid) }
                     guard !movedLayers.isEmpty else { return }
                     project.recordUndo()
-                    for layer in movedLayers {
+                    project.mutateLayers(ids: ids) { layer in
                         let nx = layer.offset.width + dx
                         let ny = layer.offset.height + dy
-                        guard nx.isFinite, ny.isFinite else { continue }
+                        guard nx.isFinite, ny.isFinite else { return }
                         layer.offset = CGSize(
                             width: min(max(nx, -0.5), 0.5),
                             height: min(max(ny, -0.5), 0.5)
@@ -259,10 +259,12 @@ struct IconCanvasView: View {
                 let nextWidth = layer.offset.width + effective.width / side
                 let nextHeight = layer.offset.height + effective.height / side
                 guard nextWidth.isFinite, nextHeight.isFinite else { return }
-                layer.offset = CGSize(
-                    width: min(max(nextWidth, -0.5), 0.5),
-                    height: min(max(nextHeight, -0.5), 0.5)
-                )
+                project.mutate(id: layer.uuid) {
+                    $0.offset = CGSize(
+                        width: min(max(nextWidth, -0.5), 0.5),
+                        height: min(max(nextHeight, -0.5), 0.5)
+                    )
+                }
             }
 
         let magnify = MagnifyGesture(minimumScaleDelta: 0.01)
@@ -279,7 +281,7 @@ struct IconCanvasView: View {
                     let targets = project.layers.filter { ids.contains($0.uuid) }
                     guard !targets.isEmpty else { return }
                     project.recordUndo()
-                    for layer in targets {
+                    project.mutateLayers(ids: ids) { layer in
                         let dx = layer.offset.width - pivot.width
                         let dy = layer.offset.height - pivot.height
                         let nx = pivot.width + dx * m
@@ -294,7 +296,9 @@ struct IconCanvasView: View {
                 }
                 guard let layer = selectedOverlay, !layer.isLocked else { return }
                 project.recordUndo()
-                layer.scale = max(0.1, layer.scale * value.magnification)
+                project.mutate(id: layer.uuid) {
+                    $0.scale = max(0.1, $0.scale * value.magnification)
+                }
             }
 
         let rotate = RotateGesture(minimumAngleDelta: .degrees(1))
@@ -341,7 +345,7 @@ struct IconCanvasView: View {
                     let targets = project.layers.filter { ids.contains($0.uuid) }
                     guard !targets.isEmpty else { return }
                     project.recordUndo()
-                    for layer in targets {
+                    project.mutateLayers(ids: ids) { layer in
                         let dx = layer.offset.width - pivot.width
                         let dy = layer.offset.height - pivot.height
                         let rx = dx * cos(theta) - dy * sin(theta)
@@ -363,7 +367,9 @@ struct IconCanvasView: View {
                     rawDelta: value.rotation
                 )
                 guard delta.degrees.isFinite else { return }
-                layer.rotation = CanvasSnapping.normalized(layer.rotation + delta)
+                project.mutate(id: layer.uuid) {
+                    $0.rotation = CanvasSnapping.normalized(layer.rotation + delta)
+                }
             }
 
         return drag.simultaneously(with: magnify).simultaneously(with: rotate)

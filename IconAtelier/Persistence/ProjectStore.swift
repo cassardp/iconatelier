@@ -48,12 +48,13 @@ final class ProjectStore {
             }
             project.thumbnailPNGDirty = false
 
-            for layer in project.layers {
-                let layerURL = dir.appendingPathComponent("layer-\(layer.uuid.uuidString).png")
+            for idx in project.layers.indices {
+                let uuid = project.layers[idx].uuid
+                let layerURL = dir.appendingPathComponent("layer-\(uuid.uuidString).png")
                 if let imageData = try? Data(contentsOf: layerURL) {
-                    layer.imagePNG = imageData
+                    project.layers[idx].imagePNG = imageData
                 }
-                layer.imagePNGDirty = false
+                project.layers[idx].imagePNGDirty = false
             }
 
             loaded.append(project)
@@ -90,13 +91,14 @@ final class ProjectStore {
             }
 
             var keepFilenames: Set<String> = ["project.json", "thumbnail.png"]
-            for layer in project.layers {
+            for idx in project.layers.indices {
+                let layer = project.layers[idx]
                 let filename = "layer-\(layer.uuid.uuidString).png"
                 let url = dir.appendingPathComponent(filename)
                 if let data = layer.imagePNG {
                     if layer.imagePNGDirty || !fm.fileExists(atPath: url.path) {
                         try data.write(to: url, options: .atomic)
-                        layer.imagePNGDirty = false
+                        project.layers[idx].imagePNGDirty = false
                     }
                     keepFilenames.insert(filename)
                 } else if fm.fileExists(atPath: url.path) {

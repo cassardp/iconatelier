@@ -56,10 +56,10 @@ enum LibraryImporter {
             if let thumb = files["thumbnail.png"] {
                 project.thumbnailPNG = thumb
             }
-            for layer in project.layers {
-                let filename = "layer-\(layer.uuid.uuidString).png"
+            for idx in project.layers.indices {
+                let filename = "layer-\(project.layers[idx].uuid.uuidString).png"
                 if let data = files[filename] {
-                    layer.imagePNG = data
+                    project.layers[idx].imagePNG = data
                 }
             }
 

@@ -291,7 +291,7 @@ struct GalleryView: View {
         let project = IconProject(title: "Untitled")
         project.background = Background(kind: .solid)
         let textLayer = project.addTextOverlay(text: "Aa")
-        textLayer.fontWeight = .heavy
+        project.mutate(id: textLayer.uuid) { $0.fontWeight = .heavy }
         project.clearHistory()
         IconRenderer.updateThumbnail(project)
         store.add(project)

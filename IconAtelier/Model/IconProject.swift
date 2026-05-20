@@ -3,7 +3,7 @@ import UIKit
 
 struct IconProjectSnapshot {
     let background: BackgroundSnapshot
-    let layers: [LayerSnapshot]
+    let layers: [Layer]
 }
 
 @Observable
@@ -135,12 +135,40 @@ final class IconProject: Codable, Identifiable {
 
     var hasContent: Bool { !layers.isEmpty }
 
+    // MARK: - Indexed mutation helpers
+
+    func mutate(id: UUID, _ block: (inout Layer) -> Void) {
+        guard let idx = layers.firstIndex(where: { $0.uuid == id }) else { return }
+        block(&layers[idx])
+    }
+
+    func mutateLayers(ids: Set<UUID>, _ block: (inout Layer) -> Void) {
+        for idx in layers.indices where ids.contains(layers[idx].uuid) {
+            block(&layers[idx])
+        }
+    }
+
+    func layerBinding(id: UUID) -> Binding<Layer>? {
+        guard layers.contains(where: { $0.uuid == id }) else { return nil }
+        return Binding(
+            get: { [weak self] in
+                self?.layers.first(where: { $0.uuid == id }) ?? Layer(kind: .image, name: "")
+            },
+            set: { [weak self] newValue in
+                guard let self else { return }
+                if let idx = self.layers.firstIndex(where: { $0.uuid == id }) {
+                    self.layers[idx] = newValue
+                }
+            }
+        )
+    }
+
     // MARK: - Snapshot / undo
 
     private func currentSnapshot() -> IconProjectSnapshot {
         IconProjectSnapshot(
             background: (background ?? Background()).snapshot(),
-            layers: layers.map { $0.snapshot() }
+            layers: layers
         )
     }
 
@@ -152,22 +180,7 @@ final class IconProject: Codable, Identifiable {
             bg.apply(snapshot.background)
             background = bg
         }
-
-        let existingByUUID = Dictionary(uniqueKeysWithValues: layers.map { ($0.uuid, $0) })
-        var rebuilt: [Layer] = []
-
-        for snap in snapshot.layers {
-            if let existing = existingByUUID[snap.uuid] {
-                existing.apply(snap)
-                rebuilt.append(existing)
-            } else {
-                let layer = Layer(uuid: snap.uuid, kind: snap.kind, name: snap.name)
-                layer.apply(snap)
-                rebuilt.append(layer)
-            }
-        }
-
-        layers = rebuilt
+        layers = snapshot.layers
     }
 
     func recordUndo() {
@@ -240,7 +253,7 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addShapeLayer(spec: ShapeSpec) -> Layer {
         recordUndo()
-        let layer = Layer(
+        var layer = Layer(
             kind: .parametricShape,
             name: nextName(for: .parametricShape, baseFallback: spec.displayName),
             tintColor: .white,
@@ -253,7 +266,7 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addSilhouetteLayer(spec: ShapeSpec = .iosSquircle) -> Layer {
         recordUndo()
-        let layer = Layer(
+        var layer = Layer(
             kind: .parametricShape,
             name: nextName(for: .parametricShape, baseFallback: spec.displayName),
             tintColor: .white,
@@ -268,7 +281,7 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func addTextOverlay(text: String = "Aa") -> Layer {
         recordUndo()
-        let layer = Layer(kind: .text, name: text, text: text, tintColor: .black)
+        var layer = Layer(kind: .text, name: text, text: text, tintColor: .black)
         layer.scaleValue = 1.0 / 1.8
         return append(layer)
     }
@@ -302,9 +315,7 @@ final class IconProject: Codable, Identifiable {
         copy.background = bg
 
         copy.layers = layers.map { layer in
-            let snap = layer.snapshot()
-            let newLayer = Layer(kind: snap.kind, name: snap.name)
-            newLayer.apply(snap)
+            var newLayer = layer
             newLayer.uuid = UUID()
             return newLayer
         }
@@ -314,10 +325,9 @@ final class IconProject: Codable, Identifiable {
     @discardableResult
     func duplicate(_ layer: Layer) -> Layer {
         recordUndo()
-        let snap = layer.snapshot()
-        let copy = Layer(kind: snap.kind, name: snap.name + " copy")
-        copy.apply(snap)
+        var copy = layer
         copy.uuid = UUID()
+        copy.name = layer.name + " copy"
 
         if let idx = layers.firstIndex(where: { $0.uuid == layer.uuid }) {
             layers.insert(copy, at: idx + 1)
@@ -332,7 +342,7 @@ final class IconProject: Codable, Identifiable {
         guard !pasted.isEmpty else { return [] }
         recordUndo()
         var inserted: [Layer] = []
-        for layer in pasted {
+        for var layer in pasted {
             layer.uuid = UUID()
             layers.append(layer)
             inserted.append(layer)
@@ -391,7 +401,7 @@ final class IconProject: Codable, Identifiable {
             guard let result = BooleanOpRenderer.compose(layers: targets, op: op) else {
                 return nil
             }
-            let layer = Layer(
+            var layer = Layer(
                 kind: .image,
                 name: op.label,
                 image: result.image
@@ -426,9 +436,9 @@ final class IconProject: Codable, Identifiable {
         return newLayer
     }
 
-    func toggleLock(_ layer: Layer) {
+    func toggleLock(id: UUID) {
         recordUndo()
-        layer.isLocked.toggle()
+        mutate(id: id) { $0.isLocked.toggle() }
     }
 
     @MainActor
@@ -448,7 +458,7 @@ final class IconProject: Codable, Identifiable {
             height: bbox.midY / vector.canvasSide
         )
 
-        let layer = Layer(
+        var layer = Layer(
             kind: .parametricShape,
             name: op.label,
             tintColor: source.tintColor,

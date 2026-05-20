@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Per-kind content sections
 
 struct ImageContentSection: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {
@@ -14,7 +14,7 @@ struct ImageContentSection: View {
 }
 
 struct TextContentSection: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     @FocusState private var textFocused: Bool

@@ -12,7 +12,7 @@ enum BorderDefaults {
 }
 
 struct BorderPanelContent: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
     let widthRange: ClosedRange<Double>
     let widthDefault: Double
@@ -29,7 +29,7 @@ struct BorderPanelContent: View {
                 onBeginEditing: { project.recordUndo() }
             )
             BorderPositionRow(position: $layer.borderPosition, project: project)
-            LineCapRow(layer: layer, project: project)
+            LineCapRow(layer: $layer, project: project)
             ColorPickerRow(
                 title: "Color",
                 color: $layer.borderColor,
@@ -39,20 +39,20 @@ struct BorderPanelContent: View {
     }
 
     static func enabledBinding(
-        layer: Layer,
+        layer: Binding<Layer>,
         project: IconProject,
         widthDefault: Double
     ) -> Binding<Bool> {
         Binding(
-            get: { layer.borderWidth > 0 },
+            get: { layer.wrappedValue.borderWidth > 0 },
             set: { newVal in
                 project.recordUndo()
                 if newVal {
-                    layer.borderWidth = widthDefault
-                    layer.borderColor = BorderDefaults.color
-                    layer.borderPosition = BorderDefaults.position
+                    layer.wrappedValue.borderWidth = widthDefault
+                    layer.wrappedValue.borderColor = BorderDefaults.color
+                    layer.wrappedValue.borderPosition = BorderDefaults.position
                 } else {
-                    layer.borderWidth = 0
+                    layer.wrappedValue.borderWidth = 0
                 }
             }
         )
@@ -78,7 +78,7 @@ private struct BorderPositionRow: View {
 }
 
 private struct LineCapRow: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {
@@ -106,7 +106,7 @@ enum ShadowDefaults {
 }
 
 struct ShadowPanelContent: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {
@@ -166,19 +166,19 @@ struct ShadowPanelContent: View {
         }
     }
 
-    static func enabledBinding(layer: Layer, project: IconProject) -> Binding<Bool> {
+    static func enabledBinding(layer: Binding<Layer>, project: IconProject) -> Binding<Bool> {
         Binding(
-            get: { layer.shadowOpacity > 0 },
+            get: { layer.wrappedValue.shadowOpacity > 0 },
             set: { newVal in
                 project.recordUndo()
                 if newVal {
-                    layer.shadowOpacity = ShadowDefaults.opacity
-                    layer.shadowRadius = ShadowDefaults.radius
-                    layer.shadowOffsetX = ShadowDefaults.offsetX
-                    layer.shadowOffsetY = ShadowDefaults.offsetY
-                    layer.shadowColor = ShadowDefaults.color
+                    layer.wrappedValue.shadowOpacity = ShadowDefaults.opacity
+                    layer.wrappedValue.shadowRadius = ShadowDefaults.radius
+                    layer.wrappedValue.shadowOffsetX = ShadowDefaults.offsetX
+                    layer.wrappedValue.shadowOffsetY = ShadowDefaults.offsetY
+                    layer.wrappedValue.shadowColor = ShadowDefaults.color
                 } else {
-                    layer.shadowOpacity = 0
+                    layer.wrappedValue.shadowOpacity = 0
                 }
             }
         )
@@ -193,7 +193,7 @@ enum TransformDefaults {
 }
 
 struct TransformPanelContent: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {
@@ -202,20 +202,20 @@ struct TransformPanelContent: View {
         }
     }
 
-    static func enabledBinding(layer: Layer, project: IconProject) -> Binding<Bool> {
+    static func enabledBinding(layer: Binding<Layer>, project: IconProject) -> Binding<Bool> {
         Binding(
-            get: { layer.shapeSpec?.transformParams != nil },
+            get: { layer.wrappedValue.shapeSpec?.transformParams != nil },
             set: { newVal in
                 project.recordUndo()
-                let spec = layer.shapeSpec ?? .defaultShape
+                let spec = layer.wrappedValue.shapeSpec ?? .defaultShape
                 if newVal {
-                    layer.shapeSpec = spec.applyingTransform(TransformParams(
+                    layer.wrappedValue.shapeSpec = spec.applyingTransform(TransformParams(
                         stretchX: TransformDefaults.stretchX,
                         stretchY: TransformDefaults.stretchY,
                         rotation: 0
                     ))
                 } else {
-                    layer.shapeSpec = spec.applyingTransform(ShapeSpec.identityTransform)
+                    layer.wrappedValue.shapeSpec = spec.applyingTransform(ShapeSpec.identityTransform)
                 }
             }
         )
@@ -263,7 +263,7 @@ struct TransformPanelContent: View {
 // MARK: - Radial repeat (apply toggle + conditional sliders)
 
 struct RadialRepeatPanelContent: View {
-    @Bindable var layer: Layer
+    @Binding var layer: Layer
     let project: IconProject
 
     var body: some View {
@@ -282,22 +282,22 @@ struct RadialRepeatPanelContent: View {
     }
 
     static func enabledBinding(
-        layer: Layer,
+        layer: Binding<Layer>,
         project: IconProject,
         wrapBase: @escaping () -> ShapeSpec,
         disabledShapeSpec: @escaping () -> ShapeSpec?
     ) -> Binding<Bool> {
         Binding(
-            get: { layer.shapeSpec?.radialRepeatParams != nil },
+            get: { layer.wrappedValue.shapeSpec?.radialRepeatParams != nil },
             set: { newVal in
                 project.recordUndo()
                 if newVal {
-                    let base = layer.shapeSpec ?? wrapBase()
-                    layer.shapeSpec = base.wrappingInRadialRepeat(
+                    let base = layer.wrappedValue.shapeSpec ?? wrapBase()
+                    layer.wrappedValue.shapeSpec = base.wrappingInRadialRepeat(
                         ShapeSpec.defaultRadialRepeat
                     )
                 } else {
-                    layer.shapeSpec = disabledShapeSpec()
+                    layer.wrappedValue.shapeSpec = disabledShapeSpec()
                 }
             }
         )
