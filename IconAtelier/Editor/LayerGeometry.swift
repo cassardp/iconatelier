@@ -13,4 +13,9 @@ enum LayerGeometry {
     static func frameSide(for layer: Layer, canvasSide: CGFloat) -> CGFloat {
         canvasSide * baseUnitFraction(for: layer.kind) * layer.scale
     }
+
+    static func maxOffsetMagnitude(for layer: Layer) -> CGFloat {
+        let halfExtent = baseUnitFraction(for: layer.kind) * CGFloat(layer.scale) / 2
+        return max(0.5, 0.5 + halfExtent - 0.04)
+    }
 }

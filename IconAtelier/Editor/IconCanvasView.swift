@@ -239,9 +239,10 @@ struct IconCanvasView: View {
                         let nx = layer.offset.width + dx
                         let ny = layer.offset.height + dy
                         guard nx.isFinite, ny.isFinite else { return }
+                        let limit = LayerGeometry.maxOffsetMagnitude(for: layer)
                         layer.offset = CGSize(
-                            width: min(max(nx, -0.5), 0.5),
-                            height: min(max(ny, -0.5), 0.5)
+                            width: min(max(nx, -limit), limit),
+                            height: min(max(ny, -limit), limit)
                         )
                     }
                     return
@@ -251,10 +252,11 @@ struct IconCanvasView: View {
                 let nextWidth = layer.offset.width + effective.width / side
                 let nextHeight = layer.offset.height + effective.height / side
                 guard nextWidth.isFinite, nextHeight.isFinite else { return }
+                let limit = LayerGeometry.maxOffsetMagnitude(for: layer)
                 project.mutate(id: layer.uuid) {
                     $0.offset = CGSize(
-                        width: min(max(nextWidth, -0.5), 0.5),
-                        height: min(max(nextHeight, -0.5), 0.5)
+                        width: min(max(nextWidth, -limit), limit),
+                        height: min(max(nextHeight, -limit), limit)
                     )
                 }
             }
@@ -318,11 +320,12 @@ struct IconCanvasView: View {
                         let dy = layer.offset.height - pivot.height
                         let nx = pivot.width + dx * m
                         let ny = pivot.height + dy * m
-                        layer.offset = CGSize(
-                            width: min(max(nx, -0.5), 0.5),
-                            height: min(max(ny, -0.5), 0.5)
-                        )
                         layer.scale = max(0.1, layer.scale * m)
+                        let limit = LayerGeometry.maxOffsetMagnitude(for: layer)
+                        layer.offset = CGSize(
+                            width: min(max(nx, -limit), limit),
+                            height: min(max(ny, -limit), limit)
+                        )
                     }
                     return
                 }
@@ -384,9 +387,10 @@ struct IconCanvasView: View {
                         let ry = dx * sin(theta) + dy * cos(theta)
                         let nx = pivot.width + rx
                         let ny = pivot.height + ry
+                        let limit = LayerGeometry.maxOffsetMagnitude(for: layer)
                         layer.offset = CGSize(
-                            width: min(max(nx, -0.5), 0.5),
-                            height: min(max(ny, -0.5), 0.5)
+                            width: min(max(nx, -limit), limit),
+                            height: min(max(ny, -limit), limit)
                         )
                         layer.rotation = CanvasSnapping.normalized(layer.rotation + snappedDelta)
                     }
