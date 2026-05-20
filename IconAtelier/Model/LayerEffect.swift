@@ -10,6 +10,7 @@ struct DropShadow: Codable, Equatable, Sendable {
 
 enum LayerEffect: Codable, Equatable, Sendable {
     case dropShadow(DropShadow)
+    case blur(radius: Double)
 }
 
 extension View {
@@ -23,6 +24,8 @@ extension View {
                     x: side * CGFloat(s.offsetX) * scale,
                     y: side * CGFloat(s.offsetY) * scale
                 ))
+            case let .blur(radius):
+                return AnyView(acc.blur(radius: side * CGFloat(radius) * scale))
             }
         }
     }

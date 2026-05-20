@@ -26,6 +26,9 @@ struct LayerEditorContent: View {
                     SectionDivider()
                     shadowSection(layerBinding: layerBinding)
 
+                    SectionDivider()
+                    blurSection(layerBinding: layerBinding)
+
                     if supportsTransform(layer) {
                         SectionDivider()
                         transformSection(layerBinding: layerBinding)
@@ -108,6 +111,18 @@ struct LayerEditorContent: View {
             isOn: ShadowPanelContent.enabledBinding(layer: layerBinding, project: project)
         ) {
             ShadowPanelContent(layer: layerBinding, project: project)
+        }
+    }
+
+    // MARK: - Blur
+
+    @ViewBuilder
+    private func blurSection(layerBinding: Binding<Layer>) -> some View {
+        PanelSection(
+            title: "Blur",
+            isOn: BlurPanelContent.enabledBinding(layer: layerBinding, project: project)
+        ) {
+            BlurPanelContent(layer: layerBinding, project: project)
         }
     }
 
