@@ -151,7 +151,11 @@ enum BooleanOpRenderer {
 
     @MainActor
     private static func rasterize(_ layer: Layer, side: CGFloat) -> UIImage? {
-        let view = LayerForBooleanRender(layer: layer, side: side)
+        let view = ZStack {
+            Color.clear
+            LayerView(layer: layer, side: side, includeEffects: false)
+        }
+        .frame(width: side, height: side)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
         renderer.proposedSize = ProposedViewSize(width: side, height: side)
@@ -277,23 +281,3 @@ enum BooleanOpRenderer {
     }
 }
 
-// MARK: - Stripped-down layer view for rasterization
-
-private struct LayerForBooleanRender: View {
-    let layer: Layer
-    let side: CGFloat
-
-    var body: some View {
-        ZStack {
-            Color.clear
-            LayerContentView(layer: layer, side: side, scale: layer.scale)
-                .rotationEffect(layer.rotation)
-                .opacity(layer.opacity)
-                .offset(
-                    x: layer.offset.width * side,
-                    y: layer.offset.height * side
-                )
-        }
-        .frame(width: side, height: side)
-    }
-}

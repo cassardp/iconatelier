@@ -15,15 +15,7 @@ enum IconRenderer {
                 BackgroundView(background: bg, side: side)
             }
             ForEach(project.layers) { layer in
-                let s = CGFloat(layer.scale)
-                LayerContentView(layer: layer, side: side, scale: s)
-                    .applying(effects: layer.appearance.effects, side: side, scale: s)
-                    .rotationEffect(layer.rotation)
-                    .opacity(layer.opacity)
-                    .offset(
-                        x: layer.offset.width * side,
-                        y: layer.offset.height * side
-                    )
+                LayerView(layer: layer, side: side)
             }
         }
         .frame(width: side, height: side)

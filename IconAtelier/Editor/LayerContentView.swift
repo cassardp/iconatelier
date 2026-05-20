@@ -1,17 +1,19 @@
 import SwiftUI
 import UIKit
 
-struct OverlayLayerRender: View {
+struct LayerView: View {
     let layer: Layer
     let side: CGFloat
     var transientOffset: CGSize = .zero
     var transientScale: CGFloat = 1.0
     var transientAngle: Angle = .zero
+    var includeEffects: Bool = true
 
     var body: some View {
         let effectiveScale = layer.scale * transientScale
+        let effects = includeEffects ? layer.appearance.effects : []
         LayerContentView(layer: layer, side: side, scale: effectiveScale)
-            .applying(effects: layer.appearance.effects, side: side, scale: effectiveScale)
+            .applying(effects: effects, side: side, scale: effectiveScale)
             .rotationEffect(layer.rotation + transientAngle)
             .opacity(layer.opacity)
             .offset(

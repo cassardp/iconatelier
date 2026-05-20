@@ -392,7 +392,7 @@ private struct OverlayLayerView: View {
     let onTap: () -> Void
 
     var body: some View {
-        OverlayLayerRender(
+        LayerView(
             layer: layer,
             side: side,
             transientOffset: transientOffset,

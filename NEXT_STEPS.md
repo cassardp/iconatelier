@@ -3,7 +3,7 @@
 Document de reprise après les étapes 1, 2, 4a, 4b et 5. Permet de clear la
 session Claude et repartir sans perdre le contexte.
 
-Daté du 2026-05-20 (mis à jour après l'étape 7.1 — découpage de `ContentView`).
+Daté du 2026-05-20 (mis à jour après l'étape 7.2 — rendu unifié).
 
 ---
 
@@ -30,17 +30,16 @@ Plan retenu, re-priorisé pour « ajouter features rapidement » :
    stroke, colorOverlay…) — **à faire**
 7. **Nettoyage structurel** (découper ContentView, unifier le rendu…)
    - 7.1 — Découper `ContentView` (AIFlowController + LassoController) ✅
-   - 7.2 — Unifier le rendu (LayerContentView + BooleanOpRenderer + IconRenderer
-     → un seul LayerView) — **à faire, prochain**
-   - 7.3 — Sortir SwiftUI de `ShapeSpec` — à faire
+   - 7.2 — Unifier le rendu (un seul `LayerView`) ✅
+   - 7.3 — Sortir SwiftUI de `ShapeSpec` — **à faire, prochain**
    - 7.4 — Asset store séparé pour les PNG — *skippé tant que pas un goulet*
 
-**Étapes complétées : 1, 2, 4a, 4b, 5, 7.1.**
-**À faire : 7.2 (rendu unifié — prochain), 7.3, 3 (handles), 6 (effets).**
+**Étapes complétées : 1, 2, 4a, 4b, 5, 7.1, 7.2.**
+**À faire : 7.3 (prochain), 3 (handles), 6 (effets).**
 
 ---
 
-## État de la base de code (post-étape 7.1)
+## État de la base de code (post-étape 7.2)
 
 ```
 IconAtelier/
@@ -58,10 +57,12 @@ IconAtelier/
     AIFlowController.swift       (91 l. — @Observable @MainActor, prompt+gen flow)
     LassoController.swift        (136 l. — @Observable @MainActor, drag/tap gestures
                                   + canvas/bar/row frames + boolean ops)
-    LayerEditorContent.swift     (Binding<Layer> from project)
-    EffectPanels.swift           (ShadowPanelContent + Border + Transform)
-    LayerContentView.swift, BooleanOpRenderer.swift, EditSheet.swift, …
-  Shapes/, Paint/, AI/, Export/, Persistence/, Gallery/, UI/
+    LayerContentView.swift       (LayerView wrapper + LayerContentView inner draw)
+    BooleanOpRenderer.swift      (283 l. — utilise LayerView includeEffects:false)
+    LayerEditorContent.swift, EffectPanels.swift, EditSheet.swift, …
+  Persistence/
+    ProjectPersistence.swift     (54 l. — IconRenderer.render utilise LayerView)
+  Shapes/, Paint/, AI/, Export/, Gallery/, UI/
 ```
 
 ### Dette structurelle restante
@@ -71,11 +72,43 @@ IconAtelier/
   scope ; à nettoyer progressivement quand les call sites disparaissent.
 - `Codable` manuel pour `IconProject` (decodeIfPresent), `Paint`,
   `ShapeSpec`. Pas urgent.
-- Rendu dupliqué : `LayerContentView` (écran) vs `LayerForBooleanRender`
-  (`BooleanOpRenderer.swift`) vs `IconRenderer` (thumbnail/export).
-  → étape 7.2.
 - `ShapeSpec` importe SwiftUI (`anyShape()`), pas testable hors UI.
   → étape 7.3.
+
+---
+
+## Étape 7.2 — résumé
+
+Les trois chemins de rendu (canvas, booléennes, export/thumbnail)
+convergent sur un seul `LayerView`.
+
+**Changements** :
+- `OverlayLayerRender` → renommé **`LayerView`**, gagne
+  `includeEffects: Bool = true` (`LayerContentView.swift`).
+- `LayerForBooleanRender` (privé dans `BooleanOpRenderer.swift`)
+  supprimé. `rasterize(_:side:)` utilise
+  `LayerView(layer, side, includeEffects: false)` wrappé dans le
+  `ZStack { Color.clear; … }.frame(side, side)`.
+- `IconRenderer.render` (`ProjectPersistence.swift`) : composition
+  inline (LayerContentView + applying + rotation + opacity + offset)
+  → `LayerView(layer, side)` direct dans le `ForEach`.
+- `IconCanvasView` overlay : `OverlayLayerRender(...)` → `LayerView(...)`.
+
+**Comment l'unification fonctionne** :
+- `applying(effects: [])` est un no-op (cf. `LayerEffect.swift:17`),
+  donc `includeEffects: false` se résume à passer `[]` et garde un
+  seul chemin de composition.
+- `transientOffset/Scale/Angle` valent par défaut `.zero / 1 / .zero`,
+  donc les chemins non-éditeur (booléen, export) n'ont rien à passer.
+
+**Validé** : test device — drop shadow sur carré + cercle sans ombre,
+opération `Subtract`. Résultat = forme découpée nette + ombre du
+carré, comme attendu :
+- `BooleanOpRenderer.rasterize` avec `includeEffects: false` rasterise
+  la shape sans l'ombre, donc la forme combinée est propre.
+- `IconProject.swift:465` (`layer.appearance.effects = source.appearance.effects`)
+  fait hériter au layer résultat l'effet du `source` (premier sélectionné).
+  L'ombre reste vivante et ajustable sur le nouveau layer.
 
 ---
 
@@ -320,22 +353,12 @@ Réalisé : `ContentView` 608 → 435 lignes. Voir résumé de l'étape 7.1
 plus haut. `AIFlowController` et `LassoController` créés en
 `@Observable @MainActor`, injectés en `@State`.
 
-#### 7.2 — Unifier le rendu (3 chemins → 1)
+#### 7.2 — Unifier le rendu (3 chemins → 1) ✅ — fait
 
-Aujourd'hui trois chemins de rendu ont divergé :
-- `LayerContentView` (écran, dans `Editor/LayerContentView.swift`)
-- `LayerForBooleanRender` (booléennes, dans `BooleanOpRenderer.swift`)
-- `IconRenderer.render` (thumbnail + export, dans `ProjectPersistence.swift`)
-
-Plan : un seul `LayerView: View` consommé par les 3 contextes, paramétré
-par ce qui diffère (background, application des effects, etc.).
-Suppression de `LayerForBooleanRender`.
-
-**Effort** : ~1 j. **Risque** : moyen — comparer pixel-à-pixel les
-sorties avant/après sur les 3 cas (icône écran, masque booléen, export
-PNG). **Gain** : ajouter un effet ou un type de layer = 1 seul chemin
-à toucher. Les bugs « ça marche à l'écran mais pas à l'export »
-disparaissent.
+Réalisé : `LayerView` unique avec `includeEffects: Bool = true` et
+transient params optionnels. `LayerForBooleanRender` supprimé,
+`IconRenderer.render` et `IconCanvasView` overlay consomment
+`LayerView`. Voir résumé de l'étape 7.2 plus haut.
 
 #### 7.3 — Sortir SwiftUI de `ShapeSpec`
 
@@ -379,9 +402,10 @@ tant que ce n'est pas un goulet.
 
 1. Lire ce fichier (`NEXT_STEPS.md`).
 2. Lire `CLAUDE.md` (consignes projet : skills d'abord, UI anglaise, etc.).
-3. **Étape 7.2 (unifier le rendu) — prochain chantier** : créer un `LayerView: View`
-   commun, faire converger `LayerContentView`, `LayerForBooleanRender`,
-   `IconRenderer.render` dessus. Vérifier pixel-à-pixel les 3 sorties.
+3. **Étape 7.3 (sortir SwiftUI de `ShapeSpec`) — prochain chantier** :
+   extraire `ShapeRenderer.path(for: ShapeSpec, in: CGRect) -> Path`
+   côté Editor, rendre `ShapeSpec` pure data. Débloque les tests
+   unitaires sur les formes.
 4. **Étape 3 (handles)** : créer
    `IconAtelier/Editor/SelectionHandles.swift`, greffé en overlay sur
    `IconCanvasView.squircleIcon`. Utiliser
