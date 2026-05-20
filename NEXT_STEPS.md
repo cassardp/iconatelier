@@ -3,7 +3,7 @@
 Document de reprise après les étapes 1, 2, 4a, 4b et 5. Permet de clear la
 session Claude et repartir sans perdre le contexte.
 
-Daté du 2026-05-20 (mis à jour après étape 5).
+Daté du 2026-05-20 (mis à jour après l'étape 7.1 — découpage de `ContentView`).
 
 ---
 
@@ -17,24 +17,109 @@ Objectif déclaré : **ajouter des features** (resize handles au doigt, plus
 d'effets, plus de formes) sans laisser le code se transformer en plat de
 spaghettis.
 
-Une discussion d'architecture a établi qu'une réécriture intégrale n'était
-pas nécessaire, mais qu'un refactor progressif débloquerait l'ajout de
-features. Le plan retenu (re-priorisé pour "ajouter features rapidement") :
+Plan retenu, re-priorisé pour « ajouter features rapidement » :
 
 1. **Extraire `CanvasGestureCoordinator` + `HitTester`** de `IconCanvasView` ✅
 2. **Centraliser `baseUnitFraction(for: LayerKind)`** dans un seul fichier ✅
-3. ~~Ajouter les handles (feature directe)~~ — **skip pour l'instant**
+3. **Resize handles au doigt** — feature directe, **à faire**
 4. **`Layer` class → struct + `LayerContent` enum**
-   - 4a — Layer class → struct (compat JSON préservée) ✅
+   - 4a — Layer class → struct ✅
    - 4b — `LayerContent` enum (image/text/shape) ✅
-5. **`[LayerEffect]` stackable** (refactor des shadow existants en `.dropShadow(...)`) ✅
-6. Ajouter les nouveaux effets un par un
+5. **`[LayerEffect]` stackable** (drop shadow extrait en `.dropShadow`) ✅
+6. **Ajouter de nouveaux effets** un par un (innerShadow, glow, blur,
+   stroke, colorOverlay…) — **à faire**
+7. **Nettoyage structurel** (découper ContentView, unifier le rendu…)
+   - 7.1 — Découper `ContentView` (AIFlowController + LassoController) ✅
+   - 7.2 — Unifier le rendu (LayerContentView + BooleanOpRenderer + IconRenderer
+     → un seul LayerView) — **à faire, prochain**
+   - 7.3 — Sortir SwiftUI de `ShapeSpec` — à faire
+   - 7.4 — Asset store séparé pour les PNG — *skippé tant que pas un goulet*
 
-**Étapes complétées : 1, 2, 4a, 4b, 5.**
+**Étapes complétées : 1, 2, 4a, 4b, 5, 7.1.**
+**À faire : 7.2 (rendu unifié — prochain), 7.3, 3 (handles), 6 (effets).**
 
 ---
 
-## Étape 5 — résumé
+## État de la base de code (post-étape 7.1)
+
+```
+IconAtelier/
+  Model/
+    IconProject.swift            (470 l. — @Observable class, undo simplifié)
+    Layer.swift                  (550 l. — struct Codable, bridges flat fields
+                                  vers LayerContent + LayerAppearance.effects)
+    LayerContent.swift           (enum LayerContent + sous-types)
+    LayerEffect.swift            (enum LayerEffect + helper applying(effects:))
+    Background.swift, ProjectSession.swift, StoredTypes.swift, …
+  Editor/
+    IconCanvasView.swift         (409 l. — gestures via project.mutate)
+    CanvasSnapping.swift, CanvasHitTester.swift, LayerGeometry.swift
+    ContentView.swift            (435 l. — layout root + sheets + wiring)
+    AIFlowController.swift       (91 l. — @Observable @MainActor, prompt+gen flow)
+    LassoController.swift        (136 l. — @Observable @MainActor, drag/tap gestures
+                                  + canvas/bar/row frames + boolean ops)
+    LayerEditorContent.swift     (Binding<Layer> from project)
+    EffectPanels.swift           (ShadowPanelContent + Border + Transform)
+    LayerContentView.swift, BooleanOpRenderer.swift, EditSheet.swift, …
+  Shapes/, Paint/, AI/, Export/, Persistence/, Gallery/, UI/
+```
+
+### Dette structurelle restante
+
+- `Layer` expose **~30 bridges computed** qui forwardent vers le bon case
+  de `content` ou vers `appearance.effects`. Pratique pour limiter le
+  scope ; à nettoyer progressivement quand les call sites disparaissent.
+- `Codable` manuel pour `IconProject` (decodeIfPresent), `Paint`,
+  `ShapeSpec`. Pas urgent.
+- Rendu dupliqué : `LayerContentView` (écran) vs `LayerForBooleanRender`
+  (`BooleanOpRenderer.swift`) vs `IconRenderer` (thumbnail/export).
+  → étape 7.2.
+- `ShapeSpec` importe SwiftUI (`anyShape()`), pas testable hors UI.
+  → étape 7.3.
+
+---
+
+## Étape 7.1 — résumé
+
+`ContentView` découpé : 608 → 435 lignes. Le flow AI et le lasso sont
+extraits dans deux controllers `@Observable @MainActor` injectés en
+`@State`.
+
+**Nouveaux fichiers** :
+- `IconAtelier/Editor/AIFlowController.swift` (91 l.) — owns
+  `showPromptSheet`, `isGenerating`, `generationStartDate`,
+  `generationError`, `showNoAPIKeyAlert`. Expose `submit(...)` qui
+  encapsule appel `OpenAIImageService`, timeout 90 s, animation et
+  callback `onSuccess` (utilisé par ContentView pour
+  `presentEditSheet()`).
+- `IconAtelier/Editor/LassoController.swift` (136 l.) — owns
+  `canvasFrame`, `layersBarFrame`, `layerRowFrames`, `lassoRect`. Expose
+  `dragGesture(project:session:spaceName:)`,
+  `clearTapGesture(session:spaceName:)`, `performBooleanOperation(...)`.
+  Le hit-test interne reste privé.
+
+**Pattern** :
+- Les gestures sont retournées par méthodes (`some Gesture`).
+- Callbacks `onChanged`/`onEnded` utilisent `MainActor.assumeIsolated`
+  car les closures SwiftUI ne sont pas isolées par défaut.
+- ContentView déclare `@Bindable var ai = ai` en tête de `body` pour
+  obtenir des bindings sur les propriétés du controller (sheet/alert
+  drivers).
+
+**Décisions actées** :
+- Controllers en `@State` (pas en environnement) — usage local à
+  ContentView, pas de partage profond.
+- `editorSpaceName` reste sur `ContentView` et passé en paramètre aux
+  méthodes du controller (constante statique).
+- `presentEditSheet`, `addShapeLayer`, `addTextLayer`,
+  `handleImportResult`, `closeProject`, `deleteCurrentProject`,
+  `persistSnapshotInBackground`, `exportSignature` restent dans
+  ContentView (couplés au wiring layout/sheet, pas justifiable de les
+  déplacer).
+
+---
+
+## Étape 5 — résumé (commit `4bcbafd`)
 
 `[LayerEffect]` stackable en place. Les drop shadows sont désormais un
 effet parmi d'autres dans `appearance.effects`, et le rendu itère sur le
@@ -58,32 +143,34 @@ tableau.
 - `OverlayLayerRender` (LayerContentView.swift) et `IconRenderer.render`
   (ProjectPersistence.swift) remplacent leur `.shadow(...)` unique par
   `.applying(effects: layer.appearance.effects, side: side, scale: s)`.
-- `EffectPanels.ShadowPanelContent` est inchangé — les bridges
-  `shadow*` font tout le travail.
+- `EffectPanels.ShadowPanelContent` inchangé — les bridges absorbent.
+
+**Note revert blur (commit `f216a43`)** : un effet `.blur` avait été
+ajouté dans `cca63b6` (« step 6 »), puis annulé par retour en arrière
+dans la conversation. Le pipeline est prêt à accueillir d'autres effets
+(le pattern « 1 case + 1 panel » est validé), mais aucun effet
+supplémentaire n'est implémenté pour l'instant.
 
 **Décisions actées** :
 - **Compat JSON cassée** à nouveau (suite logique du choix de 4b). Le
   champ `shadow` disparaît du JSON ; à la place, `appearance.effects`.
-- **Bridges conservés** sur `Layer` pour ne pas toucher aux call sites
-  (`EffectPanels`, `IconProject.applyMaskPath`, etc.). À nettoyer au fil
-  de l'eau, mais pas urgent.
-- **`AnyView` accepté dans `applying(effects:...)`** : c'est le pattern
-  data-driven legitime (la longueur de la chaîne dépend de la donnée),
-  pas dans une boucle de rendu de liste — coût négligeable.
-
-**Build** : `xcodebuild ... build` ⇒ **BUILD SUCCEEDED** pour iPhone.
+- **Bridges conservés** sur `Layer`.
+- **`AnyView` accepté dans `applying(effects:...)`** : pattern
+  data-driven légitime, pas dans une boucle de rendu de liste.
 
 ---
 
-## Étape 4b — résumé
+## Étape 4b — résumé (commit `be74d93`)
 
 `LayerContent` enum introduit. `Layer` est recomposé autour de sous-types.
 
 **Nouveaux fichiers** :
 - `IconAtelier/Model/LayerContent.swift` — sous-types `LayerTransform`,
-  `LayerAppearance`, `LayerShadow`, `LayerFill`, `LayerBorder`,
-  `ImageContent`, `TextContent`, `ShapeContent`, et l'enum `LayerContent`
-  à 3 cas (`.image`, `.text`, `.shape`).
+  `LayerAppearance`, `LayerFill`, `LayerBorder`, `ImageContent`,
+  `TextContent`, `ShapeContent`, et l'enum `LayerContent` à 3 cas
+  (`.image`, `.text`, `.shape`).
+  *(Note : `LayerShadow` initialement défini ici a été retiré en
+  étape 5.)*
 
 **Layer recomposé** :
 ```swift
@@ -91,37 +178,25 @@ struct Layer: Codable, Identifiable {
     var uuid: UUID
     var name: String
     var transform: LayerTransform
-    var appearance: LayerAppearance
-    var shadow: LayerShadow
+    var appearance: LayerAppearance  // gagne `effects: [LayerEffect]` en étape 5
     var content: LayerContent
     var imagePNGDirty: Bool  // non persisté (CodingKeys explicit)
 }
 ```
 
-**Décisions actées en passant** :
-- **Compat JSON cassée** : projets sauvegardés ne se chargent plus
-  (utilisateur a explicitement renoncé à la rétro-compat).
-- **`RadialRepeatParams` rendu `Codable`** (ajout simple : 3 fields).
-  Sur `TextContent`, désormais un champ direct (`radialRepeat:
-  RadialRepeatParams?`) au lieu de squatter un `ShapeSpec`.
+**Décisions actées** :
+- **Compat JSON cassée** : projets sauvegardés ne se chargent plus.
+- **`RadialRepeatParams` Codable** ; sur `TextContent`, désormais
+  un champ direct (`radialRepeat: RadialRepeatParams?`).
 - **Factories typées** : `Layer.image(...)`, `Layer.text(...)`,
-  `Layer.shape(...)` remplacent `Layer(kind:...)`. L'init principal ne
-  prend plus `kind` mais `content`.
-- **Bridges conservés sur `Layer`** : pour minimiser le scope de
-  migration des ~80 call sites, beaucoup de propriétés calculées
-  forwardent vers le bon case (`text`, `imagePNG`, `shapeSpec`,
-  `tintColor`, `borderWidth`, `shadowOpacity`, etc.). Le modèle interne
-  reste typé ; le code utilisateur n'a pas eu à changer partout.
+  `Layer.shape(...)` remplacent `Layer(kind:...)`.
+- **Bridges conservés sur `Layer`** : modèle interne typé, surface
+  API progressive.
 
 **Simplifications glanées** :
-- `LayerClipboard` ne dédouble plus `imagePNG` (déjà dans le content).
-- `ContentView.exportSignature` passe par un encode JSON au lieu
-  d'énumérer manuellement chaque field.
-- `RadialRepeatPanelContent` n'a plus besoin des closures
-  `wrapBase`/`disabledShapeSpec` — il opère via le bridge
-  `radialRepeatParams` (text + shape unifiés).
-
-**Build** : `xcodebuild ... build` ⇒ **BUILD SUCCEEDED** pour iPhone.
+- `LayerClipboard` ne dédouble plus `imagePNG`.
+- `ContentView.exportSignature` passe par un encode JSON.
+- `RadialRepeatPanelContent` opère via le bridge unifié `radialRepeatParams`.
 
 ---
 
@@ -130,235 +205,173 @@ struct Layer: Codable, Identifiable {
 `Layer` est passé d'`@Observable final class` à `struct Codable, Identifiable`.
 
 **Ce qui change** :
-- `Layer.swift` : 397 → 263 lignes. `LayerSnapshot`, `snapshot()`, `apply()`
-  supprimés. Custom `init(from:)` conservé pour la rétro-compat des
-  projets sauvegardés (mêmes `CodingKeys`, mêmes raw values).
-- `IconProject` : `IconProjectSnapshot.layers` est maintenant `[Layer]`
-  direct (plus de `[LayerSnapshot]`). `apply(_:)` ne fait plus de
-  reconciliation par UUID — un simple `layers = snapshot.layers`.
-- Nouveaux helpers sur `IconProject` :
-  - `mutate(id: UUID, _ block: (inout Layer) -> Void)`
-  - `mutateLayers(ids: Set<UUID>, _ block: (inout Layer) -> Void)`
-  - `layerBinding(id: UUID) -> Binding<Layer>?`
-- `toggleLock(_ layer:)` devient `toggleLock(id:)`.
-- 8 sites `@Bindable var layer: Layer` → `@Binding var layer: Layer`
-  (`EffectPanels`, `LayerKindSections`, `ShapeContentSection`,
-  `LayerEditorContent.OpacitySlider`).
-- Les statics `enabledBinding(layer: Layer, ...)` prennent
-  `Binding<Layer>` et mutent via `layer.wrappedValue.foo = …`.
-- `LayerEditorContent` dérive un `Binding<Layer>` via
-  `project.layerBinding(id:)` et le passe aux enfants.
-- `IconCanvasView` (drag/magnify/rotate), `LayerActions`,
-  `LayerClipboard`, `ProjectStore`, `LibraryImport`, `GalleryView` :
-  mutations adaptées (par index ou via `project.mutate`).
+- `Layer.swift` : 397 → 263 lignes en 4a (puis ~550 l. après bridges 4b + 5).
+  `LayerSnapshot`, `snapshot()`, `apply()` supprimés.
+- `IconProject` : `IconProjectSnapshot.layers` est `[Layer]` direct,
+  `apply(_:)` = simple `layers = snapshot.layers`.
+- Nouveaux helpers : `mutate(id:)`, `mutateLayers(ids:)`,
+  `layerBinding(id:)`, `toggleLock(id:)`.
+- 8 sites `@Bindable var layer: Layer` → `@Binding var layer: Layer`.
+- `IconCanvasView`, `LayerActions`, `LayerClipboard`, `ProjectStore`,
+  `LibraryImport`, `GalleryView` : mutations par index ou via
+  `project.mutate`.
 
-**Compat persistance préservée** : aucune migration nécessaire pour les
-projets existants — JSON byte-pour-byte identique en encode/decode.
-
-**Décisions actées en passant** :
+**Décisions** :
 - Scale **isotrope** (pas de `scaleX`/`scaleY` distincts).
-- `IconProject` reste `@Observable final class` (pas de pivot vers
-  struct `Document` + `DocumentStore` — coût trop élevé pour le gain).
-- Compat persistance via custom `init(from:)` + `decodeIfPresent ?? x`
-  (cf. memory `feedback_swiftdata_migration`).
+- `IconProject` reste `@Observable final class`.
+- Compat persistance préservée en 4a (cassée ensuite en 4b + 5).
 
 ---
 
-## Ce qui a été fait dans la session précédente (étapes 1-2)
+## Étapes 1-2 — résumé (commit `d5e222c`)
 
-### Nouveaux fichiers (3)
+### Nouveaux fichiers
 
-- `IconAtelier/Editor/LayerGeometry.swift`
-  - `LayerGeometry.baseUnitFraction(for: LayerKind) -> CGFloat`
-    (0.7 image, 0.6 text, 0.5 parametricShape)
-  - `LayerGeometry.frameSide(for: Layer, canvasSide: CGFloat) -> CGFloat`
-    (helper : `canvasSide * baseUnitFraction * layer.scale`)
-- `IconAtelier/Editor/CanvasSnapping.swift`
-  - Types top-level (sortis de `IconCanvasView`) :
-    `SnapGuide`, `DragSnapState`, `RotationSnapState`
-  - Constantes : `rotationSnapThresholdDegrees`, `objectSnapThresholdPoints`
-  - Statics : `layerNormalizedBounds`, `snappedToLayerGuides`,
-    `normalized(_: Angle)`, `snappedRotation`
-- `IconAtelier/Editor/CanvasHitTester.swift`
-  - Statics : `hitTestLayer(in:at:side:canvasSize:)`,
-    `parametricShapeContains`, `imageHasOpaquePixel`, `sampleAlpha`
+- `IconAtelier/Editor/LayerGeometry.swift` — `baseUnitFraction(for:)`,
+  `frameSide(for:canvasSide:)`.
+- `IconAtelier/Editor/CanvasSnapping.swift` — `SnapGuide`,
+  `DragSnapState`, `RotationSnapState`, `layerNormalizedBounds`,
+  `snappedToLayerGuides`, `snappedRotation`.
+- `IconAtelier/Editor/CanvasHitTester.swift` — `hitTestLayer`,
+  `parametricShapeContains`, `imageHasOpaquePixel`, `sampleAlpha`.
 
-### Fichiers refactorés (4)
+### Fichiers refactorés
 
-- `IconCanvasView.swift` : ~700 → ~395 lignes. Plus que rendu + gesture
-  wiring. Tous les calculs (snap, hit-test) délégués aux nouveaux fichiers.
-  `Self.foo(...)` → `CanvasSnapping.foo(...)` / `CanvasHitTester.foo(...)`.
-- `LayerContentView.swift` : `0.7 / 0.6 / 0.5` → `LayerGeometry.baseUnitFraction(for:)`.
-- `BooleanOpRenderer.swift` : pareil dans `vectorPath(for:canvasSide:)`.
-- `ContentView.swift` : suppression de `layerBaseFraction(_:)` (privé),
-  `lassoHitTest` utilise `LayerGeometry.frameSide(for:canvasSide:)`.
+- `IconCanvasView.swift` : ~700 → ~395 lignes. Calculs (snap, hit-test)
+  délégués aux nouveaux fichiers.
+- `LayerContentView.swift`, `BooleanOpRenderer.swift`, `ContentView.swift` :
+  utilisent désormais `LayerGeometry.*`.
 
 ### Changement comportemental noté
 
-`ContentView.layerBaseFraction(_:)` retournait `0.5` pour `.text` (alors
-que le rendu utilise `0.6`). Cette divergence rendait le lasso plus
-restrictif que ce que voit l'œil pour les layers texte. **Unifié sur
-`0.6`** dans cette session ; donc le lasso accroche maintenant les texts
-sur leur vraie bbox de rendu. Si ce n'était pas le comportement souhaité,
-voir l'historique git de `ContentView.swift`.
-
-### Build
-
-`xcodebuild -project IconAtelier.xcodeproj -scheme IconAtelier -destination 'generic/platform=iOS' -configuration Debug build` ⇒ **BUILD SUCCEEDED**.
-
-⚠️ SourceKit a affiché des faux positifs pendant cette session ("No such
-module 'UIKit'", "Cannot find type 'Layer'"). Ce sont des artefacts
-d'indexation, pas des erreurs de compilation — le build passe.
+`ContentView.layerBaseFraction(_:)` retournait `0.5` pour `.text` alors
+que le rendu utilise `0.6`. **Unifié sur `0.6`** : le lasso accroche les
+texts sur leur vraie bbox de rendu.
 
 ---
 
-## État de la base de code après l'étape 4a
-
-### Architecture actuelle
-
-```
-IconAtelier/
-  Model/
-    IconProject.swift            (483 l. — @Observable class, undo simplifié)
-    Layer.swift                  (263 l. — struct Codable, flat fields)
-    Background.swift, ProjectSession.swift, StoredTypes.swift, …
-  Editor/
-    IconCanvasView.swift         (~400 l. — gestures via project.mutate)
-    CanvasSnapping.swift, CanvasHitTester.swift, LayerGeometry.swift
-    ContentView.swift            (627 l. — encore lourd, à découper)
-    LayerEditorContent.swift     (builds Binding<Layer> from project)
-    EffectPanels.swift           (panels avec @Binding var layer: Layer)
-    LayerContentView.swift, BooleanOpRenderer.swift, EditSheet.swift, …
-  Shapes/, Paint/, AI/, Export/, Persistence/, Gallery/, UI/
-```
-
-### Ce qui n'a PAS encore été fait
-
-Dettes structurelles restantes :
-
-- `Layer` expose de nombreux **bridges computed** (~30 props) qui
-  forwardent vers le bon case de `content`. Pratique pour limiter le
-  scope de la migration ; à nettoyer progressivement (notamment les
-  bridges `shadow*` qui disparaîtront avec l'étape 5
-  `[LayerEffect]`).
-- `Codable` manuel pour `IconProject` (decodeIfPresent), `Paint`,
-  `ShapeSpec` (custom). Pas urgent.
-- `ContentView` (627 l.) gère encore layout + sheets + lasso + AI flow +
-  import + export + persist + thumbnail.
-- Rendu dupliqué : `LayerContentView` (écran) vs `LayerForBooleanRender`
-  (dans `BooleanOpRenderer.swift`) vs `IconRenderer` (thumbnail).
-- `ShapeSpec` importe SwiftUI (`anyShape()`), pas testable hors UI.
-
----
-
-## La suite (chronologique)
+## La suite
 
 ### Étape 3 — Resize handles au doigt (feature directe)
 
-C'est ce qu'on a maintenant débloqué. Approche recommandée :
+C'est le prochain gros chantier "feature" maintenant que le refactor
+modèle est en place.
 
 - Pour le layer sélectionné, **overlay au-dessus du canvas** avec des
   handles (4 coins + 4 milieux + 1 handle rotation au-dessus).
-- Chaque handle = sa propre `View` avec sa propre `DragGesture`.
-  Évite de toucher au gesture composé du canvas.
-- Positionner les handles sur la bbox normalisée du layer ⇒ utiliser
-  `CanvasSnapping.layerNormalizedBounds(layer)` (déjà disponible !) puis
-  convertir en points écran via `side`.
+- Chaque handle = sa propre `View` avec sa propre `DragGesture` (évite
+  de toucher au gesture composé du canvas).
+- Positionner les handles sur la bbox normalisée du layer ⇒
+  `CanvasSnapping.layerNormalizedBounds(layer)` (déjà disponible),
+  conversion en points écran via `side`.
 - Le handle de coin NW agit sur `layer.scale` ET `layer.offset` pour
-  garder le coin opposé fixe. Math : nouveau scale = `dist(NW, SE) / dist_initial`,
-  nouveau offset = mid(NW, SE).
+  garder le coin opposé fixe. Math : nouveau scale =
+  `dist(NW, SE) / dist_initial`, nouveau offset = mid(NW, SE).
 - Handles de milieu = scale uniforme (ou non-uniforme si tu introduis
-  `scaleX` / `scaleY` distincts — décision à prendre).
-- Si tu veux du scale non-uniforme, il faudra étendre `Layer` :
-  - **Option A (rapide)** : ajouter `var scaleY: Double` + `scaleX`
-    aliasé sur `scaleValue`. Marche mais ajoute du boilerplate Codable.
-  - **Option B (propre)** : passer d'abord par l'étape 4 (Layer → struct)
-    pour rendre l'extension triviale.
-  - **Recommandation** : si tu n'as pas besoin de scale non-uniforme au
-    MVP des handles, garde scale isotrope et fais l'étape 4 plus tard.
-    Sinon, fais l'étape 4 avant les handles non-uniformes.
+  `scaleX`/`scaleY` distincts — décision à prendre).
+- Si scale non-uniforme : **Option A** ajouter `scaleY: Double` aliasé sur
+  `scaleValue` (rapide, ajoute du Codable). **Option B** garder isotrope
+  au MVP, étendre plus tard.
 
-Inspiration de fichier à créer : `IconAtelier/Editor/SelectionHandles.swift`
-qui s'ajoute en overlay dans `IconCanvasView.squircleIcon(side:)` quand
+Fichier à créer : `IconAtelier/Editor/SelectionHandles.swift`, greffé
+en overlay sur `IconCanvasView.squircleIcon(side:)` quand
 `session.selectedLayerUUID != nil`.
 
 À garder en tête :
-- Hit-test du handle a priorité sur hit-test du layer (la gesture du
-  handle est un `.highPriorityGesture` dans son overlay).
-- Cohérence avec la rotation : les handles tournent avec le layer.
-  Application : positionner chaque handle local-puis-rotate.
-- Snap des handles : appliquer `CanvasSnapping.snappedToLayerGuides` sur
-  la nouvelle bbox calculée, idem que pour la translation aujourd'hui.
+- Hit-test du handle a priorité (`.highPriorityGesture`).
+- Les handles tournent avec le layer : positionner local-puis-rotate.
+- Snap des handles : appliquer `CanvasSnapping.snappedToLayerGuides`
+  sur la nouvelle bbox.
 
-### Étape 5 — `[LayerEffect]` stackable
+### Étape 6 — Ajouter de nouveaux effets
 
-Maintenant que l'étape 4b est en place :
+Le pipeline `LayerEffect` est en place ; ajouter un effet =
+**1 case enum + 1 panneau editor + 1 branch dans `applying(effects:...)`**.
 
-```swift
-struct LayerAppearance: Codable, Equatable {
-    var opacity: Double
-    var effects: [LayerEffect]
-}
+Liste candidate (voir aussi `references/design-polish.md` HIG) :
+- `case innerShadow(InnerShadow)` — ombre intérieure (technique :
+  `mask` + inverse shadow).
+- `case glow(Glow)` — variante shadow avec offset=0 et couleur claire.
+- `case blur(radius: Double)` — c'est exactement ce qui avait été fait
+  dans `cca63b6` puis annulé. Pattern de ref : `BlurPanelContent`,
+  `blurRadius` bridge sur `Layer`, branch `.blur` dans le rendu.
+- `case stroke(Stroke)` — bord post-rendu (différent de
+  `LayerBorder` qui est intégré au shape).
+- `case colorOverlay(Paint)` — superpose une couleur/gradient,
+  pratique pour le tint dynamique.
 
-enum LayerEffect: Codable, Equatable {
-    case dropShadow(DropShadow)      // remplace shadowOpacity/Radius/Offset/Color actuels
-    case innerShadow(InnerShadow)
-    case glow(Glow)
-    case blur(radius: Double)
-    case stroke(Stroke)
-    case colorOverlay(Paint)
-    // ajouter un effet = ajouter un case + son panneau editor
-}
-```
+Décision en suspens : **discriminator Codable**. L'enum à 1 case marche
+en synthèse, mais à 5+ cases avec payloads différents, prévoir un
+`type:` key explicite (cf. skill `swift-codable` § Heterogeneous arrays)
+pour la robustesse au renommage.
 
-Bénéfice :
-- Tu peux empiler deux drop shadows (impossible aujourd'hui).
-- Ajouter un nouvel effet = 1 case + 1 panneau (vs 9 endroits aujourd'hui).
-- Rendu : `ForEach(effects) { effect in modifier(for: effect) }`.
+### Étape 7 — Nettoyage structurel (prochain chantier décidé)
 
-Migration : refactorer les 5 props `shadowOpacity`/`shadowRadius`/
-`shadowOffsetX`/`shadowOffsetY`/`storedShadowColor` du Layer existant en
-un seul `effects: [.dropShadow(...)]`. Garder la rétro-compat au décodage
-via `decodeIfPresent` sur les anciens champs.
+Décidé en session 2026-05-20 : faire ce nettoyage **avant** les étapes
+3 (handles) et 6 (effets). Découper `ContentView` rend la suite plus
+agréable à lire, unifier le rendu rend les nouveaux effets cohérents
+écran/export du premier coup.
 
-### Plus tard (non bloquant)
+Ordre recommandé : **7.1 → 7.2 → 7.3 → (7.4 si besoin)**.
 
-- **Sortir `AIFlowController` de `ContentView`** : déplacer toute la
-  logique `handlePromptSubmitted`, `generationTask`, timer, alerts dans
-  un `@Observable` controller dédié. ~½ j.
-- **Sortir `LassoController` de `ContentView`** : gesture + état lasso.
-  ~½ j.
-- **Unifier le rendu** : un seul `LayerView: View` consommé par écran +
-  `ImageRenderer` (thumbnail, boolean, export). Suppression de
-  `LayerForBooleanRender`. ~1 j.
-- **Sortir SwiftUI de `ShapeSpec`** : `ShapeSpec` reste pure data, un
-  `ShapeRenderer.path(for:in:) -> Path` vit côté render. Permet de
-  prototyper des formes dans un Playground.
-- **Asset store séparé** : `AssetStore.save(uuid → Data)` ; le Layer
-  porte juste l'AssetID. Supprime `imagePNGDirty` et le re-decoding au
-  load. À combiner avec l'étape 4.
+#### 7.1 — Découper `ContentView` (608 l.) ✅ — fait
+
+Réalisé : `ContentView` 608 → 435 lignes. Voir résumé de l'étape 7.1
+plus haut. `AIFlowController` et `LassoController` créés en
+`@Observable @MainActor`, injectés en `@State`.
+
+#### 7.2 — Unifier le rendu (3 chemins → 1)
+
+Aujourd'hui trois chemins de rendu ont divergé :
+- `LayerContentView` (écran, dans `Editor/LayerContentView.swift`)
+- `LayerForBooleanRender` (booléennes, dans `BooleanOpRenderer.swift`)
+- `IconRenderer.render` (thumbnail + export, dans `ProjectPersistence.swift`)
+
+Plan : un seul `LayerView: View` consommé par les 3 contextes, paramétré
+par ce qui diffère (background, application des effects, etc.).
+Suppression de `LayerForBooleanRender`.
+
+**Effort** : ~1 j. **Risque** : moyen — comparer pixel-à-pixel les
+sorties avant/après sur les 3 cas (icône écran, masque booléen, export
+PNG). **Gain** : ajouter un effet ou un type de layer = 1 seul chemin
+à toucher. Les bugs « ça marche à l'écran mais pas à l'export »
+disparaissent.
+
+#### 7.3 — Sortir SwiftUI de `ShapeSpec`
+
+`ShapeSpec` importe SwiftUI pour `anyShape()`. Extraire
+`ShapeRenderer.path(for: ShapeSpec, in: CGRect) -> Path` côté Editor
+rend `ShapeSpec` pure data : testable dans un Playground, sérialisable
+proprement.
+
+**Effort** : ~½ j. **Risque** : faible. **Gain** : modeste tant qu'il
+n'y a pas de tests unitaires, mais débloque l'écriture de tests sur les
+formes (utile si tu prototypes de nouvelles formes paramétriques).
+
+#### 7.4 — Asset store séparé pour les PNG — *à faire seulement si la perf devient un problème*
+
+Aujourd'hui chaque `ImageContent` porte ses bytes PNG dans le JSON, et
+`imagePNGDirty` existe pour éviter le re-decoding. Avec
+`AssetStore.save(uuid → Data)` + `Layer` qui porte un `AssetID`, le
+JSON reste léger et le re-decoding disparaît.
+
+**Effort** : ~1 j. **Risque** : casse la persistance encore une fois +
+migration de fichiers à prévoir. **Gain** : perf au load des gros
+projets — pas pertinent au volume actuel. **Recommandation** : skipper
+tant que ce n'est pas un goulet.
 
 ---
 
-## Décisions actées (étape 4a)
+## Décisions actées (récap)
 
-- [x] **Scale isotrope** (`scale` unique). Non-uniforme reportée à plus
-      tard, viendrait avec les resize handles non-uniformes (étape 3).
-- [x] **`IconProject` reste `@Observable final class`**. `layers` est
-      maintenant `[Layer]` (value type). Undo trivial via
-      `IconProjectSnapshot(background:, layers:)`.
-- [x] **Migration persistence préservée** : custom `init(from:)`
-      conservé, `decodeIfPresent ?? default` partout, JSON inchangé.
-
-## Décisions actées (étape 4b)
-
-- [x] **Compat JSON cassée** (choix utilisateur). Les projets
-      sauvegardés en local doivent être supprimés ; pas de plumbing
-      hybride.
-- [x] **Bridges conservés sur `Layer`** plutôt que migration franche
-      des ~80 call sites. Modèle interne propre, surface API
-      progressive.
-- [x] **Asset store séparé reporté** au step dédié plus bas.
+- [x] Scale isotrope (4a). Non-uniforme reportée à plus tard.
+- [x] `IconProject` reste `@Observable final class` (4a).
+- [x] Compat JSON cassée par paliers (4b puis 5). Plus de plumbing
+      hybride ; les vieux projets locaux doivent être supprimés.
+- [x] Bridges sur `Layer` conservés plutôt que migration franche des
+      ~80 call sites.
+- [ ] Discriminator Codable explicite sur `LayerEffect` quand l'enum
+      grossira (cf. étape 6).
 
 ---
 
@@ -366,17 +379,18 @@ via `decodeIfPresent` sur les anciens champs.
 
 1. Lire ce fichier (`NEXT_STEPS.md`).
 2. Lire `CLAUDE.md` (consignes projet : skills d'abord, UI anglaise, etc.).
-3. Pour l'étape 5 (`[LayerEffect]` stackable) : ajouter
-   `var effects: [LayerEffect]` à `LayerAppearance`, définir l'enum
-   `LayerEffect` (commencer par `.dropShadow`), migrer les bridges
-   `shadow*` actuels de `Layer` vers un premier effet `.dropShadow`,
-   adapter le rendu (`OverlayLayerRender.shadow(...)`) pour itérer sur
-   `effects`. Les bridges peuvent ensuite disparaître.
-4. Pour l'étape 3 (handles) : commencer par
+3. **Étape 7.2 (unifier le rendu) — prochain chantier** : créer un `LayerView: View`
+   commun, faire converger `LayerContentView`, `LayerForBooleanRender`,
+   `IconRenderer.render` dessus. Vérifier pixel-à-pixel les 3 sorties.
+4. **Étape 3 (handles)** : créer
    `IconAtelier/Editor/SelectionHandles.swift`, greffé en overlay sur
    `IconCanvasView.squircleIcon`. Utiliser
-   `CanvasSnapping.layerNormalizedBounds` et `LayerGeometry` qui sont
-   déjà en place.
+   `CanvasSnapping.layerNormalizedBounds` et `LayerGeometry` déjà en place.
+5. **Étape 6 (effets)** : ajouter un case à `LayerEffect`, un
+   `XxxPanelContent` dans `EffectPanels.swift`, son wiring dans
+   `LayerEditorContent`, et une branch dans
+   `View.applying(effects:side:scale:)`. Modèle de référence pour
+   ré-ajouter le blur : commit `cca63b6` (annulé en `f216a43`).
 
 ---
 
@@ -388,3 +402,7 @@ xcodebuild -project IconAtelier.xcodeproj -scheme IconAtelier \
 # install sur iPhone 15 Pro (device ID 00008130-000479320AA2001C) :
 xcrun devicectl …
 ```
+
+⚠️ SourceKit peut afficher des faux positifs (« No such module 'UIKit' »,
+« Cannot find type 'Layer' »). Ce sont des artefacts d'indexation —
+le build réel passe.

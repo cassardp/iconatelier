@@ -10,26 +10,17 @@ struct ContentView: View {
     @Bindable var project: IconProject
 
     @State private var session = ProjectSession()
+    @State private var ai = AIFlowController()
+    @State private var lasso = LassoController()
+
     @State private var showEditSheet = false
     @State private var fanIsOpen = false
     @State private var showExportSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
     @State private var showImportPicker: Bool = false
-    @State private var showPromptSheet: Bool = false
-    @State private var isGenerating: Bool = false
-    @State private var generationStartDate: Date?
-    @State private var generationTask: Task<Void, Never>?
-    @State private var generationError: String?
-    @State private var showNoAPIKeyAlert: Bool = false
     @State private var wasEditSheetOpenBeforeExport = false
 
-    private static let generationTimeoutSeconds: Int = 90
-
-    @State private var canvasFrame: CGRect = .zero
-    @State private var layersBarFrame: CGRect = .zero
-    @State private var layerRowFrames: [UUID: CGRect] = [:]
-    @State private var lassoRect: CGRect? = nil
     private static let editorSpaceName = "iconAtelierEditor"
 
     private var fanItems: [ShapeFanItem] {
@@ -50,12 +41,13 @@ struct ContentView: View {
                 addShapeLayer(spec: .preset(.flower6), presentSheet: false)
             },
             ShapeFanItem(id: "generate", symbol: "wand.and.stars", label: "Generate") {
-                showPromptSheet = true
+                ai.showPromptSheet = true
             }
         ]
     }
 
     var body: some View {
+        @Bindable var ai = ai
         GeometryReader { geo in
             let layersBarHeight: CGFloat = 48
 
@@ -82,7 +74,7 @@ struct ContentView: View {
                         .onGeometryChange(for: CGRect.self) { proxy in
                             proxy.frame(in: .named(Self.editorSpaceName))
                         } action: { newFrame in
-                            canvasFrame = newFrame
+                            lasso.canvasFrame = newFrame
                         }
                     LayersBar(
                         project: project,
@@ -90,13 +82,13 @@ struct ContentView: View {
                         onItemSelected: presentEditSheet,
                         coordinateSpaceName: Self.editorSpaceName,
                         onRowFrame: { uuid, frame in
-                            layerRowFrames[uuid] = frame
+                            lasso.layerRowFrames[uuid] = frame
                         }
                     )
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .named(Self.editorSpaceName))
                     } action: { newFrame in
-                        layersBarFrame = newFrame
+                        lasso.layersBarFrame = newFrame
                     }
                     Color.clear
                         .frame(height: fanButtonRowHeight + bottomSpacer)
@@ -128,15 +120,15 @@ struct ContentView: View {
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 
-                if let rect = lassoRect {
+                if let rect = lasso.lassoRect {
                     LassoMarquee(rect: rect)
                         .allowsHitTesting(false)
                 }
             }
             .coordinateSpace(name: Self.editorSpaceName)
             .contentShape(Rectangle())
-            .gesture(lassoGesture)
-            .simultaneousGesture(clearLassoTap)
+            .gesture(lasso.dragGesture(project: project, session: session, spaceName: Self.editorSpaceName))
+            .simultaneousGesture(lasso.clearTapGesture(session: session, spaceName: Self.editorSpaceName))
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
@@ -155,7 +147,7 @@ struct ContentView: View {
                     HStack(spacing: 20) {
                         ForEach(BooleanOpKind.allCases, id: \.self) { op in
                             Button {
-                                performBooleanOperation(op)
+                                lasso.performBooleanOperation(op, project: project, session: session)
                             } label: {
                                 op.icon
                             }
@@ -206,7 +198,7 @@ struct ContentView: View {
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .toolbar(isGenerating ? .hidden : .visible, for: .navigationBar)
+        .toolbar(ai.isGenerating ? .hidden : .visible, for: .navigationBar)
         .sheet(isPresented: $showEditSheet) {
             EditSheet(
                 project: project,
@@ -223,20 +215,23 @@ struct ContentView: View {
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
         }
-        .sheet(isPresented: $showPromptSheet) {
+        .sheet(isPresented: $ai.showPromptSheet) {
             AIPromptSheet { subject, style, material, reference, transparent in
-                handlePromptSubmitted(
+                ai.submit(
                     subject: subject,
                     style: style,
                     material: material,
                     reference: reference,
-                    transparent: transparent
+                    transparent: transparent,
+                    project: project,
+                    session: session,
+                    onSuccess: { presentEditSheet() }
                 )
             }
         }
         .alert(
             "Add OpenAI API key",
-            isPresented: $showNoAPIKeyAlert
+            isPresented: $ai.showNoAPIKeyAlert
         ) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -245,20 +240,20 @@ struct ContentView: View {
         .alert(
             "Generation failed",
             isPresented: Binding(
-                get: { generationError != nil },
-                set: { if !$0 { generationError = nil } }
+                get: { ai.generationError != nil },
+                set: { if !$0 { ai.generationError = nil } }
             ),
-            presenting: generationError
+            presenting: ai.generationError
         ) { _ in
-            Button("OK", role: .cancel) { generationError = nil }
+            Button("OK", role: .cancel) { ai.generationError = nil }
         } message: { error in
             Text(error)
         }
         .overlay {
-            if isGenerating {
+            if ai.isGenerating {
                 GeneratingOverlay(
-                    startDate: generationStartDate,
-                    total: Self.generationTimeoutSeconds
+                    startDate: ai.generationStartDate,
+                    total: AIFlowController.generationTimeoutSeconds
                 )
             }
         }
@@ -303,106 +298,10 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Lasso multi-selection
-
-    private var lassoGesture: some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .named(Self.editorSpaceName))
-            .onChanged { value in
-                let start = value.startLocation
-
-                guard !canvasFrame.contains(start),
-                      !layersBarFrame.contains(start)
-                else { return }
-
-                let rect = CGRect(
-                    x: min(start.x, value.location.x),
-                    y: min(start.y, value.location.y),
-                    width: abs(value.location.x - start.x),
-                    height: abs(value.location.y - start.y)
-                )
-                lassoRect = rect
-
-                let canvasLocal = rect.offsetBy(dx: -canvasFrame.minX, dy: -canvasFrame.minY)
-                var newSelection = lassoHitTest(rect: canvasLocal, side: canvasFrame.width)
-                for (uuid, frame) in layerRowFrames where rect.intersects(frame) {
-                    if let layer = project.layer(withID: uuid), !layer.isLocked {
-                        newSelection.insert(layer.uuid)
-                    }
-                }
-                if newSelection != session.lassoSelectedLayerUUIDs {
-                    if newSelection.count > session.lassoSelectedLayerUUIDs.count {
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
-                    session.setLassoSelection(newSelection)
-                }
-            }
-            .onEnded { _ in
-                withAnimation(.smooth(duration: 0.22)) {
-                    lassoRect = nil
-                }
-                if session.lassoSelectedLayerUUIDs.count == 1 {
-
-                    if let only = session.lassoSelectedLayerUUIDs.first {
-                        session.selectLayer(only)
-                    }
-                } else if session.lassoSelectedLayerUUIDs.isEmpty {
-
-                    session.clearLassoSelection()
-                } else {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-            }
-    }
-
-    private func lassoHitTest(rect: CGRect, side: CGFloat) -> Set<UUID> {
-        guard side > 0 else { return [] }
-        var matched: Set<UUID> = []
-        for layer in project.layers where !layer.isLocked {
-            let bboxSide = LayerGeometry.frameSide(for: layer, canvasSide: side)
-            let centerX = side / 2 + layer.offset.width * side
-            let centerY = side / 2 + layer.offset.height * side
-            let layerRect = CGRect(
-                x: centerX - bboxSide / 2,
-                y: centerY - bboxSide / 2,
-                width: bboxSide,
-                height: bboxSide
-            )
-            if rect.intersects(layerRect) {
-                matched.insert(layer.uuid)
-            }
-        }
-        return matched
-    }
-
     private func reselectTopIfNeeded() {
         if let id = session.selectedLayerUUID, project.layer(withID: id) == nil {
             session.selectLayer(project.layers.last?.uuid)
         }
-    }
-
-    private func performBooleanOperation(_ op: BooleanOpKind) {
-        let uuids = session.lassoSelectedLayerUUIDs
-        guard uuids.count >= 2 else { return }
-        if let result = project.performBooleanOperation(op, on: uuids) {
-            session.clearLassoSelection()
-            session.selectLayer(result.uuid)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        } else {
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
-        }
-    }
-
-    private var clearLassoTap: some Gesture {
-        SpatialTapGesture(coordinateSpace: .named(Self.editorSpaceName))
-            .onEnded { value in
-                guard session.isMultiSelecting else { return }
-                let loc = value.location
-                guard !canvasFrame.contains(loc),
-                      !layersBarFrame.contains(loc)
-                else { return }
-                session.clearLassoSelection()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            }
     }
 
     private func addShapeLayer(spec: ShapeSpec, presentSheet: Bool = true) {
@@ -425,78 +324,6 @@ struct ContentView: View {
         guard !showEditSheet else { return }
         sheetDetent = .fraction(0.5)
         showEditSheet = true
-    }
-
-    private func handlePromptSubmitted(
-        subject: String,
-        style: AIStyle?,
-        material: AIMaterial?,
-        reference: UIImage?,
-        transparent: Bool
-    ) {
-        let task = Task { @MainActor in
-            guard let key = await APIKeyStore.shared.load(), !key.isEmpty else {
-                showNoAPIKeyAlert = true
-                return
-            }
-            _ = key
-            generationStartDate = Date()
-
-            isGenerating = true
-            let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
-            let subjectText = trimmedSubject.isEmpty
-                ? "the subject shown in the reference image"
-                : trimmedSubject
-            let materialClause = material.map { ". Surface and material: \($0.promptFragment)" } ?? ""
-            let finalPrompt: String
-            if let style {
-                let isolation = transparent ? "isolated on transparent background, " : ""
-                finalPrompt = "\(subjectText), \(isolation)rendered as \(style.promptFragment)\(materialClause)"
-            } else {
-                finalPrompt = "\(subjectText)\(materialClause)"
-            }
-
-            let outcome: Result<UIImage, Error>
-            do {
-                let references = reference.map { [$0] } ?? []
-                let image = try await OpenAIImageService().generateOverlay(
-                    prompt: finalPrompt,
-                    transparent: transparent,
-                    references: references
-                )
-                outcome = .success(image)
-            } catch {
-                outcome = .failure(error)
-            }
-
-            withAnimation(.easeInOut(duration: 0.35)) {
-                isGenerating = false
-            }
-            generationStartDate = nil
-            generationTask = nil
-
-            switch outcome {
-            case .success(let image):
-                withAnimation(.bouncy(duration: 0.25, extraBounce: 0.25)) {
-                    let layer = project.addGeneratedImage(image: image)
-                    session.selectLayer(layer.uuid)
-                }
-                presentEditSheet()
-            case .failure(let error):
-                if error is CancellationError
-                    || (error as? URLError)?.code == .cancelled {
-                    generationError = "Generation timed out after \(Self.generationTimeoutSeconds) seconds. Please try again."
-                } else {
-                    generationError = error.localizedDescription
-                }
-            }
-        }
-        generationTask = task
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(Self.generationTimeoutSeconds))
-            task.cancel()
-        }
     }
 
     private func handleImportResult(_ result: Result<[URL], Error>) {
