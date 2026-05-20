@@ -439,15 +439,27 @@ final class IconProject: Codable, Identifiable {
         op: BooleanOpKind,
         source: Layer
     ) -> Layer? {
-        let bbox = vector.path.boundingRect
+        var baseT = CGAffineTransform(
+            translationX: source.offset.width * vector.canvasSide,
+            y: source.offset.height * vector.canvasSide
+        )
+        baseT = baseT.rotated(by: CGFloat(source.rotationRadians))
+        if source.isFlippedHorizontally { baseT = baseT.scaledBy(x: -1, y: 1) }
+        if source.isFlippedVertically { baseT = baseT.scaledBy(x: 1, y: -1) }
+
+        let localPath = vector.path.applying(baseT.inverted())
+        let bbox = localPath.boundingRect
         guard bbox.width > 0, bbox.height > 0 else { return nil }
-        guard let primitive = PathPrimitive(path: vector.path) else { return nil }
+        guard let primitive = PathPrimitive(path: localPath) else { return nil }
 
         let maxSide = max(bbox.width, bbox.height)
         let scale = maxSide / (vector.canvasSide * 0.5)
+
+        let localCenter = CGPoint(x: bbox.midX, y: bbox.midY)
+        let worldCenter = localCenter.applying(baseT)
         let offset = CGSize(
-            width: bbox.midX / vector.canvasSide,
-            height: bbox.midY / vector.canvasSide
+            width: worldCenter.x / vector.canvasSide,
+            height: worldCenter.y / vector.canvasSide
         )
 
         var layer = Layer.shape(
@@ -465,6 +477,9 @@ final class IconProject: Codable, Identifiable {
         layer.appearance.effects = source.appearance.effects
         layer.offset = offset
         layer.scaleValue = Double(scale)
+        layer.rotationRadians = source.rotationRadians
+        layer.isFlippedHorizontally = source.isFlippedHorizontally
+        layer.isFlippedVertically = source.isFlippedVertically
         return layer
     }
 }

@@ -114,14 +114,13 @@ enum BooleanOpRenderer {
             height: shapeSide
         )
 
-        var t = CGAffineTransform.identity
-        if layer.isFlippedHorizontally { t = t.scaledBy(x: -1, y: 1) }
-        if layer.isFlippedVertically { t = t.scaledBy(x: 1, y: -1) }
-        t = t.rotated(by: CGFloat(layer.rotationRadians))
-        t = t.translatedBy(
-            x: layer.offset.width * canvasSide,
+        var t = CGAffineTransform(
+            translationX: layer.offset.width * canvasSide,
             y: layer.offset.height * canvasSide
         )
+        t = t.rotated(by: CGFloat(layer.rotationRadians))
+        if layer.isFlippedHorizontally { t = t.scaledBy(x: -1, y: 1) }
+        if layer.isFlippedVertically { t = t.scaledBy(x: 1, y: -1) }
         return shape.path(in: rect).applying(t)
     }
 
