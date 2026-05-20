@@ -1,7 +1,7 @@
 # NEXT_STEPS — Refactor architecture IconAtelier
 
-Document de reprise après les étapes 1, 2, 4a, 4b et 5. Permet de clear la
-session Claude et repartir sans perdre le contexte.
+Document de reprise après les étapes 1, 2, 4a, 4b, 5, 7.1, 7.2 et 7.3.
+Permet de clear la session Claude et repartir sans perdre le contexte.
 
 Daté du 2026-05-20 (mis à jour après l'étape 7.3 — ShapeSpec pure data).
 
@@ -76,7 +76,7 @@ IconAtelier/
 
 ---
 
-## Étape 7.3 — résumé
+## Étape 7.3 — résumé (commit `eb55780`)
 
 `ShapeSpec.swift` ne dépend plus de SwiftUI : `import Foundation` uniquement,
 plus de méthode `anyShape() -> AnyShape`. La construction des `AnyShape`
@@ -104,6 +104,9 @@ SwiftUI vit désormais dans un fichier dédié côté Editor.
 - `LayerContentView.swift:96` : `spec.anyShape()` → `ShapeRenderer.anyShape(for:)`.
 - `BooleanOpRenderer.swift:85` : idem.
 - `ShapeContentSection.swift` : 7× `DropShape.canonical` → `DropParams.canonical`.
+- `Layer.swift:380` : `c.spec.unwrapped ?? c.spec` → `c.spec.unwrapped`
+  (warning « Left side of nil coalescing operator '??' has non-optional type »
+  — `unwrapped` retourne `ShapeSpec`, pas `ShapeSpec?`).
 
 **Décisions actées** :
 - **`PolygonPreset.canonical` retourne un type pure data** (rupture
@@ -128,7 +131,7 @@ les ignore.
 
 ---
 
-## Étape 7.2 — résumé
+## Étape 7.2 — résumé (commit `d11a6cb`)
 
 Les trois chemins de rendu (canvas, booléennes, export/thumbnail)
 convergent sur un seul `LayerView`.
@@ -163,7 +166,7 @@ carré, comme attendu :
 
 ---
 
-## Étape 7.1 — résumé
+## Étape 7.1 — résumé (commit `c840119`)
 
 `ContentView` découpé : 608 → 435 lignes. Le flow AI et le lasso sont
 extraits dans deux controllers `@Observable @MainActor` injectés en
