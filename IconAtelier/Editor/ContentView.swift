@@ -46,6 +46,21 @@ struct ContentView: View {
         ]
     }
 
+    private var deleteFloatingButton: some View {
+        Button {
+            LayerActions(project: project, session: session).delete()
+        } label: {
+            Image(systemName: "trash")
+                .font(.title.weight(.regular))
+                .foregroundStyle(Color(uiColor: .systemBackground))
+                .frame(width: 60, height: 60)
+                .background(Color.red, in: .circle)
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Delete selected layers")
+    }
+
     var body: some View {
         @Bindable var ai = ai
         GeometryReader { geo in
@@ -108,15 +123,26 @@ struct ContentView: View {
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    ShapeFanButton(
-                        items: fanItems,
-                        isOpen: $fanIsOpen
-                    )
+                    Group {
+                        if session.isMultiSelecting {
+                            deleteFloatingButton
+                        } else {
+                            ShapeFanButton(
+                                items: fanItems,
+                                isOpen: $fanIsOpen
+                            )
+                        }
+                    }
                     .padding(.bottom, 16)
                     .opacity(showEditSheet ? 0 : 1)
                     .scaleEffect(showEditSheet ? 0.4 : 1)
                     .animation(.spring(duration: 0.25, bounce: 0.2), value: showEditSheet)
                     .allowsHitTesting(!showEditSheet)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(Self.editorSpaceName))
+                    } action: { newFrame in
+                        lasso.fabFrame = newFrame
+                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 

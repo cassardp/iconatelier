@@ -6,6 +6,7 @@ import UIKit
 final class LassoController {
     var canvasFrame: CGRect = .zero
     var layersBarFrame: CGRect = .zero
+    var fabFrame: CGRect = .zero
     var layerRowFrames: [UUID: CGRect] = [:]
     var lassoRect: CGRect? = nil
 
@@ -108,7 +109,8 @@ final class LassoController {
     private func handleClearTap(location: CGPoint, session: ProjectSession) {
         guard session.isMultiSelecting else { return }
         guard !canvasFrame.contains(location),
-              !layersBarFrame.contains(location)
+              !layersBarFrame.contains(location),
+              !fabFrame.contains(location)
         else { return }
         session.clearLassoSelection()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
