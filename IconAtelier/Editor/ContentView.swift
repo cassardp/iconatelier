@@ -358,7 +358,7 @@ struct ContentView: View {
         guard side > 0 else { return [] }
         var matched: Set<UUID> = []
         for layer in project.layers where !layer.isLocked {
-            let bboxSide = layerBaseFraction(layer.kind) * layer.scale * side
+            let bboxSide = LayerGeometry.frameSide(for: layer, canvasSide: side)
             let centerX = side / 2 + layer.offset.width * side
             let centerY = side / 2 + layer.offset.height * side
             let layerRect = CGRect(
@@ -372,13 +372,6 @@ struct ContentView: View {
             }
         }
         return matched
-    }
-
-    private func layerBaseFraction(_ kind: LayerKind) -> CGFloat {
-        switch kind {
-        case .image: return 0.7
-        case .text, .parametricShape: return 0.5
-        }
     }
 
     private func reselectTopIfNeeded() {

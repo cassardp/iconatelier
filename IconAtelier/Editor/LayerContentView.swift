@@ -43,7 +43,7 @@ struct LayerContentView: View {
     private var content: some View {
         switch layer.kind {
         case .image:
-            let imageSide = side * 0.7 * scale
+            let imageSide = side * LayerGeometry.baseUnitFraction(for: .image) * scale
             if let image = layer.image {
                 Image(uiImage: image)
                     .resizable()
@@ -58,7 +58,7 @@ struct LayerContentView: View {
                     .contentShape(Rectangle())
             }
         case .text:
-            let textSide = side * 0.6 * scale
+            let textSide = side * LayerGeometry.baseUnitFraction(for: .text) * scale
             let glyphShape = TextGlyphShape(
                 text: layer.text,
                 weight: layer.fontWeight,
@@ -86,14 +86,15 @@ struct LayerContentView: View {
                         width: strokeWidth,
                         color: layer.borderColor,
                         position: layer.borderPosition,
-                        lineCap: layer.lineCap.cgLineCap
+                        lineCap: layer.lineCap.cgLineCap,
+                        lineJoin: layer.lineCap.cgLineJoin
                     )
                 }
             }
             .frame(width: textSide, height: textSide)
             .contentShape(renderShape)
         case .parametricShape:
-            let shapeSide = side * 0.5 * scale
+            let shapeSide = side * LayerGeometry.baseUnitFraction(for: .parametricShape) * scale
             if let spec = layer.shapeSpec {
                 let shape = spec.anyShape()
                 let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
@@ -107,7 +108,8 @@ struct LayerContentView: View {
                             width: strokeWidth,
                             color: layer.borderColor,
                             position: spec.isOpenPath ? .center : layer.borderPosition,
-                            lineCap: layer.lineCap.cgLineCap
+                            lineCap: layer.lineCap.cgLineCap,
+                            lineJoin: layer.lineCap.cgLineJoin
                         )
                     }
                 }
@@ -122,15 +124,15 @@ struct LayerContentView: View {
     }
 
     @ViewBuilder
-    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition, lineCap: CGLineCap) -> some View {
+    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition, lineCap: CGLineCap, lineJoin: CGLineJoin) -> some View {
         switch position {
         case .center:
-            shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: lineCap, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: lineCap, lineJoin: lineJoin))
         case .inner:
-            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: lineJoin))
                 .clipShape(shape)
         case .outer:
-            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: lineJoin))
                 .overlay(shape.fill(.black).blendMode(.destinationOut))
                 .compositingGroup()
         }
