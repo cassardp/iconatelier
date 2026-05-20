@@ -455,7 +455,7 @@ private struct OverlayLayerView: View {
         }
         .gesture(
             LongPressDragRecognizer(
-                minimumDuration: 0.5,
+                minimumDuration: 1.0,
                 allowableMovement: 12
             ) { recognizer, _ in
                 if recognizer.state == .began {
