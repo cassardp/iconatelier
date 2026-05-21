@@ -15,7 +15,7 @@ struct PaintEditor: View {
 
     var body: some View {
 
-        VStack(spacing: 14) {
+        VStack(spacing: 7) {
             editorRows
         }
     }

@@ -80,7 +80,7 @@ struct RadialGradientPad: View {
                     color.wrappedValue = newColor
                 }
             ),
-            supportsOpacity: false
+            supportsOpacity: true
         )
         .labelsHidden()
         .scaleEffect(Self.handleSize / 28)

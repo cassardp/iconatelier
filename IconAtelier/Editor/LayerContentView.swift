@@ -15,7 +15,6 @@ struct LayerView: View {
         LayerContentView(layer: layer, side: side, scale: effectiveScale)
             .applying(effects: effects, side: side, scale: effectiveScale)
             .rotationEffect(layer.rotation + transientAngle)
-            .opacity(layer.opacity)
             .offset(
                 x: layer.offset.width * side + transientOffset.width,
                 y: layer.offset.height * side + transientOffset.height
@@ -48,6 +47,7 @@ struct LayerContentView: View {
                     .scaledToFit()
                     .frame(width: imageSide, height: imageSide)
                     .colorMultiply(layer.tintColor)
+                    .opacity(layer.fillOpacity)
                     .contentShape(Rectangle())
             } else {
                 Color.clear
@@ -76,6 +76,7 @@ struct LayerContentView: View {
             ZStack {
                 if layer.fillEnabled {
                     PaintFill(renderShape, paint: layer.fillPaint, side: textSide)
+                        .opacity(layer.fillOpacity)
                 }
                 if strokeWidth > 0 {
                     borderView(
@@ -86,6 +87,7 @@ struct LayerContentView: View {
                         lineCap: layer.lineCap.cgLineCap,
                         lineJoin: layer.lineCap.cgLineJoin
                     )
+                    .opacity(layer.borderOpacity)
                 }
             }
             .frame(width: textSide, height: textSide)
@@ -98,6 +100,7 @@ struct LayerContentView: View {
                 ZStack {
                     if layer.fillEnabled {
                         PaintFill(shape, paint: layer.fillPaint, side: shapeSide)
+                            .opacity(layer.fillOpacity)
                     }
                     if strokeWidth > 0 {
                         borderView(
@@ -108,6 +111,7 @@ struct LayerContentView: View {
                             lineCap: layer.lineCap.cgLineCap,
                             lineJoin: layer.lineCap.cgLineJoin
                         )
+                        .opacity(layer.borderOpacity)
                     }
                 }
                 .frame(width: shapeSide, height: shapeSide)

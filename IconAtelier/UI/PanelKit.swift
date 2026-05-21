@@ -412,7 +412,7 @@ struct PanelMenu<Value: Hashable>: View {
 struct ColorPickerRow: View {
     let title: String
     @Binding var color: Color
-    var supportsOpacity: Bool = false
+    var supportsOpacity: Bool = true
     var onChange: (() -> Void)? = nil
 
     var body: some View {

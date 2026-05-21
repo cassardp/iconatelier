@@ -74,7 +74,7 @@ struct MeshGradientPad: View {
                     setMeshColor(at: colorIdx, newColor)
                 }
             ),
-            supportsOpacity: false
+            supportsOpacity: true
         )
         .labelsHidden()
         .scaleEffect(Self.handleSize / 28)

@@ -12,8 +12,6 @@ struct LayerEditorContent: View {
                 if let id = session.selectedLayerUUID,
                    let layerBinding = project.layerBinding(id: id) {
                     let layer = layerBinding.wrappedValue
-                    layerSection(layerBinding: layerBinding)
-                    SectionDivider()
                     contentSection(layerBinding: layerBinding, kind: layer.kind)
 
                     if supportsBorder(layer) {
@@ -43,15 +41,6 @@ struct LayerEditorContent: View {
         .scrollIndicators(.hidden)
         .onChange(of: session.selectedLayerUUID) { _, newID in
             if newID == nil { dismiss() }
-        }
-    }
-
-    // MARK: - Layer (cross-kind: opacity, etc.)
-
-    @ViewBuilder
-    private func layerSection(layerBinding: Binding<Layer>) -> some View {
-        PanelSection(title: "Layer") {
-            OpacitySlider(layer: layerBinding, project: project)
         }
     }
 
@@ -161,19 +150,17 @@ struct LayerEditorContent: View {
 // MARK: - Opacity row
 
 struct OpacitySlider: View {
-    @Binding var layer: Layer
+    @Binding var value: Double
     let project: IconProject
+    var defaultValue: Double = 1.0
 
     var body: some View {
         DialSliderRow(
             label: "Opacity",
-            value: Binding(
-                get: { layer.opacity },
-                set: { layer.opacity = $0 }
-            ),
+            value: $value,
             range: 0 ... 1,
             valueText: { String(format: "%.0f%%", $0 * 100) },
-            defaultValue: 1.0,
+            defaultValue: defaultValue,
             onBeginEditing: { project.recordUndo() }
         )
     }

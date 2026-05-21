@@ -18,7 +18,9 @@ struct ShapeContentSection: View {
                     dropSliders
                 }
             }
-            SectionDivider()
+            if !isLineShape {
+                SectionDivider()
+            }
         }
         if !isLineShape {
             PanelSection(
@@ -31,6 +33,7 @@ struct ShapeContentSection: View {
                     }
                 )
             ) {
+                OpacitySlider(value: $layer.fillOpacity, project: project)
                 PaintEditor(
                     paint: Binding(
                         get: { layer.fillPaint },

@@ -8,6 +8,7 @@ struct ImageContentSection: View {
 
     var body: some View {
         PanelSection(title: "Image") {
+            OpacitySlider(value: $layer.fillOpacity, project: project)
             ColorPickerRow(title: "Tint", color: $layer.tintColor, onChange: { project.recordUndo() })
         }
     }
@@ -32,6 +33,7 @@ struct TextContentSection: View {
         }
         SectionDivider()
         PanelSection(title: "Fill") {
+            OpacitySlider(value: $layer.fillOpacity, project: project)
             PaintEditor(
                 paint: Binding(
                     get: { layer.fillPaint },

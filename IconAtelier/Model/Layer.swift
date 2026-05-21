@@ -407,6 +407,50 @@ struct Layer: Codable, Identifiable {
         }
     }
 
+    var fillOpacity: Double {
+        get {
+            switch content {
+            case let .text(c):  return c.fill.opacity
+            case let .shape(c): return c.fill.opacity
+            case let .image(c): return c.opacity
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.fill.opacity = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.fill.opacity = newValue
+                content = .shape(c)
+            case var .image(c):
+                c.opacity = newValue
+                content = .image(c)
+            }
+        }
+    }
+
+    var borderOpacity: Double {
+        get {
+            switch content {
+            case let .text(c):  return c.border.opacity
+            case let .shape(c): return c.border.opacity
+            case .image:        return 1.0
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.border.opacity = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.border.opacity = newValue
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
     var fillPaint: Paint {
         get {
             switch content {

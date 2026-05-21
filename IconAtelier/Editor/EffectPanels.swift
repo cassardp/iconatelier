@@ -20,6 +20,7 @@ struct BorderPanelContent: View {
 
     var body: some View {
         if layer.borderWidth > 0 {
+            OpacitySlider(value: $layer.borderOpacity, project: project)
             DialSliderRow(
                 label: "Width",
                 value: $layer.borderWidth,
@@ -111,6 +112,14 @@ struct ShadowPanelContent: View {
 
     var body: some View {
         if layer.shadowOpacity > 0 {
+            OpacitySlider(
+                value: Binding(
+                    get: { layer.shadowOpacity },
+                    set: { layer.shadowOpacity = $0 }
+                ),
+                project: project,
+                defaultValue: ShadowDefaults.opacity
+            )
             ColorPickerRow(
                 title: "Color",
                 color: Binding(
@@ -118,17 +127,6 @@ struct ShadowPanelContent: View {
                     set: { layer.shadowColor = $0 }
                 ),
                 onChange: { project.recordUndo() }
-            )
-            DialSliderRow(
-                label: "Opacity",
-                value: Binding(
-                    get: { layer.shadowOpacity },
-                    set: { layer.shadowOpacity = $0 }
-                ),
-                range: 0 ... 1,
-                valueText: { String(format: "%.0f%%", $0 * 100) },
-                defaultValue: ShadowDefaults.opacity,
-                onBeginEditing: { project.recordUndo() }
             )
             DialSliderRow(
                 label: "Blur",
