@@ -177,7 +177,7 @@ struct ContentView: View {
                                         session: session
                                     )
                                     .id(quickActionsIdentity)
-                                    .padding(.top, 4)
+                                    .padding(.top, 14)
                                     .transition(
                                         .asymmetric(
                                             insertion: .scale(scale: 0.92, anchor: .top)
