@@ -24,21 +24,39 @@ struct LayersBar: View {
 
     var body: some View {
         GeometryReader { geo in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Self.spacing) {
-                    ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
-                        rowView(layer: layer, index: idx)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Self.spacing) {
+                        ForEach(Array(uiLayers.enumerated()), id: \.element.uuid) { idx, layer in
+                            rowView(layer: layer, index: idx)
+                                .id(layer.uuid)
+                        }
+                        backgroundButton
+                            .id(Self.backgroundScrollID)
                     }
-                    backgroundButton
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, Self.verticalPadding)
+                    .frame(minWidth: geo.size.width, alignment: .center)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, Self.verticalPadding)
-                .frame(minWidth: geo.size.width, alignment: .center)
+                .scrollDisabled(draggingUUID != nil)
+                .onChange(of: session.selectedLayerUUID) { _, newUUID in
+                    guard draggingUUID == nil, let uuid = newUUID else { return }
+                    withAnimation(.smooth(duration: 0.25)) {
+                        proxy.scrollTo(uuid, anchor: .center)
+                    }
+                }
+                .onChange(of: session.isBackgroundSelected) { _, isSelected in
+                    guard draggingUUID == nil, isSelected else { return }
+                    withAnimation(.smooth(duration: 0.25)) {
+                        proxy.scrollTo(Self.backgroundScrollID, anchor: .center)
+                    }
+                }
             }
-            .scrollDisabled(draggingUUID != nil)
         }
         .frame(height: Self.thumbnailSize + Self.verticalPadding * 2)
     }
+
+    private static let backgroundScrollID = "iconatelier.layersbar.background"
 
     private var backgroundButton: some View {
         BackgroundThumbnailRow(
