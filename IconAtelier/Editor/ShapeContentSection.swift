@@ -20,24 +20,33 @@ struct ShapeContentSection: View {
             }
             SectionDivider()
         }
-        PanelSection(
-            title: "Fill",
-            isOn: Binding(
-                get: { layer.fillEnabled },
-                set: { newVal in
-                    project.recordUndo()
-                    layer.fillEnabled = newVal
-                }
-            )
-        ) {
-            PaintEditor(
-                paint: Binding(
-                    get: { layer.fillPaint },
-                    set: { layer.fillPaint = $0 }
-                ),
-                onBeginEditing: { project.recordUndo() }
-            )
+        if !isLineShape {
+            PanelSection(
+                title: "Fill",
+                isOn: Binding(
+                    get: { layer.fillEnabled },
+                    set: { newVal in
+                        project.recordUndo()
+                        layer.fillEnabled = newVal
+                    }
+                )
+            ) {
+                PaintEditor(
+                    paint: Binding(
+                        get: { layer.fillPaint },
+                        set: { layer.fillPaint = $0 }
+                    ),
+                    onBeginEditing: { project.recordUndo() }
+                )
+            }
         }
+    }
+
+    private var isLineShape: Bool {
+        if case let .polygon(_, sides, _) = layer.shapeSpec?.deepestBase {
+            return sides < 3
+        }
+        return false
     }
 
     private var hasFamilySliders: Bool {
@@ -100,7 +109,7 @@ struct ShapeContentSection: View {
         DialSliderRow(
             label: "Sides",
             value: polygonSidesBinding,
-            range: 3 ... 24,
+            range: 2 ... 24,
             valueText: { "\(Int($0.rounded()))" },
             defaultValue: 4,
             onBeginEditing: { project.recordUndo() }
@@ -251,9 +260,19 @@ struct ShapeContentSection: View {
             get: { Double(currentPolygonParams.sides) },
             set: { newVal in
                 var p = currentPolygonParams
-                p.sides = max(3, min(24, Int(newVal.rounded())))
+                let newSides = max(2, min(24, Int(newVal.rounded())))
+                let wasLine = p.sides == 2
+                let nowLine = newSides == 2
+                p.sides = newSides
                 p.preset = .free
                 applyPolygonParams(p)
+                if nowLine && !wasLine {
+                    layer.fillEnabled = false
+                    if layer.borderWidth <= 0 {
+                        layer.borderWidth = BorderDefaults.shapeWidth
+                        layer.borderColor = BorderDefaults.color
+                    }
+                }
             }
         )
     }

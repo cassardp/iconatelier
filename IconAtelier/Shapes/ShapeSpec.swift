@@ -213,6 +213,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         switch self {
         case let .ellipse(_, _, arcSweep):
             return arcSweep < 1.0 - 1e-6
+        case let .polygon(_, sides, _):
+            return sides < 3
         case .transform(let base, _, _, _):
             return base.isOpenPath
         case .radialRepeat(let base, _, _, _):
@@ -315,7 +317,7 @@ nonisolated enum PolygonPreset: String, CaseIterable, Hashable, Sendable, Codabl
     ]
 
     func defaultPolygonRotation(forSides sides: Int) -> Double {
-        guard family == .polygon, sides >= 3 else { return canonical.rotationDegrees }
+        guard family == .polygon, sides >= 2 else { return canonical.rotationDegrees }
         return sides.isMultiple(of: 2) ? 180.0 / Double(sides) : 0
     }
 }
