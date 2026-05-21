@@ -17,7 +17,9 @@ struct ShapeFanButton: View {
 
     private let centerSize: CGFloat = 60
     private let miniSize: CGFloat = 56
-    private let radius: CGFloat = 110
+    private let spread: CGFloat = 290
+    private let arcHeight: CGFloat = 60
+    private let lift: CGFloat = 30
 
     var body: some View {
         ZStack {
@@ -106,17 +108,15 @@ struct ShapeFanButton: View {
 
     private func position(for index: Int) -> CGSize {
         guard !items.isEmpty else { return .zero }
-
-        let startDeg = 180.0
-        let endDeg = 0.0
-        let span = startDeg - endDeg
-        let step = items.count > 1 ? span / Double(items.count - 1) : 0
-        let deg = startDeg - step * Double(index)
-        let rad = deg * .pi / 180
-        return CGSize(
-            width: cos(rad) * radius,
-            height: -sin(rad) * radius
-        )
+        let halfSpread = Double(spread) / 2
+        let h = Double(arcHeight)
+        let halfAngle = 2 * atan2(h, halfSpread)
+        let r = halfSpread / sin(halfAngle)
+        let t = items.count > 1 ? Double(index) / Double(items.count - 1) : 0.5
+        let theta = -halfAngle + 2 * halfAngle * t
+        let x = r * sin(theta)
+        let y = (r - h) - r * cos(theta) - Double(lift)
+        return CGSize(width: x, height: y)
     }
 
     private func handleTap(_ item: ShapeFanItem) {
