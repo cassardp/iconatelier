@@ -6,7 +6,6 @@ import UIKit
 final class LassoController {
     var canvasFrame: CGRect = .zero
     var layersBarFrame: CGRect = .zero
-    var fabFrame: CGRect = .zero
     var layerRowFrames: [UUID: CGRect] = [:]
     var lassoRect: CGRect? = nil
 

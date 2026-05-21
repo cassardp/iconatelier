@@ -14,7 +14,6 @@ struct ShapeFanItem: Identifiable, Equatable {
 struct ShapeFanButton: View {
     let items: [ShapeFanItem]
     @Binding var isOpen: Bool
-    var trashMode: Bool = false
 
     private let centerSize: CGFloat = 60
     private let miniSize: CGFloat = 56
@@ -45,29 +44,27 @@ struct ShapeFanButton: View {
 
     private var centralButton: some View {
         Button {
-            guard !trashMode else { return }
             withAnimation(.spring(duration: 0.28, bounce: 0.35)) {
                 isOpen.toggle()
             }
         } label: {
-            Image(systemName: trashMode ? "trash.fill" : "plus")
+            Image(systemName: "plus")
                 .font(.title.weight(.regular))
                 .foregroundStyle(Color(uiColor: .systemBackground))
-                .rotationEffect(.degrees(isOpen && !trashMode ? 45 : 0))
+                .rotationEffect(.degrees(isOpen ? 45 : 0))
                 .frame(width: centerSize, height: centerSize)
-                .background(trashMode ? Color.red : Color.primary, in: .circle)
+                .background(Color.primary, in: .circle)
                 .shadow(
-                    color: .black.opacity(trashMode ? 0.32 : (isOpen ? 0.28 : 0.18)),
-                    radius: trashMode ? 16 : (isOpen ? 14 : 10),
+                    color: .black.opacity(isOpen ? 0.28 : 0.18),
+                    radius: isOpen ? 14 : 10,
                     x: 0,
                     y: 4
                 )
-                .scaleEffect(trashMode ? 1.18 : (isOpen ? 1.06 : 1.0))
+                .scaleEffect(isOpen ? 1.06 : 1.0)
                 .animation(.spring(duration: 0.28, bounce: 0.45), value: isOpen)
-                .animation(.spring(duration: 0.25, bounce: 0.4), value: trashMode)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(trashMode ? "Drop to delete layer" : (isOpen ? "Close add menu" : "Add layer"))
+        .accessibilityLabel(isOpen ? "Close add menu" : "Add layer")
     }
 
     private var miniButtons: some View {
