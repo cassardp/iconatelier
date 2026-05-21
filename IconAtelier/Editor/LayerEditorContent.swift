@@ -134,7 +134,7 @@ struct LayerEditorContent: View {
                 project: project
             )
         ) {
-            RadialRepeatPanelContent(layer: layerBinding, project: project)
+            RadialRepeatPanelContent(layer: layerBinding, project: project, session: session)
         }
     }
 

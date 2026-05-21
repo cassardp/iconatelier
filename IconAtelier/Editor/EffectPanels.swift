@@ -265,6 +265,7 @@ struct TransformPanelContent: View {
 struct RadialRepeatPanelContent: View {
     @Binding var layer: Layer
     let project: IconProject
+    let session: ProjectSession
 
     var body: some View {
         if layer.radialRepeatParams != nil {
@@ -338,6 +339,13 @@ struct RadialRepeatPanelContent: View {
                 defaultValue: ShapeSpec.defaultRadialRepeat.orientation,
                 onBeginEditing: { project.recordUndo() }
             )
+        }
+        ActionRow(title: "Break apart") {
+            let sourceID = layer.uuid
+            if let newIDs = project.explodeRadialRepeat(layerID: sourceID),
+               let first = newIDs.first {
+                session.selectLayer(first)
+            }
         }
     }
 

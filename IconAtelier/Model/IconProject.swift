@@ -341,6 +341,62 @@ final class IconProject: Codable, Identifiable {
     }
 
     @discardableResult
+    func explodeRadialRepeat(layerID: UUID) -> [UUID]? {
+        guard let idx = layers.firstIndex(where: { $0.uuid == layerID }) else { return nil }
+        let source = layers[idx]
+        guard let params = source.radialRepeatParams else { return nil }
+        let n = max(2, params.count)
+
+        recordUndo()
+
+        let fraction = Double(LayerGeometry.baseUnitFraction(for: source.kind))
+        let sourceScale = source.scaleValue
+        let centerHole = params.centerHole
+        let orientation = params.orientation
+        let sourceRot = source.rotationRadians
+        let basePhase = -Double.pi / 2
+
+        let radialOffset = fraction * sourceScale * (1.0 + centerHole) / 4.0
+        let newScale = 0.275 * sourceScale * (1.0 - centerHole)
+
+        let sx: Double = source.isFlippedHorizontally ? -1 : 1
+        let sy: Double = source.isFlippedVertically ? -1 : 1
+        let flipSign: Double = (source.isFlippedHorizontally != source.isFlippedVertically) ? -1 : 1
+
+        let cosR = Darwin.cos(sourceRot)
+        let sinR = Darwin.sin(sourceRot)
+
+        var pieces: [Layer] = []
+        pieces.reserveCapacity(n)
+
+        for i in 0..<n {
+            let theta = (Double(i) / Double(n)) * 2 * .pi + basePhase
+            let lx = radialOffset * Darwin.cos(theta)
+            let ly = radialOffset * Darwin.sin(theta)
+            let fx = sx * lx
+            let fy = sy * ly
+            let wx = cosR * fx - sinR * fy
+            let wy = sinR * fx + cosR * fy
+
+            var piece = source
+            piece.uuid = UUID()
+            piece.name = "\(source.name) \(i + 1)"
+            piece.radialRepeatParams = nil
+            piece.offset = CGSize(
+                width: source.offset.width + wx,
+                height: source.offset.height + wy
+            )
+            piece.scaleValue = newScale
+            piece.rotationRadians = sourceRot + flipSign * (theta + .pi / 2 + orientation)
+            pieces.append(piece)
+        }
+
+        layers.remove(at: idx)
+        layers.insert(contentsOf: pieces, at: idx)
+        return pieces.map(\.uuid)
+    }
+
+    @discardableResult
     func addPastedLayers(_ pasted: [Layer]) -> [Layer] {
         guard !pasted.isEmpty else { return [] }
         recordUndo()
