@@ -49,8 +49,8 @@ struct LayerQuickActionsCanvasBar: View {
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: .black, location: 0.28),
-                    .init(color: .black, location: 0.72),
+                    .init(color: .black, location: 0.18),
+                    .init(color: .black, location: 0.82),
                     .init(color: .clear, location: 1.0)
                 ],
                 startPoint: .leading,

@@ -22,6 +22,7 @@ struct LayersBar: View {
     private static let thumbnailSize: CGFloat = 64
     private static let spacing: CGFloat = 8
     private static let verticalPadding: CGFloat = 8
+    private static let horizontalEdgePadding: CGFloat = 72
     private static let itemStride: CGFloat = thumbnailSize + spacing
     static let borderWidth: CGFloat = 2
     static let idleBorderColor: Color = Color(.systemGray3)
@@ -39,12 +40,24 @@ struct LayersBar: View {
                         backgroundButton
                             .id(Self.backgroundScrollID)
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, Self.horizontalEdgePadding)
                     .padding(.vertical, Self.verticalPadding)
                     .frame(minWidth: geo.size.width, alignment: .center)
                 }
                 .scrollClipDisabled()
                 .scrollDisabled(draggingUUID != nil)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: .black, location: 0.18),
+                            .init(color: .black, location: 0.82),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
                 .onChange(of: session.selectedLayerUUID) { _, newUUID in
                     guard draggingUUID == nil, let uuid = newUUID else { return }
                     withAnimation(.smooth(duration: 0.25)) {
