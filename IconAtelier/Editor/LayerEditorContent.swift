@@ -12,8 +12,6 @@ struct LayerEditorContent: View {
                 if let id = session.selectedLayerUUID,
                    let layerBinding = project.layerBinding(id: id) {
                     let layer = layerBinding.wrappedValue
-                    LayerQuickActionsRow(project: project, session: session)
-                    SectionDivider()
                     layerSection(layerBinding: layerBinding)
                     SectionDivider()
                     contentSection(layerBinding: layerBinding, kind: layer.kind)

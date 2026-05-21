@@ -86,6 +86,21 @@ struct ContentView: View {
         return true
     }
 
+    private var showsQuickActionsBar: Bool {
+        guard !showEditSheet, !fanIsOpen, !ai.isGenerating else { return false }
+        return LayerActions(project: project, session: session).hasActiveLayers
+    }
+
+    private var quickActionsIdentity: String {
+        if session.isMultiSelecting {
+            return "multi-\(session.lassoSelectedLayerUUIDs.count)"
+        }
+        if let id = session.selectedLayerUUID {
+            return "single-\(id.uuidString)"
+        }
+        return "none"
+    }
+
     private var deleteFloatingButton: some View {
         Button {
             LayerActions(project: project, session: session).delete()
@@ -155,6 +170,24 @@ struct ContentView: View {
                         Color.clear
                             .frame(height: fanButtonRowHeight + bottomSpacer)
                             .contentShape(Rectangle())
+                            .overlay(alignment: .top) {
+                                if showsQuickActionsBar {
+                                    LayerQuickActionsCanvasBar(
+                                        project: project,
+                                        session: session
+                                    )
+                                    .id(quickActionsIdentity)
+                                    .padding(.top, 4)
+                                    .transition(
+                                        .asymmetric(
+                                            insertion: .scale(scale: 0.92, anchor: .top)
+                                                .combined(with: .opacity),
+                                            removal: .opacity
+                                        )
+                                    )
+                                }
+                            }
+                            .animation(.spring(duration: 0.32, bounce: 0.25), value: showsQuickActionsBar)
                     }
                     .zIndex(trashArmed ? 1 : 0)
                     .overlay {
