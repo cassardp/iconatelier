@@ -129,7 +129,27 @@ struct IconCanvasView: View {
 
     @ViewBuilder
     private func gridOverlay(side: CGFloat) -> some View {
+        let showGrid = session.showGrid
+        let neutralColor: Color = project.safeBackground.averageLuminance > 0.55
+            ? Color.black.opacity(0.25)
+            : Color.white.opacity(0.5)
         Canvas { context, size in
+            if showGrid {
+                let neutral = GraphicsContext.Shading.color(neutralColor)
+                for line in CanvasSnapping.gridLineOffsets {
+                    let x = size.width * (0.5 + line)
+                    var v = Path()
+                    v.move(to: CGPoint(x: x, y: 0))
+                    v.addLine(to: CGPoint(x: x, y: size.height))
+                    context.stroke(v, with: neutral, lineWidth: 0.5)
+
+                    let y = size.height * (0.5 + line)
+                    var h = Path()
+                    h.move(to: CGPoint(x: 0, y: y))
+                    h.addLine(to: CGPoint(x: size.width, y: y))
+                    context.stroke(h, with: neutral, lineWidth: 0.5)
+                }
+            }
             let active = GraphicsContext.Shading.color(Color.iaSelectionYellow)
             for guide in dragSnap.objectGuides + magnifySnap.objectGuides {
                 var path = Path()
@@ -174,18 +194,27 @@ struct IconCanvasView: View {
     private func canvasGesture(side: CGFloat, canvasSize: CGSize) -> some Gesture {
         let drag = DragGesture()
             .updating($dragSnap) { value, state, _ in
-                guard session.showGrid, let targets = snapTargets() else {
+                guard let targets = snapTargets() else {
                     state.translation = value.translation
                     state.objectGuides = []
                     state.isActive = true
                     return
                 }
-                let result = CanvasSnapping.snappedToLayerGuides(
-                    translation: value.translation,
-                    draggedBounds: targets.draggedBounds,
-                    others: targets.others,
-                    side: side
-                )
+                let result: (effective: CGSize, guides: [SnapGuide])
+                if session.showGrid {
+                    result = CanvasSnapping.snappedToGridLines(
+                        translation: value.translation,
+                        draggedBounds: targets.draggedBounds,
+                        side: side
+                    )
+                } else {
+                    result = CanvasSnapping.snappedToLayerGuides(
+                        translation: value.translation,
+                        draggedBounds: targets.draggedBounds,
+                        others: targets.others,
+                        side: side
+                    )
+                }
                 let guidesEnter = !result.guides.isEmpty
                     && state.objectGuides.count != result.guides.count
                 if guidesEnter {
@@ -210,13 +239,21 @@ struct IconCanvasView: View {
                     }
                 }
                 promoteOverlaySelection()
-                if session.showGrid, let targets = snapTargets() {
-                    pendingDragEffective = CanvasSnapping.snappedToLayerGuides(
-                        translation: value.translation,
-                        draggedBounds: targets.draggedBounds,
-                        others: targets.others,
-                        side: side
-                    ).effective
+                if let targets = snapTargets() {
+                    if session.showGrid {
+                        pendingDragEffective = CanvasSnapping.snappedToGridLines(
+                            translation: value.translation,
+                            draggedBounds: targets.draggedBounds,
+                            side: side
+                        ).effective
+                    } else {
+                        pendingDragEffective = CanvasSnapping.snappedToLayerGuides(
+                            translation: value.translation,
+                            draggedBounds: targets.draggedBounds,
+                            others: targets.others,
+                            side: side
+                        ).effective
+                    }
                 } else {
                     pendingDragEffective = value.translation
                 }
@@ -265,36 +302,53 @@ struct IconCanvasView: View {
         let magnify = MagnifyGesture(minimumScaleDelta: 0.01)
             .updating($magnifySnap) { value, state, _ in
                 guard value.magnification.isFinite, value.magnification > 0 else { return }
-                if session.showGrid,
-                   !session.isMultiSelecting,
-                   let layer = selectedOverlay,
-                   !layer.isLocked {
+                guard !session.isMultiSelecting,
+                      let layer = selectedOverlay,
+                      !layer.isLocked else {
+                    state.scale = value.magnification
+                    state.objectGuides = []
+                    return
+                }
+                let result: (effective: CGFloat, guides: [SnapGuide])
+                if session.showGrid {
+                    result = CanvasSnapping.snappedMagnificationToGridLines(
+                        magnification: value.magnification,
+                        layer: layer,
+                        side: side
+                    )
+                } else {
                     let others = project.layers.filter { $0.uuid != layer.uuid }
-                    let result = CanvasSnapping.snappedMagnification(
+                    result = CanvasSnapping.snappedMagnification(
                         magnification: value.magnification,
                         layer: layer,
                         others: others,
                         side: side
                     )
-                    let guidesEnter = !result.guides.isEmpty
-                        && state.objectGuides.count != result.guides.count
-                    if guidesEnter {
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
-                    state.scale = result.effective
-                    state.objectGuides = result.guides
-                } else {
-                    state.scale = value.magnification
-                    state.objectGuides = []
                 }
+                let guidesEnter = !result.guides.isEmpty
+                    && state.objectGuides.count != result.guides.count
+                if guidesEnter {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+                state.scale = result.effective
+                state.objectGuides = result.guides
             }
             .onChanged { value in
                 promoteOverlaySelection()
                 guard value.magnification.isFinite, value.magnification > 0 else { return }
-                if session.showGrid,
-                   !session.isMultiSelecting,
-                   let layer = selectedOverlay,
-                   !layer.isLocked {
+                guard !session.isMultiSelecting,
+                      let layer = selectedOverlay,
+                      !layer.isLocked else {
+                    pendingMagnifyEffective = value.magnification
+                    return
+                }
+                if session.showGrid {
+                    pendingMagnifyEffective = CanvasSnapping.snappedMagnificationToGridLines(
+                        magnification: value.magnification,
+                        layer: layer,
+                        side: side
+                    ).effective
+                } else {
                     let others = project.layers.filter { $0.uuid != layer.uuid }
                     pendingMagnifyEffective = CanvasSnapping.snappedMagnification(
                         magnification: value.magnification,
@@ -302,8 +356,6 @@ struct IconCanvasView: View {
                         others: others,
                         side: side
                     ).effective
-                } else {
-                    pendingMagnifyEffective = value.magnification
                 }
             }
             .onEnded { _ in

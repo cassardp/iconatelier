@@ -6,7 +6,7 @@ final class ProjectSession {
     var selectedLayerUUID: UUID?
     var isBackgroundSelected: Bool = false
     var lassoSelectedLayerUUIDs: Set<UUID> = []
-    var showGrid: Bool = true
+    var showGrid: Bool = false
 
     var isMultiSelecting: Bool { lassoSelectedLayerUUIDs.count >= 2 }
 

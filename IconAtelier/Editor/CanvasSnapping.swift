@@ -29,6 +29,10 @@ enum CanvasSnapping {
     static let rotationSnapThresholdDegrees: Double = 5
     static let objectSnapThresholdPoints: CGFloat = 6
 
+    // MARK: - Grid configuration (4×4 cells → 3 internal lines per axis)
+
+    static let gridLineOffsets: [CGFloat] = [-0.25, 0, 0.25]
+
     // MARK: - Layer bounding box in normalized canvas units
 
     static func layerNormalizedBounds(_ layer: Layer) -> CGRect {
@@ -393,5 +397,153 @@ enum CanvasSnapping {
             return (.degrees(nearest), true)
         }
         return (rawDelta, false)
+    }
+
+    // MARK: - Snapping to grid lines
+
+    static func snappedToGridLines(
+        translation: CGSize,
+        draggedBounds: CGRect,
+        side: CGFloat
+    ) -> (effective: CGSize, guides: [SnapGuide]) {
+        guard side > 0 else { return (translation, []) }
+        let threshold = objectSnapThresholdPoints / side
+        let dx = translation.width / side
+        let dy = translation.height / side
+        let candidate = draggedBounds.offsetBy(dx: dx, dy: dy)
+        let candXs: [CGFloat] = [candidate.minX, candidate.midX, candidate.maxX]
+        let candYs: [CGFloat] = [candidate.minY, candidate.midY, candidate.maxY]
+
+        func bestSnap(candidates: [CGFloat]) -> CGFloat? {
+            var best: CGFloat?
+            for c in candidates {
+                for line in gridLineOffsets {
+                    let d = line - c
+                    if abs(d) < threshold, best == nil || abs(d) < abs(best!) {
+                        best = d
+                    }
+                }
+            }
+            return best
+        }
+
+        let bestX = bestSnap(candidates: candXs)
+        let bestY = bestSnap(candidates: candYs)
+        var effective = translation
+        if let bx = bestX { effective.width += bx * side }
+        if let by = bestY { effective.height += by * side }
+
+        let snapped = candidate.offsetBy(dx: bestX ?? 0, dy: bestY ?? 0)
+        let snappedXs: [CGFloat] = [snapped.minX, snapped.midX, snapped.maxX]
+        let snappedYs: [CGFloat] = [snapped.minY, snapped.midY, snapped.maxY]
+        let matchEpsilon: CGFloat = 0.5 / side
+
+        var guides: [SnapGuide] = []
+        for line in gridLineOffsets {
+            if snappedXs.contains(where: { abs($0 - line) < matchEpsilon }) {
+                guides.append(SnapGuide(
+                    orientation: .vertical,
+                    position: line,
+                    extentStart: -0.5,
+                    extentEnd: 0.5
+                ))
+            }
+            if snappedYs.contains(where: { abs($0 - line) < matchEpsilon }) {
+                guides.append(SnapGuide(
+                    orientation: .horizontal,
+                    position: line,
+                    extentStart: -0.5,
+                    extentEnd: 0.5
+                ))
+            }
+        }
+
+        return (effective, guides)
+    }
+
+    static func snappedMagnificationToGridLines(
+        magnification: CGFloat,
+        layer: Layer,
+        side: CGFloat
+    ) -> (effective: CGFloat, guides: [SnapGuide]) {
+        guard side > 0, magnification.isFinite, magnification > 0 else {
+            return (magnification, [])
+        }
+        let threshold = objectSnapThresholdPoints / side
+        let minAnchorDist: CGFloat = 0.001
+
+        var candidateLayer = layer
+        candidateLayer.scale = layer.scale * magnification
+        let candidate = layerNormalizedBounds(candidateLayer)
+        let ox = layer.offset.width
+        let oy = layer.offset.height
+
+        let candXs: [CGFloat] = [candidate.minX, candidate.midX, candidate.maxX]
+        let candYs: [CGFloat] = [candidate.minY, candidate.midY, candidate.maxY]
+
+        var bestRatio: CGFloat = 1
+        var bestScore: CGFloat = .infinity
+
+        for cand in candXs {
+            let anchorDist = cand - ox
+            guard abs(anchorDist) > minAnchorDist else { continue }
+            for line in gridLineOffsets {
+                let d = line - cand
+                guard abs(d) < threshold else { continue }
+                let ratio = (line - ox) / anchorDist
+                guard ratio > 0.05, ratio.isFinite else { continue }
+                let score = abs(ratio - 1)
+                if score < bestScore {
+                    bestScore = score
+                    bestRatio = ratio
+                }
+            }
+        }
+        for cand in candYs {
+            let anchorDist = cand - oy
+            guard abs(anchorDist) > minAnchorDist else { continue }
+            for line in gridLineOffsets {
+                let d = line - cand
+                guard abs(d) < threshold else { continue }
+                let ratio = (line - oy) / anchorDist
+                guard ratio > 0.05, ratio.isFinite else { continue }
+                let score = abs(ratio - 1)
+                if score < bestScore {
+                    bestScore = score
+                    bestRatio = ratio
+                }
+            }
+        }
+
+        let effective = magnification * bestRatio
+        var snappedLayer = layer
+        snappedLayer.scale = layer.scale * effective
+        let snapped = layerNormalizedBounds(snappedLayer)
+
+        let matchEpsilon: CGFloat = 0.5 / side
+        let snappedXs = [snapped.minX, snapped.midX, snapped.maxX]
+        let snappedYs = [snapped.minY, snapped.midY, snapped.maxY]
+
+        var guides: [SnapGuide] = []
+        for line in gridLineOffsets {
+            if snappedXs.contains(where: { abs($0 - line) < matchEpsilon }) {
+                guides.append(SnapGuide(
+                    orientation: .vertical,
+                    position: line,
+                    extentStart: -0.5,
+                    extentEnd: 0.5
+                ))
+            }
+            if snappedYs.contains(where: { abs($0 - line) < matchEpsilon }) {
+                guides.append(SnapGuide(
+                    orientation: .horizontal,
+                    position: line,
+                    extentStart: -0.5,
+                    extentEnd: 0.5
+                ))
+            }
+        }
+
+        return (effective, guides)
     }
 }
