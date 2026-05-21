@@ -28,18 +28,6 @@ final class LassoController {
             }
     }
 
-    func clearTapGesture(
-        session: ProjectSession,
-        spaceName: String
-    ) -> some Gesture {
-        SpatialTapGesture(coordinateSpace: .named(spaceName))
-            .onEnded { value in
-                MainActor.assumeIsolated {
-                    self.handleClearTap(location: value.location, session: session)
-                }
-            }
-    }
-
     func performBooleanOperation(
         _ op: BooleanOpKind,
         project: IconProject,
@@ -104,16 +92,6 @@ final class LassoController {
         } else {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
-    }
-
-    private func handleClearTap(location: CGPoint, session: ProjectSession) {
-        guard session.isMultiSelecting else { return }
-        guard !canvasFrame.contains(location),
-              !layersBarFrame.contains(location),
-              !fabFrame.contains(location)
-        else { return }
-        session.clearLassoSelection()
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func hitTest(rect: CGRect, side: CGFloat, project: IconProject) -> Set<UUID> {

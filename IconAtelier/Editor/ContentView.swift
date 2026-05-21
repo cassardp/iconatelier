@@ -237,7 +237,6 @@ struct ContentView: View {
             .coordinateSpace(name: Self.editorSpaceName)
             .contentShape(Rectangle())
             .gesture(lasso.dragGesture(project: project, session: session, spaceName: Self.editorSpaceName))
-            .simultaneousGesture(lasso.clearTapGesture(session: session, spaceName: Self.editorSpaceName))
             .animation(.smooth(duration: 0.35), value: visibleHeight)
         }
         .background(Color.appPageBackground.ignoresSafeArea())
