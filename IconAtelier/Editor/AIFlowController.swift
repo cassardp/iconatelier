@@ -17,7 +17,6 @@ final class AIFlowController {
     func submit(
         subject: String,
         style: AIStyle?,
-        material: AIMaterial?,
         reference: UIImage?,
         transparent: Bool,
         project: IconProject,
@@ -37,13 +36,12 @@ final class AIFlowController {
             let subjectText = trimmedSubject.isEmpty
                 ? "the subject shown in the reference image"
                 : trimmedSubject
-            let materialClause = material.map { ". Surface and material: \($0.promptFragment)" } ?? ""
             let finalPrompt: String
             if let style {
                 let isolation = transparent ? "isolated on transparent background, " : ""
-                finalPrompt = "\(subjectText), \(isolation)rendered as \(style.promptFragment)\(materialClause)"
+                finalPrompt = "\(subjectText), \(isolation)rendered as \(style.promptFragment)"
             } else {
-                finalPrompt = "\(subjectText)\(materialClause)"
+                finalPrompt = subjectText
             }
 
             let outcome: Result<UIImage, Error>

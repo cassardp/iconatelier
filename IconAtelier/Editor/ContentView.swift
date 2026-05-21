@@ -242,11 +242,10 @@ struct ContentView: View {
             ExportSheet(project: project)
         }
         .sheet(isPresented: $ai.showPromptSheet) {
-            AIPromptSheet { subject, style, material, reference, transparent in
+            AIPromptSheet { subject, style, reference, transparent in
                 ai.submit(
                     subject: subject,
                     style: style,
-                    material: material,
                     reference: reference,
                     transparent: transparent,
                     project: project,

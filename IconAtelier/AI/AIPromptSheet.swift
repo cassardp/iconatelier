@@ -6,14 +6,12 @@ struct AIPromptSheet: View {
     let onGenerate: (
         _ subject: String,
         _ style: AIStyle?,
-        _ material: AIMaterial?,
         _ reference: UIImage?,
         _ transparent: Bool
     ) -> Void
 
     @State private var text: String = ""
     @State private var selectedStyle: AIStyle?
-    @State private var selectedMaterial: AIMaterial?
     @State private var pickerItem: PhotosPickerItem?
     @State private var referenceImage: UIImage?
     @State private var isTransparent: Bool = true
@@ -77,7 +75,6 @@ struct AIPromptSheet: View {
         VStack(spacing: 12) {
             Divider()
             styleCapsulesRow
-            materialCapsulesRow
             controlsRow
         }
         .padding(.bottom, 4)
@@ -205,41 +202,6 @@ struct AIPromptSheet: View {
         .accessibilityLabel(style?.label ?? "No style")
     }
 
-    private var materialCapsulesRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                materialCapsule(nil)
-                ForEach(AIMaterial.all) { material in
-                    materialCapsule(material)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-        .scrollClipDisabled()
-    }
-
-    @ViewBuilder
-    private func materialCapsule(_ material: AIMaterial?) -> some View {
-        let isSelected = selectedMaterial?.id == material?.id
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            selectedMaterial = isSelected ? nil : material
-        } label: {
-            Text(material?.label ?? "Any material")
-                .font(.footnote.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Color(uiColor: .systemBackground) : .primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(isSelected ? Color.primary : Color(uiColor: .secondarySystemBackground))
-                }
-                .animation(.smooth(duration: 0.18), value: isSelected)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(material?.label ?? "No material")
-    }
-
     private func loadReference(from item: PhotosPickerItem?) async {
         guard let item else {
             referenceImage = nil
@@ -253,7 +215,7 @@ struct AIPromptSheet: View {
 
     private func submit() {
         guard canSubmit else { return }
-        onGenerate(trimmed, selectedStyle, selectedMaterial, referenceImage, isTransparent)
+        onGenerate(trimmed, selectedStyle, referenceImage, isTransparent)
         dismiss()
     }
 }
