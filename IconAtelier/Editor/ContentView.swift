@@ -20,6 +20,7 @@ struct ContentView: View {
 
     @State private var showImportPicker: Bool = false
     @State private var wasEditSheetOpenBeforeExport = false
+    @State private var trashArmed: Bool = false
 
     private static let editorSpaceName = "iconAtelierEditor"
 
@@ -44,6 +45,45 @@ struct ContentView: View {
                 ai.showPromptSheet = true
             }
         ]
+    }
+
+    private func handleLayerDragMove(uuid: UUID, editorPoint: CGPoint) -> Bool {
+        guard lasso.fabFrame != .zero else {
+            if trashArmed { trashArmed = false }
+            return false
+        }
+        let hitZone = lasso.fabFrame.insetBy(dx: -28, dy: -28)
+        let armed = hitZone.contains(editorPoint)
+        if armed != trashArmed {
+            trashArmed = armed
+            if armed {
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            }
+            if fanIsOpen && armed {
+                withAnimation(.spring(duration: 0.22, bounce: 0.25)) {
+                    fanIsOpen = false
+                }
+            }
+        }
+        return armed
+    }
+
+    private func handleLayerDragEnd(uuid: UUID) -> Bool {
+        let shouldDelete = trashArmed
+        trashArmed = false
+        guard shouldDelete, let layer = project.layer(withID: uuid) else { return false }
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            project.remove(layer)
+            if session.selectedLayerUUID == uuid {
+                if let top = project.layers.last {
+                    session.selectLayer(top.uuid)
+                } else {
+                    session.selectBackground()
+                }
+            }
+        }
+        return true
     }
 
     private var deleteFloatingButton: some View {
@@ -98,6 +138,12 @@ struct ContentView: View {
                         coordinateSpaceName: Self.editorSpaceName,
                         onRowFrame: { uuid, frame in
                             lasso.layerRowFrames[uuid] = frame
+                        },
+                        onDragMove: { uuid, point in
+                            handleLayerDragMove(uuid: uuid, editorPoint: point)
+                        },
+                        onDragEnd: { uuid in
+                            handleLayerDragEnd(uuid: uuid)
                         }
                     )
                     .onGeometryChange(for: CGRect.self) { proxy in
@@ -129,20 +175,21 @@ struct ContentView: View {
                         } else {
                             ShapeFanButton(
                                 items: fanItems,
-                                isOpen: $fanIsOpen
+                                isOpen: $fanIsOpen,
+                                trashMode: trashArmed
                             )
                         }
+                    }
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(Self.editorSpaceName))
+                    } action: { newFrame in
+                        lasso.fabFrame = newFrame
                     }
                     .padding(.bottom, 16)
                     .opacity(showEditSheet ? 0 : 1)
                     .scaleEffect(showEditSheet ? 0.4 : 1)
                     .animation(.spring(duration: 0.25, bounce: 0.2), value: showEditSheet)
                     .allowsHitTesting(!showEditSheet)
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named(Self.editorSpaceName))
-                    } action: { newFrame in
-                        lasso.fabFrame = newFrame
-                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 

@@ -7,12 +7,17 @@ struct LayersBar: View {
     let onItemSelected: () -> Void
     let coordinateSpaceName: String
     let onRowFrame: (UUID, CGRect) -> Void
+    let onDragMove: (UUID, CGPoint) -> Bool
+    let onDragEnd: (UUID) -> Bool
 
     @State private var draggingUUID: UUID?
     @State private var dragOffset: CGFloat = 0
+    @State private var dragOffsetY: CGFloat = 0
     @State private var dragStartIndex: Int?
     @State private var targetIndex: Int?
     @State private var dragStartX: CGFloat = 0
+    @State private var dragStartY: CGFloat = 0
+    @State private var isOverTrash: Bool = false
 
     private static let thumbnailSize: CGFloat = 64
     private static let spacing: CGFloat = 8
@@ -38,6 +43,7 @@ struct LayersBar: View {
                     .padding(.vertical, Self.verticalPadding)
                     .frame(minWidth: geo.size.width, alignment: .center)
                 }
+                .scrollClipDisabled()
                 .scrollDisabled(draggingUUID != nil)
                 .onChange(of: session.selectedLayerUUID) { _, newUUID in
                     guard draggingUUID == nil, let uuid = newUUID else { return }
@@ -87,6 +93,11 @@ struct LayersBar: View {
         let shift = computeShift(for: index)
         let isSelected = session.isLayerSelected(layer.uuid)
 
+        let draggedScale: CGFloat = {
+            guard isDragging else { return 1.0 }
+            return isOverTrash ? 0.7 : 1.05
+        }()
+
         LayerThumbnailRow(layer: layer, isSelected: isSelected)
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
             .onGeometryChange(for: CGRect.self) { proxy in
@@ -95,17 +106,22 @@ struct LayersBar: View {
                 onRowFrame(layer.uuid, newFrame)
             }
             .transition(.scale.combined(with: .opacity))
-            .scaleEffect(isDragging ? 1.05 : 1.0)
+            .scaleEffect(draggedScale)
+            .opacity(isDragging && isOverTrash ? 0.6 : 1.0)
             .shadow(
                 color: .black.opacity(isDragging ? 0.22 : 0),
                 radius: isDragging ? 14 : 0,
                 x: 0,
                 y: isDragging ? 6 : 0
             )
-            .offset(x: isDragging ? dragOffset : shift)
+            .offset(
+                x: isDragging ? dragOffset : shift,
+                y: isDragging ? dragOffsetY : 0
+            )
             .zIndex(isDragging ? 1 : 0)
             .animation(.smooth(duration: 0.2), value: shift)
             .animation(.smooth(duration: 0.2), value: isDragging)
+            .animation(.spring(duration: 0.25, bounce: 0.35), value: isOverTrash)
             .onTapGesture {
                 if !isSelected {
                     UISelectionFeedbackGenerator().selectionChanged()
@@ -114,8 +130,8 @@ struct LayersBar: View {
                 onItemSelected()
             }
             .gesture(
-                LongPressDragRecognizer { recognizer, location in
-                    handleReorder(state: recognizer.state, x: location.x, layer: layer, index: index)
+                LongPressDragRecognizer(coordinateSpace: .named(coordinateSpaceName)) { recognizer, location in
+                    handleReorder(state: recognizer.state, location: location, layer: layer, index: index)
                 }
             )
     }
@@ -134,39 +150,55 @@ struct LayersBar: View {
         return 0
     }
 
-    private func handleReorder(state: UIGestureRecognizer.State, x: CGFloat, layer: Layer, index: Int) {
+    private func handleReorder(state: UIGestureRecognizer.State, location: CGPoint, layer: Layer, index: Int) {
         switch state {
         case .began:
             draggingUUID = layer.uuid
             dragStartIndex = index
             targetIndex = index
-            dragStartX = x
+            dragStartX = location.x
+            dragStartY = location.y
             dragOffset = 0
+            dragOffsetY = 0
+            isOverTrash = false
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         case .changed:
             guard draggingUUID == layer.uuid else { return }
-            dragOffset = x - dragStartX
-            let movedItems = Int((dragOffset / Self.itemStride).rounded())
-            let proposed = max(0, min(uiLayers.count - 1, index + movedItems))
-            if proposed != targetIndex {
-                targetIndex = proposed
-                UISelectionFeedbackGenerator().selectionChanged()
+            dragOffset = location.x - dragStartX
+            dragOffsetY = location.y - dragStartY
+            let overTrash = onDragMove(layer.uuid, location)
+            if overTrash != isOverTrash {
+                isOverTrash = overTrash
+            }
+            if overTrash {
+                if targetIndex != dragStartIndex {
+                    targetIndex = dragStartIndex
+                }
+            } else {
+                let movedItems = Int((dragOffset / Self.itemStride).rounded())
+                let proposed = max(0, min(uiLayers.count - 1, index + movedItems))
+                if proposed != targetIndex {
+                    targetIndex = proposed
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
             }
         case .ended, .cancelled, .failed:
             guard draggingUUID == layer.uuid else { return }
-            finalizeDrag()
+            finalizeDrag(layer: layer, state: state)
         default:
             break
         }
     }
 
-    private func finalizeDrag() {
+    private func finalizeDrag(layer: Layer, state: UIGestureRecognizer.State) {
+        let consumedAsDelete = state == .ended ? onDragEnd(layer.uuid) : false
+
         let from = dragStartIndex
         let to = targetIndex
-        let didMove = from != nil && to != nil && from != to
+        let didMove = !consumedAsDelete && from != nil && to != nil && from != to
 
         withAnimation(.smooth(duration: 0.22)) {
-            if let from, let to, from != to {
+            if !consumedAsDelete, let from, let to, from != to {
                 let n = project.layers.count
                 let nativeFrom = n - 1 - from
                 let nativeTarget = n - 1 - to
@@ -175,8 +207,10 @@ struct LayersBar: View {
             }
             draggingUUID = nil
             dragOffset = 0
+            dragOffsetY = 0
             dragStartIndex = nil
             targetIndex = nil
+            isOverTrash = false
         }
         if didMove {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -225,6 +259,7 @@ struct BackgroundThumbnailRow: View {
 struct LongPressDragRecognizer: UIGestureRecognizerRepresentable {
     var minimumDuration: TimeInterval = 0.3
     var allowableMovement: CGFloat = 4
+    var coordinateSpace: NamedCoordinateSpace
     let onChange: (UILongPressGestureRecognizer, CGPoint) -> Void
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
@@ -240,7 +275,8 @@ struct LongPressDragRecognizer: UIGestureRecognizerRepresentable {
     }
 
     func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
-        onChange(recognizer, context.converter.localLocation)
+        let location = context.converter.location(in: coordinateSpace)
+        onChange(recognizer, location)
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
