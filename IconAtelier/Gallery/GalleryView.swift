@@ -209,6 +209,13 @@ struct GalleryView: View {
         .contextMenu {
             if !isSelecting {
                 Button {
+                    exportTarget = project
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .disabled(!project.hasContent)
+                Divider()
+                Button {
                     draftTitle = project.title
                     renameTarget = project
                 } label: {
@@ -219,12 +226,7 @@ struct GalleryView: View {
                 } label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 }
-                Button {
-                    exportTarget = project
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
-                }
-                .disabled(!project.hasContent)
+                Divider()
                 Button(role: .destructive) {
                     delete(project)
                 } label: {

@@ -51,8 +51,8 @@ struct ContentView: View {
             LayerActions(project: project, session: session).delete()
         } label: {
             Image(systemName: "trash")
-                .font(.title.weight(.regular))
-                .foregroundStyle(Color(uiColor: .systemBackground))
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
                 .frame(width: 60, height: 60)
                 .background(Color.red, in: .circle)
                 .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
