@@ -35,7 +35,7 @@ struct LayerEditorContent: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 28)
-            .padding(.bottom, 14)
+            .padding(.bottom, 40)
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
