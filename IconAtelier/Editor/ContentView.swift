@@ -122,53 +122,54 @@ struct ContentView: View {
             let topSpacer = max(topPadding, leftover / 2)
             let bottomSpacer = max(0, leftover - topSpacer)
             ZStack {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: topSpacer)
-                    IconCanvasView(project: project, session: session)
-                        .frame(width: iconSide, height: iconSide)
+                ZStack(alignment: .bottom) {
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: topSpacer)
+                        IconCanvasView(project: project, session: session)
+                            .frame(width: iconSide, height: iconSide)
+                            .onGeometryChange(for: CGRect.self) { proxy in
+                                proxy.frame(in: .named(Self.editorSpaceName))
+                            } action: { newFrame in
+                                lasso.canvasFrame = newFrame
+                            }
+                        LayersBar(
+                            project: project,
+                            session: session,
+                            onItemSelected: presentEditSheet,
+                            coordinateSpaceName: Self.editorSpaceName,
+                            onRowFrame: { uuid, frame in
+                                lasso.layerRowFrames[uuid] = frame
+                            },
+                            onDragMove: { uuid, point in
+                                handleLayerDragMove(uuid: uuid, editorPoint: point)
+                            },
+                            onDragEnd: { uuid in
+                                handleLayerDragEnd(uuid: uuid)
+                            }
+                        )
                         .onGeometryChange(for: CGRect.self) { proxy in
                             proxy.frame(in: .named(Self.editorSpaceName))
                         } action: { newFrame in
-                            lasso.canvasFrame = newFrame
+                            lasso.layersBarFrame = newFrame
                         }
-                    LayersBar(
-                        project: project,
-                        session: session,
-                        onItemSelected: presentEditSheet,
-                        coordinateSpaceName: Self.editorSpaceName,
-                        onRowFrame: { uuid, frame in
-                            lasso.layerRowFrames[uuid] = frame
-                        },
-                        onDragMove: { uuid, point in
-                            handleLayerDragMove(uuid: uuid, editorPoint: point)
-                        },
-                        onDragEnd: { uuid in
-                            handleLayerDragEnd(uuid: uuid)
-                        }
-                    )
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named(Self.editorSpaceName))
-                    } action: { newFrame in
-                        lasso.layersBarFrame = newFrame
-                    }
-                    Color.clear
-                        .frame(height: fanButtonRowHeight + bottomSpacer)
-                        .contentShape(Rectangle())
-                }
-                .frame(width: geo.size.width, height: visibleHeight)
-                .overlay {
-                    if fanIsOpen {
-                        Color.black.opacity(0.001)
+                        Color.clear
+                            .frame(height: fanButtonRowHeight + bottomSpacer)
                             .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.spring(duration: 0.22, bounce: 0.25)) {
-                                    fanIsOpen = false
-                                }
-                            }
-                            .transition(.opacity)
                     }
-                }
-                .overlay(alignment: .bottom) {
+                    .zIndex(trashArmed ? 1 : 0)
+                    .overlay {
+                        if fanIsOpen {
+                            Color.black.opacity(0.001)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.spring(duration: 0.22, bounce: 0.25)) {
+                                        fanIsOpen = false
+                                    }
+                                }
+                                .transition(.opacity)
+                        }
+                    }
+
                     Group {
                         if session.isMultiSelecting {
                             deleteFloatingButton
@@ -190,7 +191,9 @@ struct ContentView: View {
                     .scaleEffect(showEditSheet ? 0.4 : 1)
                     .animation(.spring(duration: 0.25, bounce: 0.2), value: showEditSheet)
                     .allowsHitTesting(!showEditSheet)
+                    .zIndex(trashArmed ? 0 : 1)
                 }
+                .frame(width: geo.size.width, height: visibleHeight)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
 
                 if let rect = lasso.lassoRect {
