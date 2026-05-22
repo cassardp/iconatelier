@@ -575,6 +575,27 @@ struct Layer: Codable, Identifiable {
         }
     }
 
+    var borderBlur: Double {
+        get {
+            switch content {
+            case let .text(c):  return c.border.blur
+            case let .shape(c): return c.border.blur
+            case .image:        return 0
+            }
+        }
+        set {
+            switch content {
+            case var .text(c):
+                c.border.blur = newValue
+                content = .text(c)
+            case var .shape(c):
+                c.border.blur = newValue
+                content = .shape(c)
+            case .image: break
+            }
+        }
+    }
+
     // MARK: - Content mutations
 
     mutating func setImagePNG(_ data: Data?) {

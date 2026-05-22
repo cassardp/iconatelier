@@ -536,6 +536,7 @@ final class IconProject: Codable, Identifiable {
         layer.borderColor = source.borderColor
         layer.borderPosition = source.borderPosition
         layer.lineCap = source.lineCap
+        layer.borderBlur = source.borderBlur
         layer.opacity = source.opacity
         layer.appearance.effects = source.appearance.effects
         layer.offset = offset

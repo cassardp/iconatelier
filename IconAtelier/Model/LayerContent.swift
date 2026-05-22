@@ -42,8 +42,9 @@ struct LayerBorder: Codable, Equatable, Sendable {
     var position: BorderPosition = .center
     var lineCap: LayerLineCap = .round
     var opacity: Double = 1.0
+    var blur: Double = 0
 
-    private enum CodingKeys: String, CodingKey { case width, color, position, lineCap, opacity }
+    private enum CodingKeys: String, CodingKey { case width, color, position, lineCap, opacity, blur }
 
     init() {}
 
@@ -54,6 +55,7 @@ struct LayerBorder: Codable, Equatable, Sendable {
         position = try c.decodeIfPresent(BorderPosition.self, forKey: .position) ?? .center
         lineCap = try c.decodeIfPresent(LayerLineCap.self, forKey: .lineCap) ?? .round
         opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? 1.0
+        blur = try c.decodeIfPresent(Double.self, forKey: .blur) ?? 0
     }
 }
 

@@ -85,7 +85,8 @@ struct LayerContentView: View {
                         color: layer.borderColor,
                         position: layer.borderPosition,
                         lineCap: layer.lineCap.cgLineCap,
-                        lineJoin: layer.lineCap.cgLineJoin
+                        lineJoin: layer.lineCap.cgLineJoin,
+                        blur: textSide * CGFloat(layer.borderBlur)
                     )
                     .opacity(layer.borderOpacity)
                 }
@@ -109,7 +110,8 @@ struct LayerContentView: View {
                             color: layer.borderColor,
                             position: spec.isOpenPath ? .center : layer.borderPosition,
                             lineCap: layer.lineCap.cgLineCap,
-                            lineJoin: layer.lineCap.cgLineJoin
+                            lineJoin: layer.lineCap.cgLineJoin,
+                            blur: shapeSide * CGFloat(layer.borderBlur)
                         )
                         .opacity(layer.borderOpacity)
                     }
@@ -125,15 +127,18 @@ struct LayerContentView: View {
     }
 
     @ViewBuilder
-    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition, lineCap: CGLineCap, lineJoin: CGLineJoin) -> some View {
+    private func borderView(shape: AnyShape, width: CGFloat, color: Color, position: BorderPosition, lineCap: CGLineCap, lineJoin: CGLineJoin, blur: CGFloat) -> some View {
         switch position {
         case .center:
             shape.stroke(color, style: StrokeStyle(lineWidth: width, lineCap: lineCap, lineJoin: lineJoin))
+                .blur(radius: blur)
         case .inner:
             shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: lineJoin))
+                .blur(radius: blur)
                 .clipShape(shape)
         case .outer:
             shape.stroke(color, style: StrokeStyle(lineWidth: width * 2, lineCap: lineCap, lineJoin: lineJoin))
+                .blur(radius: blur)
                 .overlay(shape.fill(.black).blendMode(.destinationOut))
                 .compositingGroup()
         }

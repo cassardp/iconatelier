@@ -29,6 +29,14 @@ struct BorderPanelContent: View {
                 defaultValue: widthDefault,
                 onBeginEditing: { project.recordUndo() }
             )
+            DialSliderRow(
+                label: "Blur",
+                value: $layer.borderBlur,
+                range: 0 ... 0.2,
+                valueText: { String(format: "%.0f%%", $0 * 100) },
+                defaultValue: 0,
+                onBeginEditing: { project.recordUndo() }
+            )
             BorderPositionRow(position: $layer.borderPosition, project: project)
             LineCapRow(layer: $layer, project: project)
             ColorPickerRow(
