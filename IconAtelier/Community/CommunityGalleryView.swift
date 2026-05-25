@@ -125,40 +125,22 @@ private struct CommunityThumbnail: View {
     let icon: CommunityIcon
 
     var body: some View {
-        AsyncImage(url: URL(string: icon.pngURL), transaction: Transaction(animation: .default)) { phase in
-            switch phase {
-            case .success(let image):
-                image.resizable().interpolation(.medium)
-            case .failure:
-                placeholder(systemImage: "exclamationmark.triangle")
-            case .empty:
-                placeholder(systemImage: nil)
-            @unknown default:
-                placeholder(systemImage: nil)
-            }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(SquircleShape())
-        .overlay {
-            SquircleShape()
-                .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
-        }
-    }
-
-    @ViewBuilder
-    private func placeholder(systemImage: String?) -> some View {
-        ZStack {
-            LinearGradient(
-                colors: [.gray.opacity(0.2), .gray.opacity(0.1)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            } else {
-                ProgressView()
+        SquircleThumbnail {
+            AsyncImage(url: URL(string: icon.pngURL), transaction: Transaction(animation: .default)) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().interpolation(.medium)
+                case .failure:
+                    ThumbnailPlaceholder {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                case .empty:
+                    ThumbnailPlaceholder { ProgressView() }
+                @unknown default:
+                    ThumbnailPlaceholder { ProgressView() }
+                }
             }
         }
     }

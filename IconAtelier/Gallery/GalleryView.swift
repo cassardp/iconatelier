@@ -386,13 +386,7 @@ private struct GalleryCell: View {
     var isSelected: Bool = false
 
     var body: some View {
-        thumbnail
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(SquircleShape())
-            .overlay {
-                SquircleShape()
-                    .stroke(SeparatorShapeStyle().opacity(0.4), lineWidth: 1)
-            }
+        SquircleThumbnail { thumbnail }
             .overlay(alignment: .topTrailing) {
                 if isSelecting {
                     selectionBadge
@@ -427,12 +421,7 @@ private struct GalleryCell: View {
                 .resizable()
                 .interpolation(.medium)
         } else {
-            ZStack {
-                LinearGradient(
-                    colors: [.gray.opacity(0.2), .gray.opacity(0.1)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+            ThumbnailPlaceholder {
                 Image(systemName: "photo")
                     .font(.title2)
                     .foregroundStyle(.secondary)
