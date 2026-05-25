@@ -128,7 +128,7 @@ struct IconCanvasView: View {
 
     @ViewBuilder
     private func gridOverlay(side: CGFloat) -> some View {
-        let showGrid = session.showGrid
+        let showGrid = session.snapMode == .grid
         let neutralColor: Color = project.safeBackground.averageLuminance > 0.55
             ? Color.black.opacity(0.25)
             : Color.white.opacity(0.5)
@@ -199,21 +199,13 @@ struct IconCanvasView: View {
                     state.isActive = true
                     return
                 }
-                let result: (effective: CGSize, guides: [SnapGuide])
-                if session.showGrid {
-                    result = CanvasSnapping.snappedToGridLines(
-                        translation: value.translation,
-                        draggedBounds: targets.draggedBounds,
-                        side: side
-                    )
-                } else {
-                    result = CanvasSnapping.snappedToLayerGuides(
-                        translation: value.translation,
-                        draggedBounds: targets.draggedBounds,
-                        others: targets.others,
-                        side: side
-                    )
-                }
+                let result = CanvasSnapping.snappedDrag(
+                    mode: session.snapMode,
+                    translation: value.translation,
+                    draggedBounds: targets.draggedBounds,
+                    others: targets.others,
+                    side: side
+                )
                 let guidesEnter = !result.guides.isEmpty
                     && state.objectGuides.count != result.guides.count
                 if guidesEnter {
@@ -239,20 +231,13 @@ struct IconCanvasView: View {
                 }
                 promoteOverlaySelection()
                 if let targets = snapTargets() {
-                    if session.showGrid {
-                        pendingDragEffective = CanvasSnapping.snappedToGridLines(
-                            translation: value.translation,
-                            draggedBounds: targets.draggedBounds,
-                            side: side
-                        ).effective
-                    } else {
-                        pendingDragEffective = CanvasSnapping.snappedToLayerGuides(
-                            translation: value.translation,
-                            draggedBounds: targets.draggedBounds,
-                            others: targets.others,
-                            side: side
-                        ).effective
-                    }
+                    pendingDragEffective = CanvasSnapping.snappedDrag(
+                        mode: session.snapMode,
+                        translation: value.translation,
+                        draggedBounds: targets.draggedBounds,
+                        others: targets.others,
+                        side: side
+                    ).effective
                 } else {
                     pendingDragEffective = value.translation
                 }
@@ -308,22 +293,14 @@ struct IconCanvasView: View {
                     state.objectGuides = []
                     return
                 }
-                let result: (effective: CGFloat, guides: [SnapGuide])
-                if session.showGrid {
-                    result = CanvasSnapping.snappedMagnificationToGridLines(
-                        magnification: value.magnification,
-                        layer: layer,
-                        side: side
-                    )
-                } else {
-                    let others = project.layers.filter { $0.uuid != layer.uuid }
-                    result = CanvasSnapping.snappedMagnification(
-                        magnification: value.magnification,
-                        layer: layer,
-                        others: others,
-                        side: side
-                    )
-                }
+                let others = project.layers.filter { $0.uuid != layer.uuid }
+                let result = CanvasSnapping.snappedMagnify(
+                    mode: session.snapMode,
+                    magnification: value.magnification,
+                    layer: layer,
+                    others: others,
+                    side: side
+                )
                 let guidesEnter = !result.guides.isEmpty
                     && state.objectGuides.count != result.guides.count
                 if guidesEnter {
@@ -341,21 +318,14 @@ struct IconCanvasView: View {
                     pendingMagnifyEffective = value.magnification
                     return
                 }
-                if session.showGrid {
-                    pendingMagnifyEffective = CanvasSnapping.snappedMagnificationToGridLines(
-                        magnification: value.magnification,
-                        layer: layer,
-                        side: side
-                    ).effective
-                } else {
-                    let others = project.layers.filter { $0.uuid != layer.uuid }
-                    pendingMagnifyEffective = CanvasSnapping.snappedMagnification(
-                        magnification: value.magnification,
-                        layer: layer,
-                        others: others,
-                        side: side
-                    ).effective
-                }
+                let others = project.layers.filter { $0.uuid != layer.uuid }
+                pendingMagnifyEffective = CanvasSnapping.snappedMagnify(
+                    mode: session.snapMode,
+                    magnification: value.magnification,
+                    layer: layer,
+                    others: others,
+                    side: side
+                ).effective
             }
             .onEnded { _ in
                 let effective = pendingMagnifyEffective

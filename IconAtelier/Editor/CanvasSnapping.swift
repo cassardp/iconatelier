@@ -399,6 +399,60 @@ enum CanvasSnapping {
         return (rawDelta, false)
     }
 
+    // MARK: - Mode dispatch
+
+    static func snappedDrag(
+        mode: SnapMode,
+        translation: CGSize,
+        draggedBounds: CGRect,
+        others: [Layer],
+        side: CGFloat
+    ) -> (effective: CGSize, guides: [SnapGuide]) {
+        switch mode {
+        case .grid:
+            return snappedToGridLines(
+                translation: translation,
+                draggedBounds: draggedBounds,
+                side: side
+            )
+        case .guides:
+            return snappedToLayerGuides(
+                translation: translation,
+                draggedBounds: draggedBounds,
+                others: others,
+                side: side
+            )
+        case .free:
+            return (translation, [])
+        }
+    }
+
+    static func snappedMagnify(
+        mode: SnapMode,
+        magnification: CGFloat,
+        layer: Layer,
+        others: [Layer],
+        side: CGFloat
+    ) -> (effective: CGFloat, guides: [SnapGuide]) {
+        switch mode {
+        case .grid:
+            return snappedMagnificationToGridLines(
+                magnification: magnification,
+                layer: layer,
+                side: side
+            )
+        case .guides:
+            return snappedMagnification(
+                magnification: magnification,
+                layer: layer,
+                others: others,
+                side: side
+            )
+        case .free:
+            return (magnification, [])
+        }
+    }
+
     // MARK: - Snapping to grid lines
 
     static func snappedToGridLines(

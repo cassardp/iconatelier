@@ -219,14 +219,14 @@ struct ContentView: View {
                         .disabled(!project.canUndo)
 
                         Button {
-                            session.showGrid.toggle()
+                            session.cycleSnapMode()
                             UISelectionFeedbackGenerator().selectionChanged()
                         } label: {
-                            Image(systemName: "grid")
+                            Image(systemName: session.snapMode.systemImage)
                                 .imageScale(.large)
-                                .foregroundStyle(session.showGrid ? Color.primary : Color.secondary)
+                                .foregroundStyle(session.snapMode.isAssisted ? Color.primary : Color.secondary)
                         }
-                        .accessibilityLabel(session.showGrid ? "Hide grid" : "Show grid")
+                        .accessibilityLabel(session.snapMode.label)
 
                         Button {
                             project.redo()
