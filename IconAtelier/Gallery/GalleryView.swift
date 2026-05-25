@@ -11,6 +11,7 @@ struct GalleryView: View {
     @State private var exportTarget: IconProject?
     @State private var draftTitle: String = ""
     @State private var showSettings: Bool = false
+    @State private var showCommunity: Bool = false
     @State private var isSelecting: Bool = false
     @State private var selectedUUIDs: Set<UUID> = []
     @AppStorage("galleryColumnCount") private var columnCount: Int = 3
@@ -112,6 +113,15 @@ struct GalleryView: View {
             }
             .background(Color.appPageBackground.ignoresSafeArea())
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showCommunity = true
+                    } label: {
+                        Image(systemName: "globe")
+                    }
+                    .accessibilityLabel("Community Gallery")
+                    .disabled(isSelecting)
+                }
                 if !projects.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(isSelecting ? "Cancel" : "Select") {
@@ -137,6 +147,9 @@ struct GalleryView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsSheet()
+            }
+            .sheet(isPresented: $showCommunity) {
+                CommunityGalleryView()
             }
             .sheet(item: $exportTarget) { project in
                 ExportSheet(project: project)

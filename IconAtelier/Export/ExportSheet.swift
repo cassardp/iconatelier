@@ -15,12 +15,14 @@ struct ExportSheet: View {
     @State private var playStoreURL: URL?
     @State private var faviconsURL: URL?
     @State private var error: String?
+    @State private var showPublish = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     heroPreview
+                    communitySection
                     formatsSection
                     if let error {
                         Text(error)
@@ -42,6 +44,53 @@ struct ExportSheet: View {
                 }
             }
             .task { regenerate() }
+            .sheet(isPresented: $showPublish) {
+                PublishSheet(project: project)
+            }
+        }
+    }
+
+    // MARK: - Community gallery
+
+    private var communitySection: some View {
+        PanelSection(title: "Community Gallery") {
+            Button {
+                showPublish = true
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: project.isPublic ? "checkmark.icloud.fill" : "square.and.arrow.up")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                        .frame(width: 38, height: 38)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(PanelStyle.rowFillActive)
+                        )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(project.isPublic ? "Published" : "Share to gallery")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                        Text(project.isPublic ? "Manage your publication" : "Show your icon in the web gallery")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelStyle.cornerRadius, style: .continuous)
+                        .fill(PanelStyle.rowFill)
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
