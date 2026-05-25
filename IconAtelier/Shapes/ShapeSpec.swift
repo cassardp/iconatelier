@@ -205,8 +205,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
 
     var supportsTransform: Bool {
         switch deepestBase {
-        case .polygon, .star, .ellipse, .drop: return true
-        case .iosSquircle, .customPath: return false
+        case .polygon, .star, .ellipse, .drop, .customPath: return true
+        case .iosSquircle: return false
         case .transform, .radialRepeat: return false
         }
     }
