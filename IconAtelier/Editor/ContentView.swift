@@ -16,10 +16,11 @@ struct ContentView: View {
     @State private var showEditSheet = false
     @State private var fanIsOpen = false
     @State private var showExportSheet = false
+    @State private var showPublishSheet = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.5)
 
     @State private var showImportPicker: Bool = false
-    @State private var wasEditSheetOpenBeforeExport = false
+    @State private var wasEditSheetOpenBeforeModal = false
 
     private static let editorSpaceName = "iconAtelierEditor"
 
@@ -245,6 +246,7 @@ struct ContentView: View {
                     session: session,
                     showImportPicker: $showImportPicker,
                     presentExport: presentExportSheet,
+                    presentPublish: presentPublishSheet,
                     deleteProject: deleteCurrentProject
                 )
             }
@@ -268,6 +270,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showExportSheet) {
             ExportSheet(project: project)
+        }
+        .sheet(isPresented: $showPublishSheet) {
+            PublishSheet(project: project)
         }
         .sheet(isPresented: $ai.showPromptSheet) {
             AIPromptSheet { subject, style, reference, transparent in
@@ -318,14 +323,10 @@ struct ContentView: View {
             handleImportResult(result)
         }
         .onChange(of: showExportSheet) { _, isPresented in
-
-            if !isPresented && wasEditSheetOpenBeforeExport && !showEditSheet {
-                wasEditSheetOpenBeforeExport = false
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(250))
-                    showEditSheet = true
-                }
-            }
+            restoreEditSheetIfNeeded(after: isPresented)
+        }
+        .onChange(of: showPublishSheet) { _, isPresented in
+            restoreEditSheetIfNeeded(after: isPresented)
         }
         .onChange(of: exportSignature) { _, _ in
 
@@ -397,16 +398,33 @@ struct ContentView: View {
     }
 
     private func presentExportSheet() {
+        presentDismissingEditSheet { showExportSheet = true }
+    }
 
+    private func presentPublishSheet() {
+        presentDismissingEditSheet { showPublishSheet = true }
+    }
+
+    private func presentDismissingEditSheet(_ present: @escaping () -> Void) {
         if showEditSheet {
-            wasEditSheetOpenBeforeExport = true
+            wasEditSheetOpenBeforeModal = true
             showEditSheet = false
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
-                showExportSheet = true
+                present()
             }
         } else {
-            showExportSheet = true
+            present()
+        }
+    }
+
+    private func restoreEditSheetIfNeeded(after isPresented: Bool) {
+        if !isPresented && wasEditSheetOpenBeforeModal && !showEditSheet {
+            wasEditSheetOpenBeforeModal = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                showEditSheet = true
+            }
         }
     }
 

@@ -5,6 +5,7 @@ struct EditActionsMenu: View {
     let session: ProjectSession
     @Binding var showImportPicker: Bool
     let presentExport: () -> Void
+    let presentPublish: () -> Void
     let deleteProject: () -> Void
 
     var body: some View {
@@ -22,6 +23,16 @@ struct EditActionsMenu: View {
             presentExport()
         } label: {
             Label("Export Icon", systemImage: "square.and.arrow.up")
+        }
+        .disabled(!project.hasContent)
+
+        Button {
+            presentPublish()
+        } label: {
+            Label(
+                project.isPublic ? "Manage Publication" : "Share to Gallery",
+                systemImage: "globe"
+            )
         }
         .disabled(!project.hasContent)
 
