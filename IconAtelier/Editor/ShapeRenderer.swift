@@ -35,32 +35,35 @@ enum ShapeRenderer {
             return AnyShape(SquircleShape())
         case .customPath(let primitive):
             return AnyShape(CustomPathShape(primitive: primitive))
-        case let .transform(base, sx, sy, rot):
-            if case let .polygon(preset, sides, roundness) = base {
-                return AnyShape(StarPolygonShape(
-                    sides: sides,
-                    bulge: 0,
-                    roundness: roundness,
-                    rotationDegrees: preset.defaultPolygonRotation(forSides: sides) + rot,
-                    stretchX: sx,
-                    stretchY: sy
-                ))
-            }
-            if case let .star(preset, points, innerDepth, roundness) = base {
-                return AnyShape(StarPolygonShape(
-                    sides: points,
-                    bulge: -max(0, min(1, innerDepth)),
-                    roundness: roundness,
-                    rotationDegrees: preset.canonical.rotationDegrees + rot,
-                    stretchX: sx,
-                    stretchY: sy
-                ))
+        case let .transform(base, sx, sy, rot, arc):
+            if abs(arc) < 1e-6 {
+                if case let .polygon(preset, sides, roundness) = base {
+                    return AnyShape(StarPolygonShape(
+                        sides: sides,
+                        bulge: 0,
+                        roundness: roundness,
+                        rotationDegrees: preset.defaultPolygonRotation(forSides: sides) + rot,
+                        stretchX: sx,
+                        stretchY: sy
+                    ))
+                }
+                if case let .star(preset, points, innerDepth, roundness) = base {
+                    return AnyShape(StarPolygonShape(
+                        sides: points,
+                        bulge: -max(0, min(1, innerDepth)),
+                        roundness: roundness,
+                        rotationDegrees: preset.canonical.rotationDegrees + rot,
+                        stretchX: sx,
+                        stretchY: sy
+                    ))
+                }
             }
             return AnyShape(TransformedShape(
                 base: anyShape(for: base),
                 stretchX: sx,
                 stretchY: sy,
-                rotationDegrees: rot
+                rotationDegrees: rot,
+                arc: arc
             ))
         case let .radialRepeat(base, count, centerHole, orientation):
             return AnyShape(RadialRepeat(

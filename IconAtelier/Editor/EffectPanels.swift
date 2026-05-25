@@ -218,7 +218,8 @@ struct TransformPanelContent: View {
                     layer.wrappedValue.shapeSpec = spec.applyingTransform(TransformParams(
                         stretchX: TransformDefaults.stretchX,
                         stretchY: TransformDefaults.stretchY,
-                        rotation: 0
+                        rotation: 0,
+                        arc: 0
                     ))
                 } else {
                     layer.wrappedValue.shapeSpec = spec.applyingTransform(ShapeSpec.identityTransform)
@@ -231,14 +232,15 @@ struct TransformPanelContent: View {
         layer.shapeSpec?.transformParams ?? ShapeSpec.identityTransform
     }
 
-    private func stretchBinding(
-        _ keyPath: WritableKeyPath<TransformParams, Double>
+    private func paramBinding(
+        _ keyPath: WritableKeyPath<TransformParams, Double>,
+        clampedTo range: ClosedRange<Double>
     ) -> Binding<Double> {
         Binding(
             get: { currentTransform[keyPath: keyPath] },
             set: { newVal in
                 var t = currentTransform
-                t[keyPath: keyPath] = max(0.3, min(3, newVal))
+                t[keyPath: keyPath] = max(range.lowerBound, min(range.upperBound, newVal))
                 let spec = layer.shapeSpec ?? .defaultShape
                 layer.shapeSpec = spec.applyingTransform(t)
             }
@@ -249,7 +251,7 @@ struct TransformPanelContent: View {
     private var sliders: some View {
         DialSliderRow(
             label: "Stretch X",
-            value: stretchBinding(\.stretchX),
+            value: paramBinding(\.stretchX, clampedTo: 0.3 ... 3),
             range: 0.3 ... 3,
             valueText: { String(format: "%.2f×", $0) },
             defaultValue: 1,
@@ -257,10 +259,18 @@ struct TransformPanelContent: View {
         )
         DialSliderRow(
             label: "Stretch Y",
-            value: stretchBinding(\.stretchY),
+            value: paramBinding(\.stretchY, clampedTo: 0.3 ... 3),
             range: 0.3 ... 3,
             valueText: { String(format: "%.2f×", $0) },
             defaultValue: 1,
+            onBeginEditing: { project.recordUndo() }
+        )
+        DialSliderRow(
+            label: "Arc",
+            value: paramBinding(\.arc, clampedTo: -1 ... 1),
+            range: -1 ... 1,
+            valueText: { String(format: "%.0f%%", $0 * 100) },
+            defaultValue: 0,
             onBeginEditing: { project.recordUndo() }
         )
     }

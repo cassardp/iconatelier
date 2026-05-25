@@ -34,7 +34,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
         base: ShapeSpec,
         stretchX: Double,
         stretchY: Double,
-        rotation: Double
+        rotation: Double,
+        arc: Double
     )
     case radialRepeat(
         base: ShapeSpec,
@@ -50,7 +51,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
     )
 
     static let identityTransform = TransformParams(
-        stretchX: 1.0, stretchY: 1.0, rotation: 0.0
+        stretchX: 1.0, stretchY: 1.0, rotation: 0.0, arc: 0.0
     )
 
     static func preset(_ p: PolygonPreset) -> ShapeSpec {
@@ -101,7 +102,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
             return "App Silhouette"
         case .customPath:
             return "Custom"
-        case .transform(let base, _, _, _):
+        case .transform(let base, _, _, _, _):
             return base.displayName
         case .radialRepeat(let base, _, _, _):
             return base.displayName
@@ -115,7 +116,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
 
     var deepestBase: ShapeSpec {
         switch self {
-        case .transform(let base, _, _, _): return base.deepestBase
+        case .transform(let base, _, _, _, _): return base.deepestBase
         case .radialRepeat(let base, _, _, _): return base.deepestBase
         default: return self
         }
@@ -134,8 +135,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
 
     var transformParams: TransformParams? {
         switch self {
-        case let .transform(_, sx, sy, rot):
-            return TransformParams(stretchX: sx, stretchY: sy, rotation: rot)
+        case let .transform(_, sx, sy, rot, arc):
+            return TransformParams(stretchX: sx, stretchY: sy, rotation: rot, arc: arc)
         case .radialRepeat(let base, _, _, _):
             return base.transformParams
         default:
@@ -166,7 +167,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
             )
         }
         let strippedBase: ShapeSpec
-        if case .transform(let b, _, _, _) = self {
+        if case .transform(let b, _, _, _, _) = self {
             strippedBase = b
         } else {
             strippedBase = self
@@ -178,7 +179,8 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
             base: strippedBase,
             stretchX: params.stretchX,
             stretchY: params.stretchY,
-            rotation: params.rotation
+            rotation: params.rotation,
+            arc: params.arc
         )
     }
 
@@ -189,10 +191,10 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
                 base: base.replacingBase(with: newBase),
                 count: count, centerHole: hole, orientation: orientation
             )
-        case let .transform(base, sx, sy, rot):
+        case let .transform(base, sx, sy, rot, arc):
             return .transform(
                 base: base.replacingBase(with: newBase),
-                stretchX: sx, stretchY: sy, rotation: rot
+                stretchX: sx, stretchY: sy, rotation: rot, arc: arc
             )
         default:
             return newBase
@@ -215,7 +217,7 @@ nonisolated indirect enum ShapeSpec: Hashable, Equatable, Sendable {
             return arcSweep < 1.0 - 1e-6
         case let .polygon(_, sides, _):
             return sides < 3
-        case .transform(let base, _, _, _):
+        case .transform(let base, _, _, _, _):
             return base.isOpenPath
         case .radialRepeat(let base, _, _, _):
             return base.isOpenPath
@@ -235,12 +237,14 @@ nonisolated struct TransformParams: Hashable, Sendable {
     var stretchX: Double
     var stretchY: Double
     var rotation: Double
+    var arc: Double
 
     var isIdentity: Bool {
         let eps = 1e-6
         return abs(stretchX - 1) < eps
             && abs(stretchY - 1) < eps
             && abs(rotation) < eps
+            && abs(arc) < eps
     }
 }
 
@@ -346,7 +350,7 @@ nonisolated extension ShapeSpec: Codable {
         case base, count, centerHole, orientation
     }
     private enum TransformKeys: String, CodingKey {
-        case base, stretchX, stretchY, rotation
+        case base, stretchX, stretchY, rotation, arc
     }
 
     init(from decoder: Decoder) throws {
@@ -410,7 +414,8 @@ nonisolated extension ShapeSpec: Codable {
             let sx = try nested.decode(Double.self, forKey: .stretchX)
             let sy = try nested.decode(Double.self, forKey: .stretchY)
             let rot = try nested.decode(Double.self, forKey: .rotation)
-            self = .transform(base: base, stretchX: sx, stretchY: sy, rotation: rot)
+            let arc = try nested.decodeIfPresent(Double.self, forKey: .arc) ?? 0
+            self = .transform(base: base, stretchX: sx, stretchY: sy, rotation: rot, arc: arc)
             return
         }
         if container.contains(.radialRepeat) {
@@ -463,12 +468,13 @@ nonisolated extension ShapeSpec: Codable {
             try nested.encode(roundness, forKey: .roundness)
             try nested.encode(arcStart, forKey: .arcStart)
             try nested.encode(arcSweep, forKey: .arcSweep)
-        case let .transform(base, sx, sy, rot):
+        case let .transform(base, sx, sy, rot, arc):
             var nested = container.nestedContainer(keyedBy: TransformKeys.self, forKey: .transform)
             try nested.encode(base, forKey: .base)
             try nested.encode(sx, forKey: .stretchX)
             try nested.encode(sy, forKey: .stretchY)
             try nested.encode(rot, forKey: .rotation)
+            try nested.encode(arc, forKey: .arc)
         case let .radialRepeat(base, count, centerHole, orientation):
             var nested = container.nestedContainer(keyedBy: RadialKeys.self, forKey: .radialRepeat)
             try nested.encode(base, forKey: .base)
