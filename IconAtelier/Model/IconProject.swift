@@ -9,6 +9,10 @@ struct IconProjectSnapshot {
 @Observable
 final class IconProject: Codable, Identifiable {
 
+    static let currentSchemaVersion = 1
+
+    var schemaVersion: Int = IconProject.currentSchemaVersion
+
     var uuid: UUID = UUID()
 
     var title: String = "Untitled"
@@ -67,6 +71,7 @@ final class IconProject: Codable, Identifiable {
     // MARK: - Codable
 
     private enum CodingKeys: String, CodingKey {
+        case schemaVersion
         case uuid, title, createdAt, updatedAt
         case appName, appStoreURL, appBundleID
         case notes, tags, authorName
@@ -76,6 +81,7 @@ final class IconProject: Codable, Identifiable {
 
     required init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         uuid = try c.decodeIfPresent(UUID.self, forKey: .uuid) ?? UUID()
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Untitled"
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
@@ -95,6 +101,7 @@ final class IconProject: Codable, Identifiable {
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
         try c.encode(uuid, forKey: .uuid)
         try c.encode(title, forKey: .title)
         try c.encode(createdAt, forKey: .createdAt)
