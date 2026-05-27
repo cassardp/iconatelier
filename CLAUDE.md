@@ -39,6 +39,34 @@ explicite.
 - Build : `xcodebuild -project IconAtelier.xcodeproj -scheme IconAtelier -destination 'generic/platform=iOS' -configuration Debug build`
 - Install : `xcrun devicectl`
 
+## Schéma de persistance (Codable + filesystem)
+
+Les projets sont stockés en JSON via `ProjectStore` (un `project.json` par
+projet, PNG des layers à côté). Le décodage est **lenient** : un fichier qui ne
+décode pas est **skippé silencieusement** → le projet disparaît de la galerie.
+Tenir compte de la base déjà en prod sur les iPhones des users.
+
+`IconProject` porte un `schemaVersion` (`currentSchemaVersion`). À bumper +
+brancher dessus dans `init(from:)` uniquement pour les migrations **sémantiques**
+(un champ qui change d'unité/de sens — décodage silencieusement corrompu sinon).
+
+**Règles d'évolution du schéma :**
+
+- ✅ **Sûr** : ajouter un champ `Optional`, ajouter un `case` d'enum, supprimer
+  un champ. Pour un champ déjà dans un type à `init(from:)` défensif
+  (`IconProject`, `Background`, `LayerFill`, `LayerBorder`, `ImageContent`,
+  `Paint`), ajouter une ligne `decodeIfPresent ?? défaut`.
+- 🔴 **Casse le décodage** (projet skippé) : ajouter un champ **non-`Optional`**
+  à un type auto-synthétisé (`TextContent`, `ShapeContent`, `Layer`, etc.) ;
+  renommer un champ ; renommer ou supprimer un `case` d'enum encore utilisé.
+- 🟠 **Corruption silencieuse** : changer l'unité/le sens d'un champ existant →
+  passer par `schemaVersion`.
+
+**Règle par défaut : tout nouveau champ se déclare `Optional`.** Swift génère
+alors `decodeIfPresent` automatiquement, aucun `init` custom requis. Ne jamais
+renommer/supprimer un `case` d'enum sorti en prod (rétro **et** forward-compat
+via `LibraryImport`/galerie).
+
 ## TODO technique
 
 Voir `TODO.md` à la racine.

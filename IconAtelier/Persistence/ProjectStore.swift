@@ -6,6 +6,7 @@ import os
 @Observable
 final class ProjectStore {
     private(set) var projects: [IconProject] = []
+    private(set) var failedToLoad: [String] = []
 
     private let fm = FileManager.default
     private let baseURL: URL
@@ -27,6 +28,7 @@ final class ProjectStore {
             options: [.skipsHiddenFiles]
         ) else {
             projects = []
+            failedToLoad = []
             return
         }
 
@@ -34,12 +36,27 @@ final class ProjectStore {
         decoder.dateDecodingStrategy = .iso8601
 
         var loaded: [IconProject] = []
+        var failures: [String] = []
         for dir in entries where (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
             let jsonURL = dir.appendingPathComponent("project.json")
-            guard let data = try? Data(contentsOf: jsonURL),
-                  let project = try? decoder.decode(IconProject.self, from: data)
-            else {
-                logger.warning("Skipping unreadable project at \(dir.lastPathComponent, privacy: .public)")
+
+            guard fm.fileExists(atPath: jsonURL.path) else { continue }
+
+            let data: Data
+            do {
+                data = try Data(contentsOf: jsonURL)
+            } catch {
+                failures.append(dir.lastPathComponent)
+                logger.error("Failed to read project at \(dir.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                continue
+            }
+
+            let project: IconProject
+            do {
+                project = try decoder.decode(IconProject.self, from: data)
+            } catch {
+                failures.append(dir.lastPathComponent)
+                logger.error("Failed to decode project at \(dir.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
                 continue
             }
 
@@ -61,6 +78,10 @@ final class ProjectStore {
         }
 
         projects = loaded.sorted { $0.createdAt > $1.createdAt }
+        failedToLoad = failures
+        if !failures.isEmpty {
+            logger.error("Loaded \(loaded.count) project(s), \(failures.count) failed to load")
+        }
     }
 
     // MARK: - Mutations
