@@ -65,7 +65,7 @@ struct CommunityService: Sendable {
 
     /// Publishes a project: renders the 1024 PNG, zips the editable bundle, uploads both + metadata.
     func publish(_ project: IconProject) async throws -> CommunityPublishResponse {
-        let payload = try await Self.preparePayload(project)
+        let payload = try Self.preparePayload(project)
 
         let boundary = "Boundary-\(UUID().uuidString)"
         var body = Data()
