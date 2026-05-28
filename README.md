@@ -21,6 +21,10 @@ Compose icons from editable layers — text, shapes, and imported images. Everyt
 
 `app-icon` `icon-editor` `icon-maker` `app-icon-generator` `gradient` `swiftui` `ios`
 
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
 ---
 
 [Support](support/SUPPORT.md) | [Privacy Policy](support/PRIVACY.md) | [Terms of Service](support/TERMS.md)
