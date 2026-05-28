@@ -121,7 +121,19 @@ enum BooleanOpRenderer {
         t = t.rotated(by: CGFloat(layer.rotationRadians))
         if layer.isFlippedHorizontally { t = t.scaledBy(x: -1, y: 1) }
         if layer.isFlippedVertically { t = t.scaledBy(x: 1, y: -1) }
-        return shape.path(in: rect).applying(t)
+
+        let localPath = shape.path(in: rect)
+        if !layer.fillEnabled && layer.borderWidth > 0 {
+            let strokeWidth = shapeSide * CGFloat(layer.borderWidth)
+            let stroked = localPath.cgPath.copy(
+                strokingWithWidth: strokeWidth,
+                lineCap: layer.lineCap.cgLineCap,
+                lineJoin: layer.lineCap.cgLineJoin,
+                miterLimit: 10
+            )
+            return Path(stroked).applying(t)
+        }
+        return localPath.applying(t)
     }
 
     @MainActor

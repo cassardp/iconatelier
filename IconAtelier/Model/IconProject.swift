@@ -536,13 +536,19 @@ final class IconProject: Codable, Identifiable {
             spec: .customPath(primitive),
             tintColor: source.tintColor
         )
-        if let paint = source.storedFillPaint { layer.fillPaint = paint }
-        layer.fillEnabled = source.fillEnabled
-        layer.borderWidth = source.borderWidth
-        layer.borderColor = source.borderColor
-        layer.borderPosition = source.borderPosition
-        layer.lineCap = source.lineCap
-        layer.borderBlur = source.borderBlur
+        if !source.fillEnabled && source.borderWidth > 0 {
+            layer.fillEnabled = true
+            layer.fillPaint = .solid(source.borderColor)
+            layer.borderWidth = 0
+        } else {
+            if let paint = source.storedFillPaint { layer.fillPaint = paint }
+            layer.fillEnabled = source.fillEnabled
+            layer.borderWidth = source.borderWidth
+            layer.borderColor = source.borderColor
+            layer.borderPosition = source.borderPosition
+            layer.lineCap = source.lineCap
+            layer.borderBlur = source.borderBlur
+        }
         layer.opacity = source.opacity
         layer.appearance.effects = source.appearance.effects
         layer.offset = offset
