@@ -36,8 +36,10 @@ enum AppIconSetExporter {
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: workDir) }
 
+        let opaqueLight = opaque(variants.light)
+
         let lightFile = "icon-1024.png"
-        try writePNG(variants.light, to: directory.appendingPathComponent(lightFile))
+        try writePNG(opaqueLight, to: directory.appendingPathComponent(lightFile))
 
         var images: [[String: Any]] = []
 
@@ -61,7 +63,7 @@ enum AppIconSetExporter {
             try appendMacOSEntries(
                 into: &images,
                 directory: directory,
-                light: variants.light,
+                light: opaqueLight,
                 sharedLightFile: lightFile
             )
         }
@@ -135,6 +137,16 @@ enum AppIconSetExporter {
     private static func writePNG(_ image: UIImage, to url: URL) throws {
         guard let data = image.pngData() else { throw ExportError.pngEncodingFailed }
         try data.write(to: url)
+    }
+
+    private static func opaque(_ image: UIImage) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
     }
 
     // MARK: - macOS size matrix

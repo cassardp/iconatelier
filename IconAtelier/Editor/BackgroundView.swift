@@ -5,7 +5,8 @@ struct BackgroundView: View {
     let side: CGFloat
 
     var body: some View {
-        Group {
+        ZStack {
+            Color.white
             switch background.kind {
             case .solid:
                 background.solidColor
