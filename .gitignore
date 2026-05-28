@@ -22,3 +22,7 @@ Carthage/Build/
 
 # Secrets
 **/Secrets.swift
+
+# Local-only docs
+CLAUDE.md
+NEXT_STEPS.md
