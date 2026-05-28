@@ -152,9 +152,25 @@ final class ProjectStore {
     }
 
     func delete(_ project: IconProject) {
+        unpublishFromGallery(project)
         projects.removeAll { $0.uuid == project.uuid }
         let dir = directory(for: project.uuid)
         try? fm.removeItem(at: dir)
+    }
+
+    private func unpublishFromGallery(_ project: IconProject) {
+        guard project.isPublic, let id = project.publishedID else { return }
+        let uuid = project.uuid
+        let logger = logger
+        Task {
+            guard let token = await CommunityCredentialStore.shared.token(for: uuid) else { return }
+            do {
+                try await CommunityService().delete(id: id, token: token)
+                await CommunityCredentialStore.shared.delete(for: uuid)
+            } catch {
+                logger.error("Failed to unpublish project \(id, privacy: .public) from gallery: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     func delete(uuids: Set<UUID>) {
