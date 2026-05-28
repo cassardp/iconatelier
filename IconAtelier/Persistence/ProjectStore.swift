@@ -16,7 +16,28 @@ final class ProjectStore {
         let docs = URL.documentsDirectory
         baseURL = docs.appendingPathComponent("Projects", isDirectory: true)
         try? fm.createDirectory(at: baseURL, withIntermediateDirectories: true)
+        seedIfNeeded()
         load()
+    }
+
+    // MARK: - Seed
+
+    private static let didSeedKey = "didSeedInitialProjects"
+
+    private func seedIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.didSeedKey) else { return }
+        defaults.set(true, forKey: Self.didSeedKey)
+
+        guard let zipURL = Bundle.main.url(forResource: "SeedLibrary", withExtension: "zip") else {
+            logger.error("Seed library missing from bundle")
+            return
+        }
+        do {
+            _ = try LibraryImporter.importBundle(from: zipURL, into: self)
+        } catch {
+            logger.error("Failed to seed initial projects: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Load
