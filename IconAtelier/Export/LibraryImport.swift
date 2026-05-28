@@ -22,7 +22,8 @@ enum LibraryImporter {
     @MainActor
     static func importBundle(
         from zipURL: URL,
-        into store: ProjectStore
+        into store: ProjectStore,
+        asNewCopy: Bool = false
     ) throws -> LibraryImportSummary {
         let entries = try ZipReader.extract(zipURL: zipURL)
 
@@ -49,6 +50,14 @@ enum LibraryImporter {
             guard let jsonData = files["project.json"],
                   let project = try? decoder.decode(IconProject.self, from: jsonData)
             else { continue }
+
+            if asNewCopy {
+                project.uuid = UUID()
+                project.authorName = nil
+                project.isPublic = false
+                project.publishedID = nil
+                project.publishedAt = nil
+            }
 
             guard !existingUUIDs.contains(project.uuid) else {
                 skipped += 1
