@@ -5,6 +5,8 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ProjectStore.self) private var store
 
+    @AppStorage("authorName") private var authorName: String = ""
+
     @State private var apiKey: String = ""
     @State private var didLoadKey: Bool = false
     @State private var isSavingKey: Bool = false
@@ -22,6 +24,16 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TextField("Your name", text: $authorName)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                } header: {
+                    Text("Author")
+                } footer: {
+                    Text("Used as the author when you share an icon to the gallery. You can still change it for each icon.")
+                }
+
                 Section {
                     HStack {
                         Group {

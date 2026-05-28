@@ -311,7 +311,6 @@ final class IconProject: Codable, Identifiable {
         copy.appBundleID = appBundleID
         copy.notes = notes
         copy.tags = tags
-        copy.authorName = authorName
 
         let bg = Background()
         bg.apply((background ?? Background()).snapshot())

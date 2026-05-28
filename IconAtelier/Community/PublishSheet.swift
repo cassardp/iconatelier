@@ -8,6 +8,8 @@ struct PublishSheet: View {
 
     @Bindable var project: IconProject
 
+    @AppStorage("authorName") private var savedAuthorName: String = ""
+
     @State private var state: PublishState = .idle
     @State private var tagsText = ""
     @State private var hasDeleteToken = false
@@ -146,7 +148,7 @@ struct PublishSheet: View {
 
     private var authorBinding: Binding<String> {
         Binding(
-            get: { project.authorName ?? "" },
+            get: { project.authorName ?? savedAuthorName },
             set: { project.authorName = $0.isEmpty ? nil : $0 }
         )
     }
@@ -161,6 +163,11 @@ struct PublishSheet: View {
     // MARK: - Actions
 
     private func applyEdits() {
+        let resolvedAuthor = project.authorName ?? (savedAuthorName.isEmpty ? nil : savedAuthorName)
+        project.authorName = resolvedAuthor
+        if let resolvedAuthor, !resolvedAuthor.isEmpty {
+            savedAuthorName = resolvedAuthor
+        }
         project.tags = tagsText
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
