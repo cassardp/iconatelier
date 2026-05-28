@@ -86,6 +86,7 @@ struct PublishSheet: View {
                 } label: {
                     rowLabel("Update publication", systemImage: "arrow.triangle.2.circlepath")
                 }
+                .disabled(!hasDeleteToken)
                 Button(role: .destructive) {
                     Task { await remove() }
                 } label: {
@@ -93,7 +94,7 @@ struct PublishSheet: View {
                 }
                 .disabled(!hasDeleteToken)
                 if !hasDeleteToken {
-                    Text("Removal isn't available: the delete key for this icon isn't on this device.")
+                    Text("This icon was published from another device or by someone else, so it can't be updated or removed here. Duplicate it to publish your own version.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

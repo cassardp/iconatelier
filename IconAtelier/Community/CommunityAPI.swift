@@ -79,6 +79,10 @@ struct CommunityService: Sendable {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
 
+        if let token = await CommunityCredentialStore.shared.token(for: payload.sourceUUID) {
+            request.setValue(token, forHTTPHeaderField: "X-Delete-Token")
+        }
+
         let data = try await Self.run(request)
         return try Self.decoder.decode(CommunityPublishResponse.self, from: data)
     }
@@ -149,7 +153,7 @@ struct CommunityService: Sendable {
             tags: project.tags
         )
         let metaJSON = String(decoding: try JSONEncoder().encode(meta), as: UTF8.self)
-        return Payload(pngData: pngData, zipData: zipData, metaJSON: metaJSON)
+        return Payload(pngData: pngData, zipData: zipData, metaJSON: metaJSON, sourceUUID: project.uuid)
     }
 
     private static func run(_ request: URLRequest) async throws -> Data {
@@ -174,6 +178,7 @@ struct CommunityService: Sendable {
         let pngData: Data
         let zipData: Data
         let metaJSON: String
+        let sourceUUID: UUID
     }
 
     private struct MetaPayload: Encodable {
