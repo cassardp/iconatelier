@@ -124,6 +124,17 @@ struct CommunityService: Sendable {
         _ = try await Self.run(request)
     }
 
+    /// Admin-only moderation: sets an icon's status (public | hidden | removed).
+    /// Authenticated with the gallery admin token (Bearer).
+    func moderate(id: String, status: String, adminToken: String) async throws {
+        var request = URLRequest(url: Self.baseURL.appendingPathComponent("api/admin/icons/\(id)/moderate"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(adminToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(["status": status])
+        _ = try await Self.run(request)
+    }
+
     // MARK: - Internals
 
     private static let decoder = JSONDecoder()

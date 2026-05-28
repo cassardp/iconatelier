@@ -29,7 +29,9 @@ struct CommunityGalleryView: View {
                     }
                 }
                 .navigationDestination(for: CommunityIcon.self) { icon in
-                    CommunityIconDetailView(icon: icon)
+                    CommunityIconDetailView(icon: icon) { removedID in
+                        items.removeAll { $0.id == removedID }
+                    }
                 }
         }
         .task {
@@ -151,10 +153,14 @@ private struct CommunityThumbnail: View {
 struct CommunityIconDetailView: View {
     @Environment(ProjectStore.self) private var store
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
 
     let icon: CommunityIcon
+    var onRemoved: ((String) -> Void)? = nil
 
     @State private var state: ImportState = .idle
+    @State private var adminToken: String?
+    @State private var showRemoveConfirm = false
 
     enum ImportState: Equatable {
         case idle, downloading, imported, alreadyInLibrary
@@ -185,6 +191,18 @@ struct CommunityIconDetailView: View {
         .background(Color.appPageBackground.ignoresSafeArea())
         .navigationTitle(icon.title.isEmpty ? "Icon" : icon.title)
         .navigationBarTitleDisplayMode(.inline)
+        .task { adminToken = await CommunityCredentialStore.shared.adminToken() }
+        .confirmationDialog(
+            "Remove this icon from the gallery?",
+            isPresented: $showRemoveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                Task { await removeFromGallery() }
+            }
+        } message: {
+            Text("It will no longer appear in the public gallery.")
+        }
     }
 
     // MARK: Sections
@@ -271,6 +289,19 @@ struct CommunityIconDetailView: View {
                 .controlSize(.large)
             }
 
+            if adminToken != nil {
+                Button(role: .destructive) {
+                    showRemoveConfirm = true
+                } label: {
+                    Label("Remove from gallery", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .controlSize(.large)
+            }
+
             if case .failed(let message) = state {
                 Text(message)
                     .font(.footnote)
@@ -327,6 +358,17 @@ struct CommunityIconDetailView: View {
             defer { try? FileManager.default.removeItem(at: zipURL) }
             let summary = try LibraryImporter.importBundle(from: zipURL, into: store, asNewCopy: true)
             state = summary.importedCount > 0 ? .imported : .alreadyInLibrary
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    private func removeFromGallery() async {
+        guard let token = adminToken else { return }
+        do {
+            try await CommunityService().moderate(id: icon.id, status: "removed", adminToken: token)
+            onRemoved?(icon.id)
+            dismiss()
         } catch {
             state = .failed(error.localizedDescription)
         }

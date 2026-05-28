@@ -21,6 +21,11 @@ struct SettingsSheet: View {
     @State private var importResult: ImportResult?
     @State private var importError: String?
 
+    @State private var adminToken: String = ""
+    @State private var didLoadAdmin: Bool = false
+    @State private var showAdminSection: Bool = false
+    @State private var isAdminRevealed: Bool = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -94,6 +99,62 @@ struct SettingsSheet: View {
                 } footer: {
                     Text("Back up your projects to a zip file you can share via Files, AirDrop, or email. Importing skips projects already in your library.")
                 }
+
+                if showAdminSection {
+                    Section {
+                        HStack {
+                            Group {
+                                if isAdminRevealed {
+                                    TextField("Admin token", text: $adminToken)
+                                } else {
+                                    SecureField("Admin token", text: $adminToken)
+                                }
+                            }
+                            .textContentType(.password)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .submitLabel(.done)
+                            .onSubmit(saveAdminToken)
+
+                            Button {
+                                isAdminRevealed.toggle()
+                            } label: {
+                                Image(systemName: isAdminRevealed ? "eye.slash" : "eye")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(isAdminRevealed ? "Hide admin token" : "Show admin token")
+
+                            Button("Save", action: saveAdminToken)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(!didLoadAdmin)
+                        }
+
+                        if !adminToken.isEmpty {
+                            Button("Disable admin", role: .destructive, action: clearAdmin)
+                        }
+                    } header: {
+                        Text("Gallery Admin")
+                    } footer: {
+                        Text("Moderation token, stored in the Keychain on this device only. Lets you remove icons from the public gallery.")
+                    }
+                }
+
+                Section {
+                } footer: {
+                    HStack {
+                        Spacer()
+                        Text(versionText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .onLongPressGesture(minimumDuration: 1.2) {
+                        showAdminSection = true
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,6 +167,10 @@ struct SettingsSheet: View {
                 guard !didLoadKey else { return }
                 apiKey = await APIKeyStore.shared.load() ?? ""
                 didLoadKey = true
+
+                adminToken = await CommunityCredentialStore.shared.adminToken() ?? ""
+                if !adminToken.isEmpty { showAdminSection = true }
+                didLoadAdmin = true
             }
             .sheet(item: $exportFile) { file in
                 ExportShareView(file: file)
@@ -179,6 +244,24 @@ struct SettingsSheet: View {
             await APIKeyStore.shared.save(trimmed)
             await MainActor.run { isSavingKey = false }
         }
+    }
+
+    private var versionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        return build.isEmpty ? "v\(version)" : "v\(version) (\(build))"
+    }
+
+    private func saveAdminToken() {
+        let trimmed = adminToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        adminToken = trimmed
+        Task { await CommunityCredentialStore.shared.saveAdminToken(trimmed) }
+    }
+
+    private func clearAdmin() {
+        adminToken = ""
+        showAdminSection = false
+        Task { await CommunityCredentialStore.shared.clearAdminToken() }
     }
 
     private func exportLibrary() {
