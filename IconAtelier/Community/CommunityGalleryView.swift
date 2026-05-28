@@ -304,7 +304,7 @@ struct CommunityIconDetailView: View {
                     if state == .downloading {
                         ProgressView().tint(.white)
                     } else {
-                        Label("Add to my library", systemImage: "plus")
+                        Label("Remix", systemImage: "shuffle")
                     }
                 }
                 .font(.headline)
