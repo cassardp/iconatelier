@@ -9,6 +9,7 @@ struct GalleryView: View {
     @State private var path = NavigationPath()
     @State private var renameTarget: IconProject?
     @State private var exportTarget: IconProject?
+    @State private var publishTarget: IconProject?
     @State private var draftTitle: String = ""
     @State private var showSettings: Bool = false
     @State private var showCommunity: Bool = false
@@ -154,6 +155,9 @@ struct GalleryView: View {
             .sheet(item: $exportTarget) { project in
                 ExportSheet(project: project)
             }
+            .sheet(item: $publishTarget) { project in
+                PublishSheet(project: project)
+            }
             .navigationDestination(for: ProjectRoute.self) { route in
                 if let project = projects.first(where: { $0.uuid == route.projectUUID }) {
                     ContentView(project: project)
@@ -225,6 +229,15 @@ struct GalleryView: View {
                     exportTarget = project
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .disabled(!project.hasContent)
+                Button {
+                    publishTarget = project
+                } label: {
+                    Label(
+                        project.isPublic ? "Manage Publication" : "Share to Gallery",
+                        systemImage: "globe"
+                    )
                 }
                 .disabled(!project.hasContent)
                 Divider()
