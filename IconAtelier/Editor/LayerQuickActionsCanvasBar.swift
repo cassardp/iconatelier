@@ -140,7 +140,7 @@ struct LayerQuickActionsCanvasBar: View {
             Item(
                 id: "lock",
                 title: allLocked ? "Unlock" : "Lock",
-                systemImage: allLocked ? "lock" : "lock.open",
+                systemImage: allLocked ? "lock" : "lock.slash",
                 enabled: hasActive,
                 destructive: false
             ) {
@@ -149,7 +149,7 @@ struct LayerQuickActionsCanvasBar: View {
             Item(
                 id: "duplicate",
                 title: "Duplicate",
-                systemImage: "plus.square.on.square",
+                systemImage: "square.on.square",
                 enabled: hasActive,
                 destructive: false
             ) {
@@ -211,7 +211,7 @@ struct LayerQuickActionsCanvasBar: View {
             Item(
                 id: "rotate",
                 title: "Rotate 45°",
-                systemImage: "rotate.right",
+                systemImage: "arrow.clockwise",
                 enabled: hasActive,
                 destructive: false
             ) {

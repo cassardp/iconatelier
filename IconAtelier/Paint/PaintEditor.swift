@@ -8,10 +8,10 @@ struct PaintEditor: View {
 
     let onBeginEditing: () -> Void
 
-    @State private var showSaveAlert = false
-    @State private var newPresetName = ""
-    @State private var showResetConfirm = false
-    @State private var showExportConfirm = false
+//    @State private var showSaveAlert = false
+//    @State private var newPresetName = ""
+//    @State private var showResetConfirm = false
+//    @State private var showExportConfirm = false
 
     var body: some View {
 
@@ -113,11 +113,12 @@ struct PaintEditor: View {
             case .meshGradient:
                 meshPresetsRow
             }
-            presetActionsRow
+//            presetActionsRow
         }
     }
 
     // MARK: - Preset actions
+    /* --- Background save system (save / reset / export user presets) — disabled, uncomment to re-enable ---
 
     private var presetActionsRow: some View {
         HStack(spacing: 28) {
@@ -202,6 +203,7 @@ struct PaintEditor: View {
         UIPasteboard.general.string = presetStore.exportJSON(kind: paint.kind)
         showExportConfirm = true
     }
+    --- end background save system --- */
 
     // MARK: - Solid
 
@@ -233,13 +235,14 @@ struct PaintEditor: View {
                 paint.gradientColors = preset.colors.map { StoredColor($0) }
                 paint.linearStart = StoredPoint(preset.start)
                 paint.linearEnd = StoredPoint(preset.end)
-            },
+            }
+            /*,
             canDelete: { preset in
                 presetStore.isUserPreset(kind: .linearGradient, name: preset.name)
             },
             onDelete: { preset in
                 presetStore.removeUserPreset(kind: .linearGradient, name: preset.name)
-            }
+            }*/
         )
     }
 
@@ -262,13 +265,14 @@ struct PaintEditor: View {
                 paint.gradientCenter = preset.center.map { StoredPoint($0) }
                     ?? StoredPoint(x: 0.5, y: 0.5)
                 paint.radialSpread = preset.spread ?? 0.75
-            },
+            }
+            /*,
             canDelete: { preset in
                 presetStore.isUserPreset(kind: .radialGradient, name: preset.name)
             },
             onDelete: { preset in
                 presetStore.removeUserPreset(kind: .radialGradient, name: preset.name)
-            }
+            }*/
         )
     }
 
@@ -309,13 +313,14 @@ struct PaintEditor: View {
                     paint.meshCornerPoints = Paint.defaultMeshCornerPoints
                 }
                 paint.meshRotationDegrees = preset.rotationDegrees ?? 0
-            },
+            }
+            /*,
             canDelete: { preset in
                 presetStore.isUserPreset(kind: .meshGradient, name: preset.name)
             },
             onDelete: { preset in
                 presetStore.removeUserPreset(kind: .meshGradient, name: preset.name)
-            }
+            }*/
         )
     }
 }

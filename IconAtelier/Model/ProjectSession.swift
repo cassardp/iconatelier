@@ -13,9 +13,9 @@ enum SnapMode: CaseIterable {
 
     var systemImage: String {
         switch self {
-        case .guides: "square.dashed"
+        case .guides: "square.split.2x2"
         case .grid: "grid"
-        case .free: "arrow.up.and.down.and.arrow.left.and.right"
+        case .free: "square.dashed"
         }
     }
 

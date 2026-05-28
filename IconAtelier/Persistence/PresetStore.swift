@@ -4,6 +4,11 @@ import os
 @MainActor
 @Observable
 final class PresetStore {
+    var linear: [LinearPreset] { BackgroundPresets.linear }
+    var radial: [RadialPreset] { BackgroundPresets.radial }
+    var mesh: [MeshPreset] { BackgroundPresets.mesh }
+
+    /* --- Background save system (custom user presets) — disabled, uncomment to re-enable ---
     var linear: [LinearPreset] {
         BackgroundPresets.linear + userLinear.map { $0.asPreset }
     }
@@ -144,7 +149,10 @@ final class PresetStore {
             logger.error("Failed to save presets: \(error.localizedDescription, privacy: .public)")
         }
     }
+    --- end background save system --- */
 }
+
+/* --- Codable storage entries for the background save system — disabled, uncomment to re-enable ---
 
 // MARK: - Codable storage entries
 
@@ -332,3 +340,4 @@ private extension StoredColor {
         return String(format: "%02X%02X%02X", R, G, B)
     }
 }
+--- end Codable storage entries --- */

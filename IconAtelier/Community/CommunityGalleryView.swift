@@ -21,7 +21,7 @@ struct CommunityGalleryView: View {
         NavigationStack {
             content
                 .background(Color.appPageBackground.ignoresSafeArea())
-                .navigationTitle("Community")
+                .navigationTitle("Gallery")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -262,11 +262,12 @@ struct CommunityIconDetailView: View {
                 Button {
                     openURL(appStoreURL)
                 } label: {
-                    Label("View on the App Store", systemImage: "app.badge")
+                    Label("View on the App Store", systemImage: "apple.logo")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                 }
                 .buttonStyle(.bordered)
+                .tint(.black)
                 .controlSize(.large)
             }
 
@@ -303,7 +304,7 @@ struct CommunityIconDetailView: View {
                     if state == .downloading {
                         ProgressView().tint(.white)
                     } else {
-                        Label("Add to my library", systemImage: "square.and.arrow.down")
+                        Label("Add to my library", systemImage: "plus")
                     }
                 }
                 .font(.headline)
@@ -311,6 +312,7 @@ struct CommunityIconDetailView: View {
                 .padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.black)
             .controlSize(.large)
             .disabled(state == .downloading)
         }
