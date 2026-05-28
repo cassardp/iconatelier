@@ -14,6 +14,7 @@ enum LibraryImportError: LocalizedError {
 struct LibraryImportSummary: Sendable {
     let importedCount: Int
     let skippedCount: Int
+    let importedUUIDs: [UUID]
 }
 
 enum LibraryImporter {
@@ -42,6 +43,7 @@ enum LibraryImporter {
         let existingUUIDs = Set(store.projects.map(\.uuid))
         var imported = 0
         var skipped = 0
+        var importedUUIDs: [UUID] = []
 
         for (_, files) in projectDirs {
             guard let jsonData = files["project.json"],
@@ -65,8 +67,9 @@ enum LibraryImporter {
 
             store.add(project)
             imported += 1
+            importedUUIDs.append(project.uuid)
         }
 
-        return LibraryImportSummary(importedCount: imported, skippedCount: skipped)
+        return LibraryImportSummary(importedCount: imported, skippedCount: skipped, importedUUIDs: importedUUIDs)
     }
 }

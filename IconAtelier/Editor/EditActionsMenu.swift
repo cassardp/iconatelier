@@ -8,6 +8,13 @@ struct EditActionsMenu: View {
     let presentPublish: () -> Void
     let deleteProject: () -> Void
 
+    @State private var ownsPublication: Bool?
+
+    private var canShareToGallery: Bool {
+        if !project.isPublic { return true }
+        return ownsPublication == true
+    }
+
     var body: some View {
         Menu {
             menuContent
@@ -15,6 +22,9 @@ struct EditActionsMenu: View {
             Image(systemName: "ellipsis")
         }
         .accessibilityLabel("More")
+        .task(id: project.uuid) {
+            ownsPublication = await CommunityCredentialStore.shared.token(for: project.uuid) != nil
+        }
     }
 
     @ViewBuilder
@@ -26,15 +36,17 @@ struct EditActionsMenu: View {
         }
         .disabled(!project.hasContent)
 
-        Button {
-            presentPublish()
-        } label: {
-            Label(
-                project.isPublic ? "Manage Publication" : "Share to Gallery",
-                systemImage: "globe"
-            )
+        if canShareToGallery {
+            Button {
+                presentPublish()
+            } label: {
+                Label(
+                    project.isPublic ? "Manage Publication" : "Share to Gallery",
+                    systemImage: "globe"
+                )
+            }
+            .disabled(!project.hasContent)
         }
-        .disabled(!project.hasContent)
 
         Divider()
 

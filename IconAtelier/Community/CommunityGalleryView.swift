@@ -324,6 +324,13 @@ struct CommunityIconDetailView: View {
             let zipURL = try await CommunityService().downloadProjectBundle(id: icon.id)
             defer { try? FileManager.default.removeItem(at: zipURL) }
             let summary = try LibraryImporter.importBundle(from: zipURL, into: store)
+            for uuid in summary.importedUUIDs {
+                guard let project = store.project(withID: uuid) else { continue }
+                project.isPublic = true
+                project.publishedID = icon.id
+                project.publishedAt = Date(timeIntervalSince1970: TimeInterval(icon.createdAt) / 1000)
+                store.save(project)
+            }
             state = summary.importedCount > 0 ? .imported : .alreadyInLibrary
         } catch {
             state = .failed(error.localizedDescription)
