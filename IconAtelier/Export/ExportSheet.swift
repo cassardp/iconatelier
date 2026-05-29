@@ -9,12 +9,16 @@ struct ExportSheet: View {
     @State private var lightImage: UIImage?
     @State private var darkImage: UIImage?
     @State private var tintedImage: UIImage?
+    @State private var backgroundImage: UIImage?
 
     @State private var iconSetURL: URL?
+    @State private var iconComposerURL: URL?
     @State private var lightPNGURL: URL?
     @State private var playStoreURL: URL?
     @State private var faviconsURL: URL?
     @State private var error: String?
+
+    @State private var disableGlass = true
 
     var body: some View {
         NavigationStack {
@@ -98,6 +102,21 @@ struct ExportSheet: View {
                     previewImage: previewImage
                 )
                 ExportFormatCard(
+                    title: "Icon Composer (iOS 26)",
+                    subtitle: disableGlass
+                        ? "Flat .icon package — Liquid Glass off"
+                        : ".icon package — Liquid Glass on",
+                    systemImage: "square.on.square.dashed",
+                    url: iconComposerURL,
+                    previewTitle: "\(displayTitle).icon",
+                    previewImage: previewImage
+                )
+                Toggle("Disable Liquid Glass", isOn: $disableGlass)
+                    .font(.footnote)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 4)
+                    .onChange(of: disableGlass) { rebuildIconComposer() }
+                ExportFormatCard(
                     title: "Single PNG",
                     subtitle: "1024 × 1024 light icon",
                     systemImage: "photo",
@@ -138,13 +157,32 @@ struct ExportSheet: View {
     // MARK: - Rendering / writes
 
     private func regenerate() {
-        lightImage   = IconRenderer.render(project, side: 1024, includeBackground: true)
-        darkImage    = IconRenderer.render(project, side: 1024, includeBackground: false)
-        tintedImage  = IconRenderer.renderTinted(project, side: 1024)
+        lightImage      = IconRenderer.render(project, side: 1024, includeBackground: true)
+        darkImage       = IconRenderer.render(project, side: 1024, includeBackground: false)
+        tintedImage     = IconRenderer.renderTinted(project, side: 1024)
+        backgroundImage = IconRenderer.renderBackground(project, side: 1024)
         rebuildSinglePNG()
         rebuildPlayStore()
         rebuildFavicons()
         rebuildAppleSet()
+        rebuildIconComposer()
+    }
+
+    private func rebuildIconComposer() {
+        guard lightImage != nil else {
+            iconComposerURL = nil
+            return
+        }
+        do {
+            iconComposerURL = try IconComposerExporter.writeIconPackage(
+                foreground: darkImage,
+                backgroundImage: backgroundImage,
+                baseName: displayTitle,
+                disableGlass: disableGlass
+            )
+        } catch {
+            iconComposerURL = nil
+        }
     }
 
     private func rebuildSinglePNG() {
