@@ -62,7 +62,7 @@ struct LayerContentView: View {
                 design: layer.fontDesign
             )
             let renderShape: AnyShape = {
-                if let params = layer.shapeSpec?.radialRepeatParams {
+                if let params = layer.radialRepeatParams {
                     return AnyShape(RadialRepeat(
                         base: glyphShape,
                         count: params.count,

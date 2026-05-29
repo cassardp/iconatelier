@@ -90,7 +90,7 @@ enum BooleanOpRenderer {
                 weight: layer.fontWeight,
                 design: layer.fontDesign
             )
-            if let params = layer.shapeSpec?.radialRepeatParams {
+            if let params = layer.radialRepeatParams {
                 shape = AnyShape(RadialRepeat(
                     base: glyph,
                     count: params.count,
