@@ -10,6 +10,7 @@ struct ExportSheet: View {
     @State private var darkImage: UIImage?
     @State private var tintedImage: UIImage?
     @State private var backgroundImage: UIImage?
+    @State private var iconComposerLayers: [IconComposerExporter.LayerImage] = []
 
     @State private var iconSetURL: URL?
     @State private var iconComposerURL: URL?
@@ -17,8 +18,6 @@ struct ExportSheet: View {
     @State private var playStoreURL: URL?
     @State private var faviconsURL: URL?
     @State private var error: String?
-
-    @State private var disableGlass = true
 
     var body: some View {
         NavigationStack {
@@ -103,19 +102,12 @@ struct ExportSheet: View {
                 )
                 ExportFormatCard(
                     title: "Icon Composer (iOS 26)",
-                    subtitle: disableGlass
-                        ? "Flat .icon package — Liquid Glass off"
-                        : ".icon package — Liquid Glass on",
+                    subtitle: "Flat .icon package — Liquid Glass off",
                     systemImage: "square.on.square.dashed",
                     url: iconComposerURL,
                     previewTitle: "\(displayTitle).icon",
                     previewImage: previewImage
                 )
-                Toggle("Disable Liquid Glass", isOn: $disableGlass)
-                    .font(.footnote)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                    .onChange(of: disableGlass) { rebuildIconComposer() }
                 ExportFormatCard(
                     title: "Single PNG",
                     subtitle: "1024 × 1024 light icon",
@@ -161,6 +153,10 @@ struct ExportSheet: View {
         darkImage       = IconRenderer.render(project, side: 1024, includeBackground: false)
         tintedImage     = IconRenderer.renderTinted(project, side: 1024)
         backgroundImage = IconRenderer.renderBackground(project, side: 1024)
+        iconComposerLayers = project.layers.reversed().compactMap { layer in
+            IconRenderer.renderLayer(layer, side: 1024)
+                .map { IconComposerExporter.LayerImage(name: layer.name, image: $0) }
+        }
         rebuildSinglePNG()
         rebuildPlayStore()
         rebuildFavicons()
@@ -175,10 +171,9 @@ struct ExportSheet: View {
         }
         do {
             iconComposerURL = try IconComposerExporter.writeIconPackage(
-                foreground: darkImage,
+                layers: iconComposerLayers,
                 backgroundImage: backgroundImage,
-                baseName: displayTitle,
-                disableGlass: disableGlass
+                baseName: displayTitle
             )
         } catch {
             iconComposerURL = nil

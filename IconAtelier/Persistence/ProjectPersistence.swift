@@ -41,6 +41,18 @@ enum IconRenderer {
     }
 
     @MainActor
+    static func renderLayer(_ layer: Layer, side: CGFloat) -> UIImage? {
+        let view = LayerView(layer: layer, side: side)
+            .frame(width: side, height: side)
+            .compositingGroup()
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1.0
+        renderer.proposedSize = .init(width: side, height: side)
+        return renderer.uiImage
+    }
+
+    @MainActor
     static func renderTinted(_ project: IconProject, side: CGFloat) -> UIImage? {
         guard let foreground = render(project, side: side, includeBackground: false),
               let ciForeground = CIImage(image: foreground) else { return nil }

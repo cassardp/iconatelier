@@ -3,6 +3,11 @@ import UIKit
 
 enum IconComposerExporter {
 
+    struct LayerImage {
+        let name: String
+        let image: UIImage
+    }
+
     enum ExportError: Error {
         case missingImage
         case pngEncodingFailed
@@ -11,10 +16,9 @@ enum IconComposerExporter {
     private static let neutralFill = "srgb:1.00000,1.00000,1.00000,1.00000"
 
     static func writeIconPackage(
-        foreground: UIImage?,
+        layers: [LayerImage],
         backgroundImage: UIImage?,
-        baseName: String,
-        disableGlass: Bool
+        baseName: String
     ) throws -> URL {
         let fm = FileManager.default
         let cleanName = sanitize(baseName)
@@ -26,36 +30,33 @@ enum IconComposerExporter {
         try fm.createDirectory(at: assetsDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: workDir) }
 
-        var layers: [[String: Any]] = []
+        var groups: [[String: Any]] = []
 
-        if let foreground {
-            try writePNG(foreground, to: assetsDir.appendingPathComponent("Foreground.png"))
-            layers.append(makeLayer(name: "Foreground", file: "Foreground.png", disableGlass: disableGlass))
+        if !layers.isEmpty {
+            var entries: [[String: Any]] = []
+            for (index, layer) in layers.enumerated() {
+                let displayName = layer.name.isEmpty ? "Layer \(index + 1)" : layer.name
+                let file = "\(index)-\(sanitize(displayName)).png"
+                try writePNG(layer.image, to: assetsDir.appendingPathComponent(file))
+                entries.append(makeLayer(name: displayName, file: file))
+            }
+            groups.append(makeGroup(name: "Layers", layers: entries, specular: true))
         }
 
         if let backgroundImage {
             try writePNG(backgroundImage, to: assetsDir.appendingPathComponent("Background.png"))
-            layers.append(makeLayer(name: "Background", file: "Background.png", disableGlass: disableGlass))
+            let entry = makeLayer(name: "Background", file: "Background.png")
+            groups.append(makeGroup(name: "Background", layers: [entry], specular: false))
         }
 
-        guard !layers.isEmpty else { throw ExportError.missingImage }
-
-        var group: [String: Any] = [
-            "layers": layers,
-            "shadow": ["kind": "neutral", "opacity": 0.5],
-            "specular": !disableGlass,
-            "translucency": ["enabled": !disableGlass, "value": 0.5]
-        ]
-        if !disableGlass {
-            group["blur-material"] = NSNull()
-        }
+        guard !groups.isEmpty else { throw ExportError.missingImage }
 
         let manifest: [String: Any] = [
             "fill-specializations": [
                 ["value": ["automatic-gradient": neutralFill]],
                 ["appearance": "light", "value": ["automatic-gradient": neutralFill]]
             ],
-            "groups": [group],
+            "groups": groups,
             "supported-platforms": [
                 "circles": ["watchOS"],
                 "squares": "shared"
@@ -73,9 +74,19 @@ enum IconComposerExporter {
 
     // MARK: - Helpers
 
-    private static func makeLayer(name: String, file: String, disableGlass: Bool) -> [String: Any] {
+    private static func makeGroup(name: String, layers: [[String: Any]], specular: Bool) -> [String: Any] {
         [
-            "glass": !disableGlass,
+            "layers": layers,
+            "name": name,
+            "shadow": ["kind": "neutral", "opacity": 0.5],
+            "specular": specular,
+            "translucency": ["enabled": false, "value": 0.5]
+        ]
+    }
+
+    private static func makeLayer(name: String, file: String) -> [String: Any] {
+        [
+            "glass": false,
             "hidden": false,
             "image-name": file,
             "name": name
