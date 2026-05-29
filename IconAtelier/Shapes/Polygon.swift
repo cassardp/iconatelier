@@ -46,14 +46,20 @@ struct StarPolygonShape: InsettableShape, Equatable {
         } else {
             inner = chordRadius * (1 + clampedBulge)
         }
-        let count = 2 * n
+        let isSimplePolygon = clampedBulge == 0 && n >= 3
+        let count = isSimplePolygon ? n : 2 * n
 
         var local: [(x: Double, y: Double)] = []
         local.reserveCapacity(count)
         for i in 0..<count {
-            let angle = startAngle + Double(i) * .pi / Double(n)
-            let radius = i.isMultiple(of: 2) ? outer : inner
-            local.append((radius * Darwin.cos(angle), radius * Darwin.sin(angle)))
+            if isSimplePolygon {
+                let angle = startAngle + Double(i) * 2 * .pi / Double(n)
+                local.append((outer * Darwin.cos(angle), outer * Darwin.sin(angle)))
+            } else {
+                let angle = startAngle + Double(i) * .pi / Double(n)
+                let radius = i.isMultiple(of: 2) ? outer : inner
+                local.append((radius * Darwin.cos(angle), radius * Darwin.sin(angle)))
+            }
         }
 
         let sx = max(0.01, stretchX)
