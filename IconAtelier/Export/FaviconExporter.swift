@@ -131,7 +131,7 @@ enum FaviconExporter {
     favicon-32.png            Browser tab on hi-DPI displays.
     favicon-48.png            Windows site tiles, taskbar.
     apple-touch-icon.png      iOS "Add to Home Screen" icon (180×180).
-    icon-192.png              PWA / Android Chrome.
+    icon-192.png              PWA / mobile home-screen icon.
     icon-512.png              PWA splash screen and high-res slot.
     site.webmanifest          Web app manifest referencing the PNG icons.
 

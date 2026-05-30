@@ -15,7 +15,6 @@ struct ExportSheet: View {
     @State private var iconSetURL: URL?
     @State private var iconComposerURL: URL?
     @State private var lightPNGURL: URL?
-    @State private var playStoreURL: URL?
     @State private var faviconsURL: URL?
     @State private var error: String?
 
@@ -117,14 +116,6 @@ struct ExportSheet: View {
                     previewImage: previewImage
                 )
                 ExportFormatCard(
-                    title: "Google Play Pack",
-                    subtitle: "512 hi-res + 5 mipmap densities",
-                    systemImage: "play.rectangle.fill",
-                    url: playStoreURL,
-                    previewTitle: "\(displayTitle) Play Store",
-                    previewImage: previewImage
-                )
-                ExportFormatCard(
                     title: "Web Favicons",
                     subtitle: ".ico, apple-touch-icon, PWA manifest",
                     systemImage: "globe",
@@ -158,7 +149,6 @@ struct ExportSheet: View {
                 .map { IconComposerExporter.LayerImage(name: layer.name, image: $0) }
         }
         rebuildSinglePNG()
-        rebuildPlayStore()
         rebuildFavicons()
         rebuildAppleSet()
         rebuildIconComposer()
@@ -195,18 +185,6 @@ struct ExportSheet: View {
             lightPNGURL = url
         } catch {
             lightPNGURL = nil
-        }
-    }
-
-    private func rebuildPlayStore() {
-        guard let light = lightImage else {
-            playStoreURL = nil
-            return
-        }
-        do {
-            playStoreURL = try PlayStoreIconExporter.writeBundle(light: light, baseName: displayTitle)
-        } catch {
-            playStoreURL = nil
         }
     }
 
